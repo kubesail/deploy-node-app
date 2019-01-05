@@ -7,6 +7,7 @@ const KUBESAIL_WEBSOCKET_HOST = 'wss://localhost:4000'
 const KUBESAIL_WWW_HOST = 'https://localhost:3000'
 
 const inquirer = require('inquirer')
+//TODO use inquirer-fuzzy-path for entrypoint question
 const fs = require('fs')
 const url = require('url')
 const uuidv4 = require('uuid/v4')
