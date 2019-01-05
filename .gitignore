@@ -1,0 +1,28 @@
+# See https://help.github.com/ignore-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+
+# testing
+/coverage
+
+# production
+/build
+
+# misc
+.DS_Store
+
+*.tar.gz
+*.log
+/secrets
+*.pem
+.secret
+*.plain
+!inf/env/local/*.plain
+!inf/env/ci/*.plain
+.release
+tmp
+.terraform
+.vagrant
+/.env
+terraform.tfstate.*

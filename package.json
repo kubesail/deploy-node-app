@@ -1,0 +1,37 @@
+{
+  "name": "deploy-node-app",
+  "version": "0.0.1",
+  "description": "Easily deploy Node.js applications to Kubernetes, with one command",
+  "main": "index.js",
+  "repository": "https://github.com/erulabs/deploy-node-app",
+  "license": "MIT",
+  "bin": "index.js",
+  "authors": [
+    "Seandon 'Erulabs' Mooy",
+    "Dan 'pastudan' Pastusek"
+  ],
+  "devDependencies": {
+    "babel-eslint": "^10.0.1",
+    "eslint": "^5.12.0",
+    "eslint-config-standard": "^12.0.0",
+    "eslint-loader": "^2.1.1",
+    "eslint-plugin-flowtype": "^3.2.0",
+    "eslint-plugin-import": "^2.14.0",
+    "eslint-plugin-node": "^8.0.1",
+    "eslint-plugin-prettier": "^3.0.1",
+    "eslint-plugin-promise": "^4.0.1",
+    "eslint-plugin-security": "^1.4.0",
+    "eslint-plugin-standard": "^4.0.0",
+    "prettier": "^1.15.3",
+    "prettier-eslint": "^8.8.2",
+    "prettier-eslint-cli": "^4.7.1",
+    "webpack": "^4.28.3"
+  },
+  "dependencies": {
+    "ansi-styles": "^3.2.1",
+    "inquirer": "^6.2.1",
+    "opn": "^5.4.0",
+    "uuid": "^3.3.2",
+    "ws": "^6.1.2"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "parser": "babel-eslint",
+  "extends": ["standard", "plugin:flowtype/recommended", "plugin:security/recommended"],
+  "parserOptions": {
+    "ecmaVersion": 7,
+    "ecmaFeatures": {
+      "jsx": true,
+      "modules": true
+    }
+  },
+  "rules": {
+    "react/jsx-uses-vars": 2,
+    "flowtype/require-valid-file-annotation": 0,
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "no-return-assign": 0,
+    "require-await": ["error"],
+    "quotes": ["error", "single"],
+    "no-return-await": 0,
+    "no-unused-vars": [
+      1,
+      {
+        "vars": "all",
+        "args": "none"
+      }
+    ],
+    "standard/computed-property-even-spacing": 0,
+    "camelcase": 0,
+    "object-curly-spacing": ["error", "always"],
+    "security/detect-object-injection": 0,
+    "security/detect-non-literal-fs-filename": 0,
+    "security/detect-unsafe-regex": 0
+  },
+  "plugins": ["flowtype", "prettier", "security"],
+  "settings": {}
+}
