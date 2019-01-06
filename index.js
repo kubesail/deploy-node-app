@@ -6,7 +6,6 @@
 const inquirer = require('inquirer')
 // TODO use inquirer-fuzzy-path for entrypoint question
 const fs = require('fs')
-const url = require('url')
 const uuidv4 = require('uuid/v4')
 const opn = require('opn')
 const WebSocket = require('ws')
@@ -23,7 +22,7 @@ const KUBESAIL_REGISTRY = 'registry.kubesail.io'
 const env = process.argv[2] || 'production'
 if (!fs.existsSync('package.json')) {
   process.stderr.write(
-    `${errArrows} This doesn\'t appear to be a Node.js application - run \'npm init\'?\n`
+    `${errArrows} This doesn't appear to be a Node.js application - run 'npm init'?\n`
   )
   process.exit(1)
 }
@@ -138,22 +137,15 @@ function connectKubeSail () {
   let ws
   const connect = function () {
     ws = new WebSocket(`${KUBESAIL_WEBSOCKET_HOST}/socket.io/`)
-    ws.on('open', function () {
-      console.log('socket open')
-    })
-    ws.on('error', function () {
-      console.log('socket error')
-    })
+    ws.on('open', function () {})
+    ws.on('error', function () {})
     ws.on('close', function () {
-      console.log('socket close')
       setTimeout(connect, 250)
     })
   }
   connect()
 
-  ws.on('connect', function () {
-    console.log('connected')
-  })
+  ws.on('connect', function () {})
 
   const session = uuidv4()
   opn(`${KUBESAIL_WWW_HOST}/register?session=${session}`)
