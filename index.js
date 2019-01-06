@@ -3,36 +3,38 @@
 
 // USAGE: deploy-node-app [env]
 
-const KUBESAIL_WEBSOCKET_HOST = 'wss://localhost:4000'
-const KUBESAIL_WWW_HOST = 'https://localhost:3000'
-
 const inquirer = require('inquirer')
-//TODO use inquirer-fuzzy-path for entrypoint question
+// TODO use inquirer-fuzzy-path for entrypoint question
 const fs = require('fs')
+const url = require('url')
 const yaml = require('js-yaml')
 const uuidv4 = require('uuid/v4')
 const opn = require('opn')
 const WebSocket = require('ws')
 const ansiStyles = require('ansi-styles')
 const errArrows = `${ansiStyles.red.open}>>${ansiStyles.red.close}`
-
 const homedir = require('os').homedir()
 const path = require('path')
 
+const KUBESAIL_WEBSOCKET_HOST = 'wss://localhost:4000'
+const KUBESAIL_WWW_HOST = 'https://localhost:3000'
+const KUBESAIL_REGISTRY = 'registry.kubesail.io'
+
 // Default to production environment
 const env = process.argv[2] || 'production'
-try {
-  const packageJson = fs.readFileSync('package.json')
-} catch (err) {
+if (!fs.existsSync('package.json')) {
   process.stderr.write(
-    `${errArrows} This doesn\'t appear to be a Node.js application - run \'npm init\'?\n`
+    `${errArrows} This doesn't appear to be a Node.js application - run 'npm init'?\n`
   )
   process.exit(1)
 }
 
-async function DeployNodeApp () {
+function promptQuestions (
+  containerRegistries /*: Array<string> */,
+  kubeContexts /*: Array<string> */
+) {
   // TODO: dont prompt for the above if answers exist in package.json?
-  const answer = await inquirer.prompt([
+  return inquirer.prompt([
     {
       name: 'env',
       type: 'input',
@@ -73,33 +75,18 @@ async function DeployNodeApp () {
         if (!fs.existsSync(input)) return 'That file doesn\'t seem to exist'
         return true
       }
-    }
-  ])
-
-  // Read local .docker configuration to see if the user has container registries already
-  let containerRegistries = []
-  const dockerConfigPath = path.join(homedir, '.docker', 'config.json')
-  if (fs.existsSync(dockerConfigPath)) {
-    try {
-      const dockerConfig = JSON.parse(fs.readFileSync(dockerConfigPath))
-      containerRegistries = containerRegistries.concat(
-        Object.keys(dockerConfig.auths).map(key => url.parse(key).host)
-      )
-    } catch (err) {
-      process.stderr.write(
-        `${errArrows} It seems you have a Docker config.json file at ${dockerConfigPath}, but it is not valid json, or unreadable!\n`
-      )
-      process.exit(1)
-    }
-  }
-  containerRegistries.push('registry.kubesail.io')
-  // TODO: add kubesail to containerRegistries here
-  const registry = await inquirer.prompt([
+    },
+    {
+      name: 'context',
+      type: 'list',
+      message: 'Which Kubernetes context do you want to use?',
+      default: kubeContexts[0],
+      choices: kubeContexts
+    },
     {
       name: 'registry',
       type: 'list',
       message: 'Which docker registry do you want to use?',
-      default: containerRegistries[0],
       choices: containerRegistries,
       validate: function (registry) {
         if (!registry.match(/^([a-z0-9]+\.)+[a-z0-9]$/i)) {
@@ -109,6 +96,59 @@ async function DeployNodeApp () {
       }
     }
   ])
+}
+
+function readLocalDockerConfig () {
+  // Read local .docker configuration to see if the user has container registries already
+  let containerRegistries = []
+  const dockerConfigPath = path.join(homedir, '.docker', 'config.json')
+  if (fs.existsSync(dockerConfigPath)) {
+    try {
+      const dockerConfig = JSON.parse(fs.readFileSync(dockerConfigPath))
+      containerRegistries = containerRegistries.concat(Object.keys(dockerConfig.auths))
+    } catch (err) {
+      console.log(err)
+      process.stderr.write(
+        `${errArrows} It seems you have a Docker config.json file at ${dockerConfigPath}, but it is not valid json, or unreadable!\n`
+      )
+      process.exit(1)
+    }
+  }
+  containerRegistries.push(KUBESAIL_REGISTRY)
+  return containerRegistries
+}
+
+function readLocalKubeConfig () {
+  // Read local .kube configuration to see if the user has an existing kube context they want to use
+  let kubeContexts = []
+  const kubeConfigPath = path.join(homedir, '.kube', 'config')
+  if (fs.existsSync(kubeConfigPath)) {
+    try {
+      const kubeConfig = yaml.safeLoad(fs.readFileSync(kubeConfigPath))
+
+      kubeContexts = kubeContexts.concat(
+        kubeConfig.contexts
+          .map(
+            context =>
+              context.name || ((context.context && context.context.name) || context.context.cluster)
+          )
+          .filter(context => context)
+      )
+    } catch (err) {
+      process.stderr.write(
+        `${errArrows} It seems you have a Kubernetes config file at ${kubeConfigPath}, but it is not valid yaml, or unreadable!\n`
+      )
+      process.exit(1)
+    }
+  }
+  kubeContexts.push('kubesail')
+  return kubeContexts
+}
+
+async function DeployNodeApp () {
+  const kubeContexts = readLocalKubeConfig()
+  const containerRegistries = readLocalDockerConfig()
+  const answers = await promptQuestions(containerRegistries, kubeContexts)
 
   // 1. TODO: detect docker binary / help user install if not present
   // 2. TODO: detect docker server / help user setup if not present
@@ -123,29 +163,26 @@ async function DeployNodeApp () {
   // TODO: create kube documents
   // 8. TODO: kubectl deploy
 
-  connectKubeSail()
+  if (answers.registry === KUBESAIL_REGISTRY) {
+    connectKubeSail()
+  }
+
+  console.log(answers)
 }
 
 function connectKubeSail () {
   let ws
   const connect = function () {
     ws = new WebSocket(`${KUBESAIL_WEBSOCKET_HOST}/socket.io/`)
-    ws.on('open', function () {
-      console.log('socket open')
-    })
-    ws.on('error', function () {
-      console.log('socket error')
-    })
+    ws.on('open', function () {})
+    ws.on('error', function () {})
     ws.on('close', function () {
-      console.log('socket close')
       setTimeout(connect, 250)
     })
   }
   connect()
 
-  ws.on('connect', function () {
-    console.log('connected')
-  })
+  ws.on('connect', function () {})
 
   const session = uuidv4()
   opn(`${KUBESAIL_WWW_HOST}/register?session=${session}`)

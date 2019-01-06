@@ -9,7 +9,6 @@
     }
   },
   "rules": {
-    "react/jsx-uses-vars": 2,
     "flowtype/require-valid-file-annotation": 0,
     "no-console": ["warn", { "allow": ["warn", "error"] }],
     "no-return-assign": 0,
