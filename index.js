@@ -15,18 +15,21 @@ const ansiStyles = require('ansi-styles')
 const errArrows = `${ansiStyles.red.open}>>${ansiStyles.red.close}`
 const homedir = require('os').homedir()
 const path = require('path')
+const execSync = require('child_process').execSync
 
 const KUBESAIL_WEBSOCKET_HOST = 'wss://localhost:4000'
 const KUBESAIL_WWW_HOST = 'https://localhost:3000'
 const KUBESAIL_REGISTRY = 'registry.kubesail.io'
 
+function fatal (message /*: string */) {
+  process.stderr.write(`${errArrows} ${message}\n`)
+  process.exit(1)
+}
+
 // Default to production environment
 const env = process.argv[2] || 'production'
 if (!fs.existsSync('package.json')) {
-  process.stderr.write(
-    `${errArrows} This doesn't appear to be a Node.js application - run 'npm init'?\n`
-  )
-  process.exit(1)
+  fatal('This doesn\'t appear to be a Node.js application - run \'npm init\'?')
 }
 
 function promptQuestions (
@@ -98,6 +101,15 @@ function promptQuestions (
   ])
 }
 
+function binaryInPath (input /*: string */) {
+  try {
+    execSync(`command -v ${input}`)
+  } catch (err) {
+    return false
+  }
+  return true
+}
+
 function readLocalDockerConfig () {
   // Read local .docker configuration to see if the user has container registries already
   let containerRegistries = []
@@ -107,11 +119,9 @@ function readLocalDockerConfig () {
       const dockerConfig = JSON.parse(fs.readFileSync(dockerConfigPath))
       containerRegistries = containerRegistries.concat(Object.keys(dockerConfig.auths))
     } catch (err) {
-      console.log(err)
-      process.stderr.write(
-        `${errArrows} It seems you have a Docker config.json file at ${dockerConfigPath}, but it is not valid json, or unreadable!\n`
+      fatal(
+        `It seems you have a Docker config.json file at ${dockerConfigPath}, but it is not valid json, or unreadable!`
       )
-      process.exit(1)
     }
   }
   containerRegistries.push(KUBESAIL_REGISTRY)
@@ -135,10 +145,9 @@ function readLocalKubeConfig () {
           .filter(context => context)
       )
     } catch (err) {
-      process.stderr.write(
-        `${errArrows} It seems you have a Kubernetes config file at ${kubeConfigPath}, but it is not valid yaml, or unreadable!\n`
+      fatal(
+        `It seems you have a Kubernetes config file at ${kubeConfigPath}, but it is not valid yaml, or unreadable!`
       )
-      process.exit(1)
     }
   }
   kubeContexts.push('kubesail')
@@ -146,6 +155,8 @@ function readLocalKubeConfig () {
 }
 
 async function DeployNodeApp () {
+  if (!binaryInPath('docker')) fatal('You need to install docker!')
+  if (!binaryInPath('kubectl')) fatal('You need to install kubectl!')
   const kubeContexts = readLocalKubeConfig()
   const containerRegistries = readLocalDockerConfig()
   const answers = await promptQuestions(containerRegistries, kubeContexts)
