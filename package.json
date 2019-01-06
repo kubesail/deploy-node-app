@@ -43,7 +43,8 @@
       "entrypoint": "index.js",
       "context": "givethanks-primary-aws",
       "registry": "index.docker.io/v1/",
-      "registryUsername": "erulabs"
+      "registryUsername": "erulabs",
+      "confirmRegistry": true
     }
   }
 }

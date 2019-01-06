@@ -47,69 +47,85 @@ async function promptQuestions (
   containerRegistries /*: Array<string> */,
   kubeContexts /*: Array<string> */
 ) {
+  let saved = (packageJson['deploy-node-app'] && packageJson['deploy-node-app'][env]) || {}
   // TODO: dont prompt for the above if answers exist in package.json?
-  const answers = await inquirer.prompt([
-    {
-      name: 'env',
-      type: 'input',
-      message: 'Which environment are you deploying to?',
-      default: env,
-      validate: function (input) {
-        if (input !== input.toLowerCase()) return 'environment names must be lowercase'
-        if (input.length < 3) return 'environment names must be longer than 2 characters'
-        if (!input.match(/^[a-zA-Z0-9-_]+$/)) {
-          return 'environment names need to be numbers, letters, and dashes only'
+  let answers = await inquirer.prompt(
+    [
+      saved.env
+        ? null
+        : {
+          name: 'env',
+          type: 'input',
+          message: 'Which environment are you deploying to?',
+          default: env,
+          validate: function (input) {
+            if (input !== input.toLowerCase()) return 'environment names must be lowercase'
+            if (input.length < 3) return 'environment names must be longer than 2 characters'
+            if (!input.match(/^[a-zA-Z0-9-_]+$/)) {
+              return 'environment names need to be numbers, letters, and dashes only'
+            }
+            return true
+          }
+        },
+      saved.port
+        ? null
+        : {
+          name: 'port',
+          type: 'input',
+          message: 'What port does your application listen on?',
+          default: '3000',
+          validate: function (input) {
+            if (isNaN(parseInt(input, 10))) return 'ports must be numbers!'
+            return true
+          }
+        },
+      saved.protocol
+        ? null
+        : {
+          name: 'protocol',
+          type: 'list',
+          message: 'Which protocol does your application speak?',
+          default: 'http',
+          choices: ['http', 'https', 'tcp']
+        },
+      saved.entrypoint
+        ? null
+        : {
+          name: 'entrypoint',
+          type: 'input',
+          message: 'Where is your application\'s entrypoint?',
+          default: 'index.js',
+          validate: function (input) {
+            if (!fs.existsSync(input)) return 'That file doesn\'t seem to exist'
+            return true
+          }
+        },
+      saved.context
+        ? null
+        : {
+          name: 'context',
+          type: 'list',
+          message: 'Which Kubernetes context do you want to use?',
+          default: kubeContexts[0],
+          choices: kubeContexts
+        },
+      saved.registry
+        ? null
+        : {
+          name: 'registry',
+          type: 'list',
+          message: 'Which docker registry do you want to use?',
+          choices: containerRegistries,
+          validate: function (registry) {
+            if (!registry.match(/^([a-z0-9]+\.)+[a-z0-9]$/i)) {
+              return 'You must provide a valid hostname for a docker registry'
+            }
+            return true
+          }
         }
-        return true
-      }
-    },
-    {
-      name: 'port',
-      type: 'input',
-      message: 'What port does your application listen on?',
-      default: '3000',
-      validate: function (input) {
-        if (isNaN(parseInt(input, 10))) return 'ports must be numbers!'
-        return true
-      }
-    },
-    {
-      name: 'protocol',
-      type: 'list',
-      message: 'Which protocol does your application speak?',
-      default: 'http',
-      choices: ['http', 'https', 'tcp']
-    },
-    {
-      name: 'entrypoint',
-      type: 'input',
-      message: 'Where is your application\'s entrypoint?',
-      default: 'index.js',
-      validate: function (input) {
-        if (!fs.existsSync(input)) return 'That file doesn\'t seem to exist'
-        return true
-      }
-    },
-    {
-      name: 'context',
-      type: 'list',
-      message: 'Which Kubernetes context do you want to use?',
-      default: kubeContexts[0],
-      choices: kubeContexts
-    },
-    {
-      name: 'registry',
-      type: 'list',
-      message: 'Which docker registry do you want to use?',
-      choices: containerRegistries,
-      validate: function (registry) {
-        if (!registry.match(/^([a-z0-9]+\.)+[a-z0-9]$/i)) {
-          return 'You must provide a valid hostname for a docker registry'
-        }
-        return true
-      }
-    }
-  ])
+    ].filter(q => q)
+  )
+  answers = Object.assign({}, answers, saved)
   answers.registry = answers.registry.replace(/https?:\/\//i, '')
   answers.registry = answers.registry.substr(-1) === '/' ? answers.registry : answers.registry + '/'
   return answers
@@ -233,7 +249,7 @@ async function getDeployTags (env, answers) {
     .toString()
     .substr(0, 7)
   let prefix = answers.registry
-  if (answers.registry.includes('docker.io')) {
+  if (!answers.registryUsername && answers.registry.includes('docker.io')) {
     const { username } = await inquirer.prompt({
       name: 'username',
       type: 'input',
@@ -243,9 +259,10 @@ async function getDeployTags (env, answers) {
         return true
       }
     })
-
-    prefix = `${username}/`
     answers.registryUsername = username
+  }
+  if (answers.registry.includes('docker.io') && answers.registryUsername) {
+    prefix = `${answers.registryUsername}/`
   }
 
   tags.env = `${prefix}${packageJson.name}:${env}`
@@ -264,7 +281,14 @@ async function DeployNodeApp (env /*: string */) {
   }
   const kubeContexts = readLocalKubeConfig()
   const containerRegistries = readLocalDockerConfig()
-  const answers = await promptQuestions(env, containerRegistries, kubeContexts)
+
+  let answers = await promptQuestions(env, containerRegistries, kubeContexts)
+  answers = Object.assign(
+    {},
+    answers,
+    packageJson['deploy-node-app'] && packageJson['deploy-node-app'][env]
+  )
+  console.log({ answers })
   buildDockerfile(answers.entrypoint)
 
   const tags = await getDeployTags(env, answers)
@@ -273,23 +297,24 @@ async function DeployNodeApp (env /*: string */) {
     `\n${ansiStyles.green.open}!!${ansiStyles.green.close} About to deploy ${env}: ${tags.env}\n\n`
   )
 
-  const { confirm } = await inquirer.prompt([
-    {
-      name: 'confirm',
-      type: 'confirm',
-      message:
-        'If the docker registry does not exist, it may be automatically created with PUBLIC access!\n  Make sure you have all secrets in your ".dockerignore" file,\n  and you may want to make sure your image repository is setup securely!\n\n  Are you sure you want to continue?'
+  if (!answers.confirmRegistry) {
+    const { confirm } = await inquirer.prompt([
+      {
+        name: 'confirm',
+        type: 'confirm',
+        message:
+          'If the docker registry does not exist, it may be automatically created with PUBLIC access!\n  Make sure you have all secrets in your ".dockerignore" file,\n  and you may want to make sure your image repository is setup securely!\n\n  Are you sure you want to continue?'
+      }
+    ])
+    if (!confirm) {
+      process.exit(1)
     }
-  ])
-  if (!confirm) {
-    process.exit(1)
-  }
 
-  answers.confirmRegistry = confirm
+    answers.confirmRegistry = confirm
+  }
 
   // TODO: Check if image has already been built - optional?
   execSync(`docker build . -t ${tags.env} -t ${tags.hash}`, execToStdout)
-  // TODO we built image, about to push to PUBLIC docker hub, continue?
   execSync(`docker push ${tags.env}`, execToStdout)
   execSync(`docker push ${tags.hash}`, execToStdout)
 
