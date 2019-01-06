@@ -9,7 +9,7 @@ const KUBESAIL_WWW_HOST = 'https://localhost:3000'
 const inquirer = require('inquirer')
 //TODO use inquirer-fuzzy-path for entrypoint question
 const fs = require('fs')
-const url = require('url')
+const yaml = require('js-yaml')
 const uuidv4 = require('uuid/v4')
 const opn = require('opn')
 const WebSocket = require('ws')
@@ -83,9 +83,7 @@ async function DeployNodeApp () {
     try {
       const dockerConfig = JSON.parse(fs.readFileSync(dockerConfigPath))
       containerRegistries = containerRegistries.concat(
-        Object.keys(dockerConfig.auths).map(key => {
-          return url.parse(key).host
-        })
+        Object.keys(dockerConfig.auths).map(key => url.parse(key).host)
       )
     } catch (err) {
       process.stderr.write(
@@ -94,9 +92,7 @@ async function DeployNodeApp () {
       process.exit(1)
     }
   }
-
   containerRegistries.push('registry.kubesail.io')
-
   // TODO: add kubesail to containerRegistries here
   const registry = await inquirer.prompt([
     {
