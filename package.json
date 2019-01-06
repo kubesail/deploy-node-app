@@ -34,5 +34,14 @@
     "opn": "^5.4.0",
     "uuid": "^3.3.2",
     "ws": "^6.1.2"
+  },
+  "deploy": {
+    "production": {
+      "port": "3000",
+      "protocol": "http",
+      "entrypoint": "index.js",
+      "context": "givethanks-primary-aws",
+      "registry": "index.docker.io/v1/"
+    }
   }
 }

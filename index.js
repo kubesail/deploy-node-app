@@ -28,8 +28,17 @@ function fatal (message /*: string */) {
   process.exit(1)
 }
 
-if (!fs.existsSync('package.json')) {
+const packageJsonPath = 'package.json'
+
+let packageJson
+try {
+  packageJson = JSON.parse(fs.readFileSync(packageJsonPath))
+} catch (err) {
   fatal('This doesn\'t appear to be a Node.js application - run \'npm init\'?')
+}
+console.log(packageJson)
+if (typeof packageJson.name !== 'string') {
+  fatal('Please add a name to your package.json and re-run')
 }
 
 function promptQuestions (
@@ -157,6 +166,62 @@ function readLocalKubeConfig () {
   return kubeContexts
 }
 
+function getDockerfile (entrypoint) {
+  let dockerfile
+  let dockerignore
+  const dockerfilePath = 'Dockerfile'
+  const dockerignorePath = '.dockerignore'
+
+  if (fs.existsSync(dockerfilePath)) {
+    try {
+      dockerfile = fs.readFileSync(dockerfilePath)
+    } catch (err) {
+      fatal(`It seems you have a Dockerfile at ${dockerfilePath}, but it is not readable!`)
+    }
+  } else {
+    // TODO: Detect (or get from options, yarn versus npm)
+    dockerfile = `
+      FROM node:alpine
+
+      WORKDIR /app
+
+      ENV NODE_ENV="production"
+
+      COPY package.json yarn.loc[k] package-lock.jso[n] /app/
+
+      RUN \
+        # apk add build-base make gcc g++ linux-headers python-dev libc-dev libc6-compat && \
+        yarn install --no-cache --production && \
+        adduser -S nodejs && \
+        chown -R nodejs /app && \
+        chown -R nodejs /home/nodejs
+
+      COPY . /app/
+
+      USER nodejs
+
+      CMD ["node", "${entrypoint}"]
+    `
+
+    fs.writeFileSync(dockerfilePath, dockerfile)
+  }
+
+  if (fs.existsSync(dockerignorePath)) {
+    try {
+      dockerignore = fs.readFileSync(dockerignorePath)
+    } catch (err) {
+      fatal(
+        `It seems you have a .dockerignore file at ${dockerignorePath}, but it is not readable!`
+      )
+    }
+  } else {
+    dockerignore = '.git\nnode_modules'
+    fs.writeFileSync(dockerignorePath, dockerignore)
+  }
+
+  return { dockerfile, dockerignore }
+}
+
 async function DeployNodeApp (env /*: string */) {
   if (!checkProgramVersion('docker')) {
     fatal('Error - You might need to install or start docker! https://www.docker.com/get-started')
@@ -169,8 +234,21 @@ async function DeployNodeApp (env /*: string */) {
   const kubeContexts = readLocalKubeConfig()
   const containerRegistries = readLocalDockerConfig()
   const answers = await promptQuestions(env, containerRegistries, kubeContexts)
+  const { dockerfile, dockerignore } = getDockerfile(answers.entrypoint)
 
-  // 2. TODO: detect docker server / help user setup if not present
+  const shortHash = execSync('git rev-parse HEAD')
+    .toString()
+    .substr(0, 7)
+
+  answers.registry = answers.registry.replace(/https?:\/\//i, '')
+
+  execSync(
+    `docker build . -t ${answers.registry}${packageJson.name}:${env} -t ${answers.registry}${
+      packageJson.name
+    }:${shortHash}`
+  )
+
+  // TODO: Look in .gitignore for node_modules, fix if not present
   // TODO: write config from above into package.json
   // 6. TODO: docker build
   // 7. TODO: docker push
@@ -181,7 +259,18 @@ async function DeployNodeApp (env /*: string */) {
     connectKubeSail()
   }
 
-  console.log(answers)
+  // TODO: Prompt if its okay to write to package.json
+  packageJson = JSON.parse(fs.readFileSync(packageJsonPath))
+  packageJson.deploy = {
+    [answers.env]: {
+      port: answers.port,
+      protocol: answers.protocol,
+      entrypoint: answers.entrypoint,
+      context: answers.context,
+      registry: answers.registry
+    }
+  }
+  fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2))
 }
 
 function connectKubeSail () {
