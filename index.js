@@ -77,7 +77,8 @@ async function promptQuestions (
           validate: function (input) {
             if (isNaN(parseInt(input, 10))) return 'ports must be numbers!'
             return true
-          }
+          },
+          filter: input => parseInt(input, 10)
         },
       saved.protocol
         ? null
@@ -270,7 +271,7 @@ async function getDeployTags (env, answers) {
   return tags
 }
 
-async function DeployNodeApp (env /*: string */) {
+async function DeployNodeApp (env /*: string */, opts) {
   if (!checkProgramVersion('docker')) {
     fatal('Error - You might need to install or start docker! https://www.docker.com/get-started')
   }
@@ -314,83 +315,116 @@ async function DeployNodeApp (env /*: string */) {
   }
 
   // TODO: Check if image has already been built - optional?
-  execSync(`docker build . -t ${tags.env} -t ${tags.hash}`, execToStdout)
-  execSync(`docker push ${tags.env}`, execToStdout)
-  execSync(`docker push ${tags.hash}`, execToStdout)
 
-  if (fs.existsSync('deployment.yaml')) {
-    // TODO set image
-  } else {
-    const name = packageJson.name.toLowerCase()
-    const deployment = {
-      apiVersion: 'apps/v1',
-      kind: 'Deployment',
-      metadata: {
-        name
+  if (opts.build) {
+    execSync(`docker build . -t ${tags.env} -t ${tags.hash}`, execToStdout)
+    execSync(`docker push ${tags.env}`, execToStdout)
+    execSync(`docker push ${tags.hash}`, execToStdout)
+  }
+
+  const name = packageJson.name.toLowerCase() + '-' + env
+  const deployment = {
+    apiVersion: 'apps/v1',
+    kind: 'Deployment',
+    metadata: {
+      name
+    },
+    spec: {
+      selector: {
+        matchLabels: {
+          app: name,
+          env: env
+        }
       },
-      spec: {
-        minReadySeconds: 5,
-        strategy: {
-          type: 'RollingUpdate',
-          rollingUpdate: {
-            maxSurge: 1,
-            maxUnavailable: 0
+      minReadySeconds: 5,
+      strategy: {
+        type: 'RollingUpdate',
+        rollingUpdate: {
+          maxSurge: 1,
+          maxUnavailable: 0
+        }
+      },
+      replicas: 1,
+      template: {
+        metadata: {
+          labels: {
+            app: name,
+            env: env
           }
         },
-        replicas: 1,
-        template: {
-          metadata: {
-            labels: {
-              app: name,
-              env: env
-            }
-          },
-          spec: {
-            volumes: [],
-            // TODO:
-            // imagePullSecrets: [
-            //   {
-            //     name: 'regsecret'
-            //   }
-            // ],
-            containers: [
-              {
-                name,
-                image: tags.hash,
-                imagePullPolicy: 'Always',
-                ports: [
-                  {
-                    name: answers.protocol,
-                    containerPort: answers.port
-                  }
-                ],
-                // envFrom: [
-                //   {
-                //     secretRef: {
-                //       name: env
-                //     }
-                //   }
-                // ],
-                resources: {
-                  requests: {
-                    cpu: '1m',
-                    memory: '32Mi'
-                  },
-                  limits: {
-                    cpu: 1
-                  }
+        spec: {
+          volumes: [],
+          // TODO:
+          // imagePullSecrets: [
+          //   {
+          //     name: 'regsecret'
+          //   }
+          // ],
+          containers: [
+            {
+              name,
+              image: tags.env,
+              imagePullPolicy: 'Always',
+              ports: [
+                {
+                  name: answers.protocol,
+                  containerPort: parseInt(answers.port, 10)
+                }
+              ],
+              // envFrom: [
+              //   {
+              //     secretRef: {
+              //       name: env
+              //     }
+              //   }
+              // ],
+              resources: {
+                requests: {
+                  cpu: '1m',
+                  memory: '32Mi'
+                },
+                limits: {
+                  cpu: 1
                 }
               }
-            ]
-          }
+            }
+          ]
         }
       }
     }
-    fs.writeFileSync('deployment.yaml', deployment)
   }
+
+  const deploymentFile = `deployment-${env}.yaml`
+  const existingDeploymentFile = fs.existsSync(deploymentFile)
+  if (!existingDeploymentFile) {
+    fs.writeFileSync(deploymentFile, yaml.safeDump(deployment))
+  }
+
+  let existingDeployment
+  try {
+    existingDeployment = execSync(`kubectl --context=${answers.context} get deployment ${name}`, {
+      stdio: []
+    }).toString()
+  } catch (err) {}
+
+  if (!existingDeployment) {
+    execSync(`kubectl --context=${answers.context} apply -f ${deploymentFile}`, execToStdout)
+  }
+
+  execSync(
+    `kubectl --context=${answers.context} set image deployment/${name} ${name}=${tags.hash}`,
+    execToStdout
+  )
+
+  let serviceWarning = ''
+  if (!answers.context.includes('kubesail')) {
+    serviceWarning =
+      '\nYou may need to expose your deployment on kubernetes via a service.\n' +
+      'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.\n'
+  }
+  process.stdout.write('✨  Your application has been deployed! ✨\n' + serviceWarning)
+
   // TODO: warn if node_modules is not in .dockerignore or .gitignore
-  // TODO: create kube documents
-  // 8. TODO: kubectl deploy
 
   if (answers.registry === KUBESAIL_REGISTRY) {
     connectKubeSail()
@@ -426,9 +460,10 @@ program
   .arguments('[env]')
   .usage(USAGE)
   .version(DNA_VERSION)
+  .option('-n, --no-build', 'Don\'t build and push docker container')
   // .option('-A, --auto', 'Deploy without asking too many questions!')
   .parse(process.argv)
 
 // Default to production environment
 // TODO: Pass auto argument (and others) to DeployNodeApp
-DeployNodeApp(program.args[0] || 'production')
+DeployNodeApp(program.args[0] || 'production', program)
