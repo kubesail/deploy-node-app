@@ -35,13 +35,15 @@
     "uuid": "^3.3.2",
     "ws": "^6.1.2"
   },
-  "deploy": {
+  "deploy-node-app": {
     "production": {
+      "env": "production",
       "port": "3000",
       "protocol": "http",
       "entrypoint": "index.js",
       "context": "givethanks-primary-aws",
-      "registry": "index.docker.io/v1/"
+      "registry": "index.docker.io/v1/",
+      "registryUsername": "erulabs"
     }
   }
 }

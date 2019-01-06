@@ -23,6 +23,8 @@ const KUBESAIL_WEBSOCKET_HOST = 'wss://localhost:4000'
 const KUBESAIL_WWW_HOST = 'https://localhost:3000'
 const KUBESAIL_REGISTRY = 'registry.kubesail.io'
 
+const execToStdout = { stdio: [process.stdin, process.stdout, process.stderr] }
+
 function fatal (message /*: string */) {
   process.stderr.write(`${errArrows} ${message}\n`)
   process.exit(1)
@@ -36,18 +38,17 @@ try {
 } catch (err) {
   fatal('This doesn\'t appear to be a Node.js application - run \'npm init\'?')
 }
-console.log(packageJson)
 if (typeof packageJson.name !== 'string') {
   fatal('Please add a name to your package.json and re-run')
 }
 
-function promptQuestions (
+async function promptQuestions (
   env /*: string */,
   containerRegistries /*: Array<string> */,
   kubeContexts /*: Array<string> */
 ) {
   // TODO: dont prompt for the above if answers exist in package.json?
-  return inquirer.prompt([
+  const answers = await inquirer.prompt([
     {
       name: 'env',
       type: 'input',
@@ -109,6 +110,9 @@ function promptQuestions (
       }
     }
   ])
+  answers.registry = answers.registry.replace(/https?:\/\//i, '')
+  answers.registry = answers.registry.substr(-1) === '/' ? answers.registry : answers.registry + '/'
+  return answers
 }
 
 // Only works for kubectl and docker, as they both respond postively to `{command} version`
@@ -222,6 +226,33 @@ function getDockerfile (entrypoint) {
   return { dockerfile, dockerignore }
 }
 
+async function getDeployTags (env, answers) {
+  const tags = {}
+  const shortHash = execSync('git rev-parse HEAD')
+    .toString()
+    .substr(0, 7)
+  let prefix = answers.registry
+  if (answers.registry.includes('docker.io')) {
+    const registryUsernameQuestion = await inquirer.prompt([
+      {
+        name: 'registryUsername',
+        type: 'input',
+        message: 'What is your docker hub username?',
+        validate: function (username) {
+          if (username.length < 4) return 'Invalid username'
+          return true
+        }
+      }
+    ])
+    prefix = `${registryUsernameQuestion.registryUsername}/`
+    answers.registryUsername = registryUsernameQuestion.registryUsername
+  }
+
+  tags.env = `${prefix}${packageJson.name}:${env}`
+  tags.hash = `${prefix}${packageJson.name}:${shortHash}`
+  return tags
+}
+
 async function DeployNodeApp (env /*: string */) {
   if (!checkProgramVersion('docker')) {
     fatal('Error - You might need to install or start docker! https://www.docker.com/get-started')
@@ -236,22 +267,28 @@ async function DeployNodeApp (env /*: string */) {
   const answers = await promptQuestions(env, containerRegistries, kubeContexts)
   const { dockerfile, dockerignore } = getDockerfile(answers.entrypoint)
 
-  const shortHash = execSync('git rev-parse HEAD')
-    .toString()
-    .substr(0, 7)
+  const tags = await getDeployTags(env, answers)
 
-  answers.registry = answers.registry.replace(/https?:\/\//i, '')
-
-  execSync(
-    `docker build . -t ${answers.registry}${packageJson.name}:${env} -t ${answers.registry}${
-      packageJson.name
-    }:${shortHash}`
+  process.stdout.write(
+    `\n${ansiStyles.green.open}!!${ansiStyles.green.close} About to deploy ${env}: ${tags.env}\n\n`
   )
+  await inquirer.prompt([
+    {
+      name: 'env',
+      type: 'confirm',
+      message:
+        'If the docker registry does not exist, it may be automatically created with PUBLIC access! Make sure you have all secrets in your ".dockerignore" file, and you may want to make sure your image repository is setup securely!\n'
+    }
+  ])
+  // TODO: fatal on error
+
+  // TODO: Check if image has already been built - optional?
+  execSync(`docker build . -t ${tags.env} -t ${tags.hash}`, execToStdout)
+  // TODO we built image, about to push to PUBLIC docker hub, continue?
+  execSync(`docker push ${tags.env}`, execToStdout)
+  execSync(`docker push ${tags.hash}`, execToStdout)
 
   // TODO: Look in .gitignore for node_modules, fix if not present
-  // TODO: write config from above into package.json
-  // 6. TODO: docker build
-  // 7. TODO: docker push
   // TODO: create kube documents
   // 8. TODO: kubectl deploy
 
@@ -261,14 +298,8 @@ async function DeployNodeApp (env /*: string */) {
 
   // TODO: Prompt if its okay to write to package.json
   packageJson = JSON.parse(fs.readFileSync(packageJsonPath))
-  packageJson.deploy = {
-    [answers.env]: {
-      port: answers.port,
-      protocol: answers.protocol,
-      entrypoint: answers.entrypoint,
-      context: answers.context,
-      registry: answers.registry
-    }
+  packageJson['deploy-node-app'] = {
+    [answers.env]: answers
   }
   fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2))
 }
