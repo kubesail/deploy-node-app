@@ -167,10 +167,11 @@ function readLocalKubeConfig () {
     }
   }
   kubeContexts.push('kubesail')
+  // TODO minikube deployment context!
   return kubeContexts
 }
 
-function getDockerfile (entrypoint) {
+function buildDockerfile (entrypoint) {
   let dockerfile
   let dockerignore
   const dockerfilePath = 'Dockerfile'
@@ -233,19 +234,18 @@ async function getDeployTags (env, answers) {
     .substr(0, 7)
   let prefix = answers.registry
   if (answers.registry.includes('docker.io')) {
-    const registryUsernameQuestion = await inquirer.prompt([
-      {
-        name: 'registryUsername',
-        type: 'input',
-        message: 'What is your docker hub username?',
-        validate: function (username) {
-          if (username.length < 4) return 'Invalid username'
-          return true
-        }
+    const { username } = await inquirer.prompt({
+      name: 'username',
+      type: 'input',
+      message: 'What is your docker hub username?',
+      validate: function (username) {
+        if (username.length < 4) return 'Invalid username'
+        return true
       }
-    ])
-    prefix = `${registryUsernameQuestion.registryUsername}/`
-    answers.registryUsername = registryUsernameQuestion.registryUsername
+    })
+
+    prefix = `${username}/`
+    answers.registryUsername = username
   }
 
   tags.env = `${prefix}${packageJson.name}:${env}`
@@ -265,22 +265,27 @@ async function DeployNodeApp (env /*: string */) {
   const kubeContexts = readLocalKubeConfig()
   const containerRegistries = readLocalDockerConfig()
   const answers = await promptQuestions(env, containerRegistries, kubeContexts)
-  const { dockerfile, dockerignore } = getDockerfile(answers.entrypoint)
+  buildDockerfile(answers.entrypoint)
 
   const tags = await getDeployTags(env, answers)
 
   process.stdout.write(
     `\n${ansiStyles.green.open}!!${ansiStyles.green.close} About to deploy ${env}: ${tags.env}\n\n`
   )
-  await inquirer.prompt([
+
+  const { confirm } = await inquirer.prompt([
     {
-      name: 'env',
+      name: 'confirm',
       type: 'confirm',
       message:
-        'If the docker registry does not exist, it may be automatically created with PUBLIC access! Make sure you have all secrets in your ".dockerignore" file, and you may want to make sure your image repository is setup securely!\n'
+        'If the docker registry does not exist, it may be automatically created with PUBLIC access!\n  Make sure you have all secrets in your ".dockerignore" file,\n  and you may want to make sure your image repository is setup securely!\n\n  Are you sure you want to continue?'
     }
   ])
-  // TODO: fatal on error
+  if (!confirm) {
+    process.exit(1)
+  }
+
+  answers.confirmRegistry = confirm
 
   // TODO: Check if image has already been built - optional?
   execSync(`docker build . -t ${tags.env} -t ${tags.hash}`, execToStdout)
@@ -288,7 +293,77 @@ async function DeployNodeApp (env /*: string */) {
   execSync(`docker push ${tags.env}`, execToStdout)
   execSync(`docker push ${tags.hash}`, execToStdout)
 
-  // TODO: Look in .gitignore for node_modules, fix if not present
+  if (fs.existsSync('deployment.yaml')) {
+    // TODO set image
+  } else {
+    const name = packageJson.name.toLowerCase()
+    const deployment = {
+      apiVersion: 'apps/v1',
+      kind: 'Deployment',
+      metadata: {
+        name
+      },
+      spec: {
+        minReadySeconds: 5,
+        strategy: {
+          type: 'RollingUpdate',
+          rollingUpdate: {
+            maxSurge: 1,
+            maxUnavailable: 0
+          }
+        },
+        replicas: 1,
+        template: {
+          metadata: {
+            labels: {
+              app: name,
+              env: env
+            }
+          },
+          spec: {
+            volumes: [],
+            // TODO:
+            // imagePullSecrets: [
+            //   {
+            //     name: 'regsecret'
+            //   }
+            // ],
+            containers: [
+              {
+                name,
+                image: tags.hash,
+                imagePullPolicy: 'Always',
+                ports: [
+                  {
+                    name: answers.protocol,
+                    containerPort: answers.port
+                  }
+                ],
+                // envFrom: [
+                //   {
+                //     secretRef: {
+                //       name: env
+                //     }
+                //   }
+                // ],
+                resources: {
+                  requests: {
+                    cpu: '1m',
+                    memory: '32Mi'
+                  },
+                  limits: {
+                    cpu: 1
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+    fs.writeFileSync('deployment.yaml', deployment)
+  }
+  // TODO: warn if node_modules is not in .dockerignore or .gitignore
   // TODO: create kube documents
   // 8. TODO: kubectl deploy
 
