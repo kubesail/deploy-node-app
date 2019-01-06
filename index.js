@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // @flow
 
-// USAGE: deploy-node-app [env]
+const DNA_VERSION = '0.0.1'
+const USAGE = '[env]'
 
 const inquirer = require('inquirer')
 // TODO use inquirer-fuzzy-path for entrypoint question
 const fs = require('fs')
-const url = require('url')
+const program = require('commander')
 const yaml = require('js-yaml')
 const uuidv4 = require('uuid/v4')
 const opn = require('opn')
@@ -15,6 +16,7 @@ const ansiStyles = require('ansi-styles')
 const errArrows = `${ansiStyles.red.open}>>${ansiStyles.red.close}`
 const homedir = require('os').homedir()
 const path = require('path')
+// eslint-disable-next-line security/detect-child-process
 const execSync = require('child_process').execSync
 
 const KUBESAIL_WEBSOCKET_HOST = 'wss://localhost:4000'
@@ -26,13 +28,12 @@ function fatal (message /*: string */) {
   process.exit(1)
 }
 
-// Default to production environment
-const env = process.argv[2] || 'production'
 if (!fs.existsSync('package.json')) {
   fatal('This doesn\'t appear to be a Node.js application - run \'npm init\'?')
 }
 
 function promptQuestions (
+  env /*: string */,
   containerRegistries /*: Array<string> */,
   kubeContexts /*: Array<string> */
 ) {
@@ -101,9 +102,11 @@ function promptQuestions (
   ])
 }
 
-function binaryInPath (input /*: string */) {
+// Only works for kubectl and docker, as they both respond postively to `{command} version`
+// The `docker version` command will contact the docker server, and error if it cannot be reached
+function checkProgramVersion (input /*: string */) {
   try {
-    execSync(`command -v ${input}`)
+    execSync(`${input} version`)
   } catch (err) {
     return false
   }
@@ -154,20 +157,20 @@ function readLocalKubeConfig () {
   return kubeContexts
 }
 
-async function DeployNodeApp () {
-  if (!binaryInPath('docker')) fatal('You need to install docker!')
-  if (!binaryInPath('kubectl')) fatal('You need to install kubectl!')
+async function DeployNodeApp (env /*: string */) {
+  if (!checkProgramVersion('docker')) {
+    fatal('Error - You might need to install or start docker! https://www.docker.com/get-started')
+  }
+  if (!checkProgramVersion('kubectl')) {
+    fatal(
+      'Error - You might need to install kubectl! https://kubernetes.io/docs/tasks/tools/install-kubectl/'
+    )
+  }
   const kubeContexts = readLocalKubeConfig()
   const containerRegistries = readLocalDockerConfig()
-  const answers = await promptQuestions(containerRegistries, kubeContexts)
+  const answers = await promptQuestions(env, containerRegistries, kubeContexts)
 
-  // 1. TODO: detect docker binary / help user install if not present
   // 2. TODO: detect docker server / help user setup if not present
-  // 3. TODO: detect kubectl binary
-  // 4. TODO: detect ~/.kube/config, prompt user to signup for kubesail if not exists
-  //    if it does exist, prompt which context to use, add list item for kubesail sign up
-  // 5. TODO: check for docker registry credentials, prompt user to use kubesail registry if not exists
-  // if it does exist, prompt which to use, add list item for kubesail sign up
   // TODO: write config from above into package.json
   // 6. TODO: docker build
   // 7. TODO: docker push
@@ -199,4 +202,13 @@ function connectKubeSail () {
   opn(`${KUBESAIL_WWW_HOST}/register?session=${session}`)
 }
 
-DeployNodeApp()
+program
+  .arguments('[env]')
+  .usage(USAGE)
+  .version(DNA_VERSION)
+  // .option('-A, --auto', 'Deploy without asking too many questions!')
+  .parse(process.argv)
+
+// Default to production environment
+// TODO: Pass auto argument (and others) to DeployNodeApp
+DeployNodeApp(program.args[0] || 'production')

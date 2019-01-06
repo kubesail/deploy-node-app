@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "ansi-styles": "^3.2.1",
+    "commander": "^2.19.0",
     "inquirer": "^6.2.1",
     "opn": "^5.4.0",
     "uuid": "^3.3.2",
