@@ -4,17 +4,19 @@
 const DNA_VERSION = '0.0.1'
 const USAGE = '[env]'
 
+const homedir = require('os').homedir()
+const path = require('path')
+// eslint-disable-next-line security/detect-child-process
+const execSync = require('child_process').execSync
+const getKubesailConfig = require('get-kubesail-config')
 const inquirer = require('inquirer')
+inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
 // TODO use inquirer-fuzzy-path for entrypoint question
 const fs = require('fs')
 const program = require('commander')
 const yaml = require('js-yaml')
 const ansiStyles = require('ansi-styles')
 const errArrows = `${ansiStyles.red.open}>>${ansiStyles.red.close}`
-const homedir = require('os').homedir()
-const path = require('path')
-// eslint-disable-next-line security/detect-child-process
-const execSync = require('child_process').execSync
 
 const KUBESAIL_REGISTRY = 'registry.kubesail.io'
 const KUBE_CONFIG_PATH = path.join(homedir, '.kube', 'config')
@@ -89,9 +91,16 @@ async function promptQuestions (
         ? null
         : {
           name: 'entrypoint',
-          type: 'input',
+          type: 'fuzzypath',
           message: 'Where is your application\'s entrypoint?',
           default: 'index.js',
+          pathFilter: (isDirectory, path) => {
+            return (
+              !isDirectory && path.indexOf('.git') !== 0 && path.indexOf('node_modules') !== 0
+            )
+          },
+          // rootPath: '.',
+          suggestOnly: false,
           validate: function (input) {
             if (!fs.existsSync(input)) return 'That file doesn\'t seem to exist'
             return true
@@ -284,7 +293,12 @@ async function DeployNodeApp (env /*: string */, opts) {
     answers,
     packageJson['deploy-node-app'] && packageJson['deploy-node-app'][env]
   )
-  console.log({ answers })
+
+  if (answers.context === 'kubesail') {
+    const kubesailContext = await getKubesailConfig()
+    answers.context = kubesailContext
+  }
+
   buildDockerfile(answers.entrypoint)
 
   const tags = await getDeployTags(env, answers)
@@ -431,6 +445,7 @@ async function DeployNodeApp (env /*: string */, opts) {
     [answers.env]: answers
   }
   fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2))
+  process.exit(0)
 }
 
 program

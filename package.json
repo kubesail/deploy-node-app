@@ -5,7 +5,9 @@
   "main": "index.js",
   "repository": "https://github.com/erulabs/deploy-node-app",
   "license": "MIT",
-  "bin": "index.js",
+  "bin": {
+    "deploy-node-app": "index.js"
+  },
   "authors": [
     "Seandon 'Erulabs' Mooy",
     "Dan 'pastudan' Pastusek"
@@ -31,6 +33,7 @@
     "ansi-styles": "^3.2.1",
     "commander": "^2.19.0",
     "inquirer": "^6.2.1",
+    "inquirer-fuzzy-path": "^1.0.0",
     "opn": "^5.4.0",
     "uuid": "^3.3.2",
     "ws": "^6.1.2"
