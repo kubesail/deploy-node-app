@@ -1,5 +1,5 @@
 {
-  "name": "deploy-node-app",
+  "name": "deploy-kube-app",
   "version": "0.0.1",
   "description": "Easily deploy Node.js applications to Kubernetes, with one command",
   "main": "index.js",
