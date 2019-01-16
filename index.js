@@ -9,9 +9,6 @@ const inquirer = require('inquirer')
 const fs = require('fs')
 const program = require('commander')
 const yaml = require('js-yaml')
-const uuidv4 = require('uuid/v4')
-const opn = require('opn')
-const WebSocket = require('ws')
 const ansiStyles = require('ansi-styles')
 const errArrows = `${ansiStyles.red.open}>>${ansiStyles.red.close}`
 const homedir = require('os').homedir()
@@ -19,9 +16,8 @@ const path = require('path')
 // eslint-disable-next-line security/detect-child-process
 const execSync = require('child_process').execSync
 
-const KUBESAIL_WEBSOCKET_HOST = 'wss://localhost:4000'
-const KUBESAIL_WWW_HOST = 'https://localhost:3000'
 const KUBESAIL_REGISTRY = 'registry.kubesail.io'
+const KUBE_CONFIG_PATH = path.join(homedir, '.kube', 'config')
 
 const execToStdout = { stdio: [process.stdin, process.stdout, process.stderr] }
 
@@ -164,10 +160,9 @@ function readLocalDockerConfig () {
 function readLocalKubeConfig () {
   // Read local .kube configuration to see if the user has an existing kube context they want to use
   let kubeContexts = []
-  const kubeConfigPath = path.join(homedir, '.kube', 'config')
-  if (fs.existsSync(kubeConfigPath)) {
+  if (fs.existsSync(KUBE_CONFIG_PATH)) {
     try {
-      const kubeConfig = yaml.safeLoad(fs.readFileSync(kubeConfigPath))
+      const kubeConfig = yaml.safeLoad(fs.readFileSync(KUBE_CONFIG_PATH))
 
       kubeContexts = kubeContexts.concat(
         kubeConfig.contexts
@@ -179,7 +174,7 @@ function readLocalKubeConfig () {
       )
     } catch (err) {
       fatal(
-        `It seems you have a Kubernetes config file at ${kubeConfigPath}, but it is not valid yaml, or unreadable!`
+        `It seems you have a Kubernetes config file at ${KUBE_CONFIG_PATH}, but it is not valid yaml, or unreadable!`
       )
     }
   }
@@ -436,24 +431,6 @@ async function DeployNodeApp (env /*: string */, opts) {
     [answers.env]: answers
   }
   fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2))
-}
-
-function connectKubeSail () {
-  let ws
-  const connect = function () {
-    ws = new WebSocket(`${KUBESAIL_WEBSOCKET_HOST}/socket.io/`)
-    ws.on('open', function () {})
-    ws.on('error', function () {})
-    ws.on('close', function () {
-      setTimeout(connect, 250)
-    })
-  }
-  connect()
-
-  ws.on('connect', function () {})
-
-  const session = uuidv4()
-  opn(`${KUBESAIL_WWW_HOST}/register?session=${session}`)
 }
 
 program
