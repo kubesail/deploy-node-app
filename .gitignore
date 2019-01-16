@@ -3,3 +3,4 @@
 Dockerfile
 .dockerignore
 deployment.yaml
+yarn-error.log

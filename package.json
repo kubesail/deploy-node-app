@@ -32,6 +32,7 @@
   "dependencies": {
     "ansi-styles": "^3.2.1",
     "commander": "^2.19.0",
+    "get-kubesail-config": "^0.0.1",
     "inquirer": "^6.2.1",
     "inquirer-fuzzy-path": "^1.0.0",
     "opn": "^5.4.0",
