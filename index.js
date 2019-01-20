@@ -431,7 +431,7 @@ async function DeployNodeApp (env /*: string */, opts) {
       '\nYou may need to expose your deployment on kubernetes via a service.\n' +
       'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.\n'
   }
-  process.stdout.write('✨  Your application has been deployed! ✨\n' + serviceWarning)
+  process.stdout.write('\n\n✨  Your application has been deployed! ✨\n\n\n' + serviceWarning)
 
   // TODO: warn if node_modules is not in .dockerignore or .gitignore
 
