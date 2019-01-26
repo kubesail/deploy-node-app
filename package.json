@@ -34,7 +34,7 @@
     "commander": "^2.19.0",
     "get-kubesail-config": "^0.0.3",
     "inquirer": "^6.2.1",
-    "inquirer-fuzzy-path": "https://github.com/kubesail/inquirer-fuzzy-path#0717e055e8dde429125d9d699605290341ddf9dc",
+    "inquirer-fuzzy-path": "https://github.com/kubesail/inquirer-fuzzy-path#b8785131fa66558c258059ba3ffc3a81218b30de",
     "opn": "^5.4.0",
     "uuid": "^3.3.2",
     "ws": "^6.1.2"

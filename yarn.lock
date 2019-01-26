@@ -1744,9 +1744,9 @@ inquirer-autocomplete-prompt@^0.12.2:
     inquirer "3.2.0"
     run-async "^2.3.0"
 
-"inquirer-fuzzy-path@https://github.com/kubesail/inquirer-fuzzy-path#0717e055e8dde429125d9d699605290341ddf9dc":
+"inquirer-fuzzy-path@https://github.com/kubesail/inquirer-fuzzy-path#b8785131fa66558c258059ba3ffc3a81218b30de":
   version "1.0.0"
-  resolved "https://github.com/kubesail/inquirer-fuzzy-path#0717e055e8dde429125d9d699605290341ddf9dc"
+  resolved "https://github.com/kubesail/inquirer-fuzzy-path#b8785131fa66558c258059ba3ffc3a81218b30de"
   dependencies:
     ansi-styles "^3.2.1"
     fuzzy "^0.1.3"
