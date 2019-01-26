@@ -331,6 +331,7 @@ async function DeployNodeApp (env /*: string */, opts) {
   )
 
   if (answers.context === NEW_KUBESAIL_CONTEXT) {
+    // TODO doesn't work if user needs to login
     const kubesailContext = await getKubesailConfig()
     answers.context = kubesailContext
   }
