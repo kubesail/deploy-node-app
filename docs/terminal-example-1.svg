@@ -6,7 +6,7 @@
         <style type="text/css" id="generated-style"><![CDATA[:root {
             --animation-duration: 32870ms;
         }
-        
+
         #screen {
                 font-family: 'DejaVu Sans Mono', monospace;
                 font-style: normal;

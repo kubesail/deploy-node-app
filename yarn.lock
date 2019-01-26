@@ -1519,9 +1519,9 @@ get-caller-file@^1.0.1:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/get-caller-file/-/get-caller-file-1.0.3.tgz#f978fa4c90d1dfe7ff2d6beda2a515e713bdcf4a"
 
-get-kubesail-config@^0.0.1:
-  version "0.0.1"
-  resolved "https://registry.npmjs.org/get-kubesail-config/-/get-kubesail-config-0.0.1.tgz#4d25035669dc6b1fe24d86604f1a042f2a0d1d10"
+get-kubesail-config@^0.0.3:
+  version "0.0.3"
+  resolved "https://registry.yarnpkg.com/get-kubesail-config/-/get-kubesail-config-0.0.3.tgz#4116988fbdddfeaf8116f5e3316f9aef6dc4b6f7"
   dependencies:
     ansi-styles "^3.2.1"
     get-port "^4.1.0"
@@ -1744,9 +1744,9 @@ inquirer-autocomplete-prompt@^0.12.2:
     inquirer "3.2.0"
     run-async "^2.3.0"
 
-inquirer-fuzzy-path@^1.0.0:
+"inquirer-fuzzy-path@https://github.com/kubesail/inquirer-fuzzy-path#0717e055e8dde429125d9d699605290341ddf9dc":
   version "1.0.0"
-  resolved "https://registry.npmjs.org/inquirer-fuzzy-path/-/inquirer-fuzzy-path-1.0.0.tgz#b6cffa5022fa667b84f1b0a74d2d6c8ee2549309"
+  resolved "https://github.com/kubesail/inquirer-fuzzy-path#0717e055e8dde429125d9d699605290341ddf9dc"
   dependencies:
     ansi-styles "^3.2.1"
     fuzzy "^0.1.3"

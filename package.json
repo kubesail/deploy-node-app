@@ -32,23 +32,11 @@
   "dependencies": {
     "ansi-styles": "^3.2.1",
     "commander": "^2.19.0",
-    "get-kubesail-config": "^0.0.1",
+    "get-kubesail-config": "^0.0.3",
     "inquirer": "^6.2.1",
-    "inquirer-fuzzy-path": "^1.0.0",
+    "inquirer-fuzzy-path": "https://github.com/kubesail/inquirer-fuzzy-path#0717e055e8dde429125d9d699605290341ddf9dc",
     "opn": "^5.4.0",
     "uuid": "^3.3.2",
     "ws": "^6.1.2"
-  },
-  "deploy-node-app": {
-    "production": {
-      "env": "production",
-      "port": 3000,
-      "protocol": "http",
-      "entrypoint": "index.js",
-      "context": "givethanks-primary-aws",
-      "registry": "index.docker.io/v1/",
-      "registryUsername": "erulabs",
-      "confirmRegistry": true
-    }
   }
 }

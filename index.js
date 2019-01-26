@@ -11,13 +11,16 @@ const execSync = require('child_process').execSync
 const getKubesailConfig = require('get-kubesail-config')
 const inquirer = require('inquirer')
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
-// TODO use inquirer-fuzzy-path for entrypoint question
 const fs = require('fs')
 const program = require('commander')
 const yaml = require('js-yaml')
-const ansiStyles = require('ansi-styles')
-const errArrows = `${ansiStyles.red.open}>>${ansiStyles.red.close}`
+const style = require('ansi-styles')
+const errArrows = `${style.red.open}>>${style.red.close}`
+const warning = `${style.green.open}!!${style.green.close}`
 
+const NEW_KUBESAIL_CONTEXT = `KubeSail${style.gray.open} | Deploy on a free Kubernetes namespace${
+  style.gray.close
+}`
 const KUBESAIL_REGISTRY = 'registry.kubesail.io'
 const KUBE_CONFIG_PATH = path.join(homedir, '.kube', 'config')
 
@@ -45,26 +48,20 @@ async function promptQuestions (
   containerRegistries /*: Array<string> */,
   kubeContexts /*: Array<string> */
 ) {
-  let saved = (packageJson['deploy-node-app'] && packageJson['deploy-node-app'][env]) || {}
+  let saved = packageJson['deploy-node-app'] && packageJson['deploy-node-app'][env]
+  if (!saved) {
+    // Gives some context to what we are about to do and why we are asking questions:
+    process.stdout.write(
+      `\n${warning} Preparing to deploy ${style.bold.open +
+        style.green.open +
+        env +
+        style.reset.open}...\n\n`
+    )
+    saved = {}
+  }
   // TODO: dont prompt for the above if answers exist in package.json?
   let answers = await inquirer.prompt(
     [
-      saved.env
-        ? null
-        : {
-          name: 'env',
-          type: 'input',
-          message: 'Which environment are you deploying to?',
-          default: env,
-          validate: function (input) {
-            if (input !== input.toLowerCase()) return 'environment names must be lowercase'
-            if (input.length < 3) return 'environment names must be longer than 2 characters'
-            if (!input.match(/^[a-zA-Z0-9-_]+$/)) {
-              return 'environment names need to be numbers, letters, and dashes only'
-            }
-            return true
-          }
-        },
       saved.port
         ? null
         : {
@@ -92,14 +89,49 @@ async function promptQuestions (
         : {
           name: 'entrypoint',
           type: 'fuzzypath',
-          message: 'Where is your application\'s entrypoint?',
+          message: 'What is your application\'s entrypoint?',
           default: 'index.js',
-          pathFilter: (isDirectory, path) => {
-            return (
-              !isDirectory && path.indexOf('.git') !== 0 && path.indexOf('node_modules') !== 0
-            )
+          // default: function () {
+          //   defaultFiles = [
+          //     'index.js',
+          //     path.join('src', 'index.js'),
+          //     path.join('api', 'index.js')
+          //   ]
+          //   for (let i = 0; i < defaultFiles.length; i++) {
+          //     const filename = defaultFiles[i]
+          //     if (fs.existsSync(filename)) {
+          //       console.log('returning ' + filename)
+          //       return filename
+          //     }
+          //   }
+          // },
+          pathFilter: isDirectory => {
+            return !isDirectory
           },
-          // rootPath: '.',
+
+          scanFilter: (_isDirectory, filepath) => {
+            const invalidPaths = [
+              '.git',
+              'LICENSE',
+              'README',
+              'package-lock.json',
+              'node_modules',
+              'yarn.lock',
+              'package.json',
+              '.dockerignore',
+              'Dockerfile',
+              '.editorconfig',
+              '.eslintrc.json',
+              '.flowconfig'
+            ]
+
+            for (let i = 0; i < invalidPaths.length; i++) {
+              if (filepath.startsWith(invalidPaths[i])) return false
+            }
+
+            return true
+          },
+          rootPath: '.',
           suggestOnly: false,
           validate: function (input) {
             if (!fs.existsSync(input)) return 'That file doesn\'t seem to exist'
@@ -187,7 +219,7 @@ function readLocalKubeConfig () {
       )
     }
   }
-  kubeContexts.push('kubesail')
+  kubeContexts.push(NEW_KUBESAIL_CONTEXT)
   // TODO minikube deployment context!
   return kubeContexts
 }
@@ -294,7 +326,7 @@ async function DeployNodeApp (env /*: string */, opts) {
     packageJson['deploy-node-app'] && packageJson['deploy-node-app'][env]
   )
 
-  if (answers.context === 'kubesail') {
+  if (answers.context === NEW_KUBESAIL_CONTEXT) {
     const kubesailContext = await getKubesailConfig()
     answers.context = kubesailContext
   }
@@ -304,16 +336,25 @@ async function DeployNodeApp (env /*: string */, opts) {
   const tags = await getDeployTags(env, answers)
 
   process.stdout.write(
-    `\n${ansiStyles.green.open}!!${ansiStyles.green.close} About to deploy ${env}: ${tags.env}\n\n`
+    `\n${warning} About to deploy ${style.green.open}${style.bold.open}${env}${
+      style.green.close
+    }: ${tags.env}${style.reset.open}\n\n`
   )
 
   if (!answers.confirmRegistry) {
+    process.stdout.write(
+      `${warning} If the docker registry does not exist, it may be automatically created with ${
+        style.red.open
+      }PUBLIC${style.red.close} access!\n` +
+        '   Make sure you have all secrets in your ".dockerignore" file,\n' +
+        '   and you may want to make sure your image repository is setup securely!\n\n'
+    )
+
     const { confirm } = await inquirer.prompt([
       {
         name: 'confirm',
         type: 'confirm',
-        message:
-          'If the docker registry does not exist, it may be automatically created with PUBLIC access!\n  Make sure you have all secrets in your ".dockerignore" file,\n  and you may want to make sure your image repository is setup securely!\n\n  Are you sure you want to continue?'
+        message: 'Are you sure you want to continue?'
       }
     ])
     if (!confirm) {
@@ -393,7 +434,8 @@ async function DeployNodeApp (env /*: string */, opts) {
                   memory: '32Mi'
                 },
                 limits: {
-                  cpu: 1
+                  cpu: '100m',
+                  memory: '128Mi'
                 }
               }
             }
@@ -442,7 +484,7 @@ async function DeployNodeApp (env /*: string */, opts) {
   // TODO: Prompt if its okay to write to package.json
   packageJson = JSON.parse(fs.readFileSync(packageJsonPath))
   packageJson['deploy-node-app'] = {
-    [answers.env]: answers
+    [env]: answers
   }
   fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2))
   process.exit(0)
