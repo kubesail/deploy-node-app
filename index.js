@@ -33,6 +33,29 @@ function fatal (message /*: string */) {
 
 const packageJsonPath = 'package.json'
 
+function isInvalidPath (filepath) {
+  const invalidPaths = [
+    '.git',
+    'LICENSE',
+    'README',
+    'package-lock.json',
+    'node_modules',
+    'yarn.lock',
+    'package.json',
+    '.dockerignore',
+    'Dockerfile',
+    '.editorconfig',
+    '.eslintrc.json',
+    '.flowconfig'
+  ]
+
+  for (let i = 0; i < invalidPaths.length; i++) {
+    if (filepath.startsWith(invalidPaths[i])) return true
+  }
+
+  return false
+}
+
 let packageJson
 try {
   packageJson = JSON.parse(fs.readFileSync(packageJsonPath))
@@ -105,31 +128,12 @@ async function promptQuestions (
           //     }
           //   }
           // },
-          pathFilter: isDirectory => {
-            return !isDirectory
+          pathFilter: (isDirectory, path) => {
+            return !isDirectory && !isInvalidPath(path)
           },
 
-          scanFilter: (_isDirectory, filepath) => {
-            const invalidPaths = [
-              '.git',
-              'LICENSE',
-              'README',
-              'package-lock.json',
-              'node_modules',
-              'yarn.lock',
-              'package.json',
-              '.dockerignore',
-              'Dockerfile',
-              '.editorconfig',
-              '.eslintrc.json',
-              '.flowconfig'
-            ]
-
-            for (let i = 0; i < invalidPaths.length; i++) {
-              if (filepath.startsWith(invalidPaths[i])) return false
-            }
-
-            return true
+          scanFilter: (_isDirectory, path) => {
+            return !isInvalidPath(path)
           },
           rootPath: '.',
           suggestOnly: false,
