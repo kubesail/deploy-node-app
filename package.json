@@ -2,11 +2,11 @@
   "name": "deploy-to-kube",
   "version": "0.0.3",
   "description": "Easily deploy Node.js applications to Kubernetes, with one command",
-  "main": "index.js",
+  "main": "src/index.js",
   "repository": "https://github.com/erulabs/deploy-node-app",
   "license": "MIT",
   "bin": {
-    "deploy-node-app": "index.js"
+    "deploy-kube-app": "src/index.js"
   },
   "authors": [
     "Seandon 'Erulabs' Mooy",
@@ -32,23 +32,11 @@
   "dependencies": {
     "ansi-styles": "^3.2.1",
     "commander": "^2.19.0",
-    "get-kubesail-config": "^0.0.1",
+    "get-kubesail-config": "^0.0.3",
     "inquirer": "^6.2.1",
-    "inquirer-fuzzy-path": "^1.0.0",
+    "inquirer-fuzzy-path": "https://github.com/kubesail/inquirer-fuzzy-path#36503d9fa18eca50ceff66c3f322b11a009b95d0",
     "opn": "^5.4.0",
     "uuid": "^3.3.2",
     "ws": "^6.1.2"
-  },
-  "deploy-node-app": {
-    "production": {
-      "env": "production",
-      "port": 3000,
-      "protocol": "http",
-      "entrypoint": "index.js",
-      "context": "givethanks-primary-aws",
-      "registry": "index.docker.io/v1/",
-      "registryUsername": "erulabs",
-      "confirmRegistry": true
-    }
   }
 }
