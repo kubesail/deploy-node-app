@@ -6,7 +6,7 @@
   "repository": "https://github.com/erulabs/deploy-node-app",
   "license": "MIT",
   "bin": {
-    "deploy-kube-app": "src/index.js"
+    "deploy-to-kube": "src/index.js"
   },
   "authors": [
     "Seandon 'Erulabs' Mooy",
