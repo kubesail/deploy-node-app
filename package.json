@@ -1,6 +1,6 @@
 {
-  "name": "deploy-kube-app",
-  "version": "0.0.2",
+  "name": "deploy-to-kube",
+  "version": "0.0.3",
   "description": "Easily deploy Node.js applications to Kubernetes, with one command",
   "main": "index.js",
   "repository": "https://github.com/erulabs/deploy-node-app",
