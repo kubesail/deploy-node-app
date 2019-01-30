@@ -4,30 +4,6 @@ const { NEW_KUBESAIL_CONTEXT, WARNING } = require('./util')
 const inquirer = require('inquirer')
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
 
-function isInvalidPath (filepath) {
-  const invalidPaths = [
-    '.git',
-    'LICENSE',
-    'README',
-    'package-lock.json',
-    'node_modules',
-    'yarn.lock',
-    'yarn-error.log',
-    'package.json',
-    '.dockerignore',
-    'Dockerfile',
-    '.editorconfig',
-    '.eslintrc.json',
-    '.flowconfig'
-  ]
-
-  for (let i = 0; i < invalidPaths.length; i++) {
-    if (filepath.startsWith(invalidPaths[i])) return true
-  }
-
-  return false
-}
-
 async function promptQuestions (
   env /*: string */,
   containerRegistries /*: Array<string> */,
@@ -39,7 +15,7 @@ async function promptQuestions (
   if (!saved) {
     // Gives some context to what we are about to do and why we are asking questions:
     process.stdout.write(
-      `\n${WARNING} Preparing to deploy ${style.bold.open +
+      `\n${WARNING} Preparing to deploy to ${style.bold.open +
         style.green.open +
         env +
         style.reset.open}...\n\n`
@@ -77,13 +53,33 @@ async function promptQuestions (
           name: 'entrypoint',
           type: 'fuzzypath',
           message: 'What is your application\'s entrypoint?',
-          default: 'index.js', // TODO provide an array of common entry points
-          pathFilter: (isDirectory, path) => {
-            return !isDirectory && !isInvalidPath(path)
+          // TODO for default, provide a callback with an array of common entry points.
+          // the 'inquirer-fuzzy-path' plugin currently does not respect default at all
+          default: 'index.js',
+          excludePath: filepath => {
+            const invalidPaths = [
+              '.git',
+              'LICENSE',
+              'README',
+              'package-lock.json',
+              'node_modules',
+              'yarn.lock',
+              'yarn-error.log',
+              'package.json',
+              '.dockerignore',
+              'Dockerfile',
+              '.editorconfig',
+              '.eslintrc.json',
+              '.flowconfig'
+            ]
+
+            for (let i = 0; i < invalidPaths.length; i++) {
+              if (filepath.startsWith(invalidPaths[i])) return true
+            }
+
+            return false
           },
-          scanFilter: (_isDirectory, path) => {
-            return !isInvalidPath(path)
-          },
+          itemType: 'file',
           rootPath: '.',
           suggestOnly: false
         }
@@ -99,11 +95,11 @@ async function promptQuestions (
           type: 'confirm',
           message:
             'You don\'t appear to have a Kubernetes config.\n' +
-            'This tool can configure a free kubernetes namespace on \n' +
-            'Kubesail in order to help you deploy your application easily.\n' +
-            'You will be redirected to the Kubesail website.\n' +
+            '  This tool can configure a free kubernetes namespace on \n' +
+            '  Kubesail in order to help you deploy your application easily.\n' +
+            '  You will be redirected to the Kubesail website.\n' +
             '\n' +
-            'Would you like to continue?'
+            '  Would you like to continue?'
         }
       ])
 

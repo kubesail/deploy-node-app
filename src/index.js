@@ -9,6 +9,7 @@ const execSync = require('child_process').execSync
 const inquirer = require('inquirer')
 const fs = require('fs')
 const program = require('commander')
+const commandExists = require('command-exists')
 const yaml = require('js-yaml')
 const style = require('ansi-styles')
 
@@ -74,15 +75,16 @@ async function getDeployTags (env, answers) {
 }
 
 async function DeployNodeApp (env /*: string */, opts) {
-  if (!checkProgramVersion('docker')) {
+  if (!commandExists.sync('docker')) {
     fatal('Error - You might need to install or start docker! https://www.docker.com/get-started')
   }
-  // TODO this fails if no kubectl config file exists
-  if (!checkProgramVersion('kubectl')) {
+
+  if (!commandExists.sync('kubectl')) {
     fatal(
       'Error - You might need to install kubectl! https://kubernetes.io/docs/tasks/tools/install-kubectl/'
     )
   }
+
   const kubeContexts = readLocalKubeConfig()
   const containerRegistries = readLocalDockerConfig()
 
