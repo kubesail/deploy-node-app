@@ -31,10 +31,11 @@
   },
   "dependencies": {
     "ansi-styles": "^3.2.1",
+    "command-exists": "^1.2.8",
     "commander": "^2.19.0",
     "get-kubesail-config": "^0.0.3",
     "inquirer": "^6.2.1",
-    "inquirer-fuzzy-path": "https://github.com/kubesail/inquirer-fuzzy-path#36503d9fa18eca50ceff66c3f322b11a009b95d0",
+    "inquirer-fuzzy-path": "^2.0.1",
     "opn": "^5.4.0",
     "uuid": "^3.3.2",
     "ws": "^6.1.2"

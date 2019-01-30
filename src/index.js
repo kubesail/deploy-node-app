@@ -9,6 +9,7 @@ const execSync = require('child_process').execSync
 const inquirer = require('inquirer')
 const fs = require('fs')
 const program = require('commander')
+const commandExists = require('command-exists')
 const yaml = require('js-yaml')
 const style = require('ansi-styles')
 
@@ -74,24 +75,20 @@ async function getDeployTags (env, answers) {
 }
 
 async function DeployNodeApp (env /*: string */, opts) {
-  if (!checkProgramVersion('docker')) {
+  if (!commandExists.sync('docker')) {
     fatal('Error - You might need to install or start docker! https://www.docker.com/get-started')
   }
-  // TODO this fails if no kubectl config file exists
-  if (!checkProgramVersion('kubectl')) {
+
+  if (!commandExists.sync('kubectl')) {
     fatal(
       'Error - You might need to install kubectl! https://kubernetes.io/docs/tasks/tools/install-kubectl/'
     )
   }
+
   const kubeContexts = readLocalKubeConfig()
   const containerRegistries = readLocalDockerConfig()
 
   let answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson)
-  answers = Object.assign(
-    {},
-    answers,
-    packageJson['deploy-node-app'] && packageJson['deploy-node-app'][env]
-  )
 
   buildDockerfile(answers.entrypoint)
 
@@ -103,7 +100,7 @@ async function DeployNodeApp (env /*: string */, opts) {
     }: ${tags.env}${style.reset.open}\n\n`
   )
 
-  if (!answers.confirmRegistry && answers.registry.includes('index.docker.io')) {
+  if (answers.registry.includes('index.docker.io')) {
     process.stdout.write(
       `${WARNING} You are using Docker Hub. If the docker repository does not exist,\n` +
         `   it may be automatically created with ${style.red.open}PUBLIC${
@@ -112,7 +109,9 @@ async function DeployNodeApp (env /*: string */, opts) {
         '   Make sure you have all secrets in your ".dockerignore" file,\n' +
         '   and you may want to make sure your image repository is setup securely!\n\n'
     )
+  }
 
+  if (!answers.confirm) {
     const { confirm } = await inquirer.prompt([
       {
         name: 'confirm',
@@ -123,8 +122,7 @@ async function DeployNodeApp (env /*: string */, opts) {
     if (!confirm) {
       process.exit(1)
     }
-
-    answers.confirmRegistry = confirm
+    answers.confirm = confirm
   }
 
   // TODO: Check if image has already been built - optional?
