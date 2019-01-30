@@ -1,6 +1,6 @@
 const style = require('ansi-styles')
 const getKubesailConfig = require('get-kubesail-config')
-const { NEW_KUBESAIL_CONTEXT, WARNING } = require('./util')
+const { fatal, NEW_KUBESAIL_CONTEXT, WARNING } = require('./util')
 const inquirer = require('inquirer')
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
 
@@ -23,7 +23,82 @@ async function promptQuestions (
     saved = {}
   }
 
-  let answers = await inquirer.prompt(
+  let answers = {}
+  let quickConfig = false
+  if (!saved.context) {
+    if (kubeContexts.length === 1 && kubeContexts[0] === NEW_KUBESAIL_CONTEXT) {
+      const kubesailAnswer = await inquirer.prompt([
+        {
+          name: 'quickConfig',
+          type: 'confirm',
+          message:
+            'You don\'t appear to have a Kubernetes config.\n' +
+            '  This tool can configure a free kubernetes namespace on \n' +
+            '  Kubesail in order to help you deploy your application easily.\n' +
+            '  You will be redirected to the Kubesail website.\n' +
+            '\n' +
+            '  Would you like to continue?'
+        }
+      ])
+
+      if (!kubesailAnswer.quickConfig) {
+        fatal('You can add a Kubernetes config and re-run this script.')
+        process.exit(1)
+      }
+
+      quickConfig = kubesailAnswer.quickConfig
+    } else {
+      const { context } = await inquirer.prompt([
+        {
+          name: 'context',
+          type: 'list',
+          message: 'Which Kubernetes context do you want to use?',
+          default: kubeContexts[0],
+          choices: kubeContexts
+        }
+      ])
+      answers.context = context
+      if (context === NEW_KUBESAIL_CONTEXT) {
+        quickConfig = true
+      }
+    }
+
+    if (quickConfig) {
+      const kubesailContext = await getKubesailConfig()
+      answers.context = kubesailContext
+    }
+  }
+
+  // TODO default docker installation has 0 container registries -- in this case prompt to use dockerhub? allow login?
+  if (containerRegistries.length === 0) {
+    containerRegistries.push('https://index.docker.io/v1/')
+  }
+  const onlyDockerHub =
+    containerRegistries.length === 1 && containerRegistries[0].includes('index.docker.io')
+
+  if (quickConfig) {
+    answers.registry = 'https://index.docker.io/v1/' // TODO set up the kubesail registry and use that here instead
+  } else {
+    if (onlyDockerHub) {
+      answers.registry = containerRegistries[0]
+    } else if (!saved.registry && !onlyDockerHub) {
+      const registryAnswer = await inquirer.prompt([
+        {
+          name: 'registry',
+          type: 'list',
+          message: 'Which docker registry do you want to use?',
+          choices: containerRegistries,
+          validate: registry =>
+            !registry.match(/^([a-z0-9]+\.)+[a-z0-9]$/i)
+              ? 'You must provide a valid hostname for a docker registry'
+              : true
+        }
+      ])
+      answers.registry = registryAnswer.registry
+    }
+  }
+
+  const appAnswers = await inquirer.prompt(
     [
       saved.port
         ? null
@@ -86,72 +161,9 @@ async function promptQuestions (
     ].filter(q => q)
   )
 
-  let quickConfig = false
-  if (!saved.context) {
-    if (kubeContexts.length === 1 && kubeContexts[0] === NEW_KUBESAIL_CONTEXT) {
-      const kubesailAnswer = await inquirer.prompt([
-        {
-          name: 'quickConfig',
-          type: 'confirm',
-          message:
-            'You don\'t appear to have a Kubernetes config.\n' +
-            '  This tool can configure a free kubernetes namespace on \n' +
-            '  Kubesail in order to help you deploy your application easily.\n' +
-            '  You will be redirected to the Kubesail website.\n' +
-            '\n' +
-            '  Would you like to continue?'
-        }
-      ])
-
-      quickConfig = kubesailAnswer.quickConfig
-    } else {
-      const { context } = await inquirer.prompt([
-        {
-          name: 'context',
-          type: 'list',
-          message: 'Which Kubernetes context do you want to use?',
-          default: kubeContexts[0],
-          choices: kubeContexts
-        }
-      ])
-      answers.context = context
-    }
-
-    // TODO doesn't work if user needs to login
-    if (quickConfig || answers.context === NEW_KUBESAIL_CONTEXT) {
-      const kubesailContext = await getKubesailConfig()
-      answers.context = kubesailContext
-    }
-  }
-
-  const onlyDockerHub =
-    containerRegistries.length === 1 && containerRegistries[0].includes('index.docker.io')
-
-  if (quickConfig) {
-    answers.registry = 'registry.kubesail.io' // TODO set this up
-  } else {
-    if (onlyDockerHub) {
-      answers.registry = containerRegistries[0]
-    } else if (!saved.registry && !onlyDockerHub) {
-      const registryAnswer = inquirer.prompt([
-        {
-          name: 'registry',
-          type: 'list',
-          message: 'Which docker registry do you want to use?',
-          choices: containerRegistries,
-          validate: registry =>
-            !registry.match(/^([a-z0-9]+\.)+[a-z0-9]$/i)
-              ? 'You must provide a valid hostname for a docker registry'
-              : true
-        }
-      ])
-      answers.registry = registryAnswer.registry
-    }
-  }
-
-  answers = Object.assign({}, answers, saved)
   answers.registry = answers.registry.replace(/https?:\/\//i, '')
   answers.registry = answers.registry.substr(-1) === '/' ? answers.registry : answers.registry + '/'
+  answers = Object.assign({}, answers, appAnswers, saved)
   return answers
 }
 
