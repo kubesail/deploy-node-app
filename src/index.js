@@ -256,9 +256,8 @@ program
   .usage(USAGE)
   .version(DNA_VERSION)
   .option('-n, --no-build', 'Don\'t build and push docker container')
-  // .option('-A, --auto', 'Deploy without asking too many questions!')
   .parse(process.argv)
 
 // Default to production environment
 // TODO: Pass auto argument (and others) to DeployNodeApp
-DeployNodeApp(program.args[0] || 'production', program)
+DeployNodeApp(program.args[0] || 'prod', program)
