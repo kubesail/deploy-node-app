@@ -238,10 +238,6 @@ async function DeployNodeApp (env /*: string */, opts) {
 
   // TODO: warn if node_modules is not in .dockerignore or .gitignore
 
-  if (answers.registry === KUBESAIL_REGISTRY) {
-    connectKubeSail()
-  }
-
   // TODO: Prompt if its okay to write to package.json
   packageJson = JSON.parse(fs.readFileSync(packageJsonPath))
   packageJson['deploy-node-app'] = {
