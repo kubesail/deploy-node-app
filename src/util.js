@@ -79,26 +79,26 @@ function buildDockerfile (entrypoint) {
   } else {
     // TODO: Detect (or get from options, yarn versus npm)
     dockerfile = `
-        FROM node:alpine
+FROM node:alpine
 
-        WORKDIR /app
+WORKDIR /app
 
-        ENV NODE_ENV="production"
+ENV NODE_ENV="production"
 
-        COPY package.json yarn.loc[k] package-lock.jso[n] /app/
+COPY package.json yarn.loc[k] package-lock.jso[n] /app/
 
-        RUN \
-          # apk add build-base make gcc g++ linux-headers python-dev libc-dev libc6-compat && \
-          yarn install --no-cache --production && \
-          adduser -S nodejs && \
-          chown -R nodejs /app && \
-          chown -R nodejs /home/nodejs
+RUN \\
+  # apk add build-base make gcc g++ linux-headers python-dev libc-dev libc6-compat && \\
+  yarn install --no-cache --production && \\
+  adduser -S nodejs && \\
+  chown -R nodejs /app && \\
+  chown -R nodejs /home/nodejs
 
-        COPY . /app/
+COPY . /app/
 
-        USER nodejs
+USER nodejs
 
-        CMD ["node", "${entrypoint}"]
+CMD ["node", "${entrypoint}"]
       `
 
     fs.writeFileSync(dockerfilePath, dockerfile)
