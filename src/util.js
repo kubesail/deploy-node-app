@@ -65,6 +65,9 @@ function readLocalDockerConfig () {
 }
 
 function buildDockerfile (entrypoint) {
+  // convert windows paths to unix paths
+  entrypoint = entrypoint.replace(/\\/g, '/')
+
   let dockerfile
   let dockerignore
   const dockerfilePath = 'Dockerfile'
