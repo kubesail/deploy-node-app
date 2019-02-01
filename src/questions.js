@@ -10,7 +10,7 @@ async function promptQuestions (
   kubeContexts /*: Array<string> */,
   packageJson /*: Object */
 ) {
-  let saved = packageJson['deploy-node-app'] && packageJson['deploy-node-app'][env]
+  let saved = packageJson['deploy-to-kube'] && packageJson['deploy-to-kube'][env]
 
   if (!saved) {
     // Gives some context to what we are about to do and why we are asking questions:
@@ -47,7 +47,7 @@ async function promptQuestions (
       }
 
       quickConfig = kubesailAnswer.quickConfig
-    } else {
+    } else if (kubeContexts.length > 1) {
       const { context } = await inquirer.prompt([
         {
           name: 'context',
@@ -61,6 +61,8 @@ async function promptQuestions (
       if (context === NEW_KUBESAIL_CONTEXT) {
         quickConfig = true
       }
+    } else {
+      answers.context = kubeContexts[0]
     }
 
     if (quickConfig) {

@@ -3,14 +3,14 @@
   "version": "0.0.6",
   "description": "Easily deploy Node.js applications to Kubernetes, with one command",
   "main": "src/index.js",
-  "repository": "https://github.com/erulabs/deploy-node-app",
+  "repository": "https://github.com/kubesail/deploy-to-kube",
   "license": "MIT",
   "bin": {
     "deploy-to-kube": "src/index.js"
   },
   "authors": [
-    "Seandon 'Erulabs' Mooy",
-    "Dan 'pastudan' Pastusek"
+    "Seandon Mooy <seandon.mooy@gmail.com",
+    "Dan Pastusek <dan@hexial.com>"
   ],
   "devDependencies": {
     "babel-eslint": "^10.0.1",
@@ -37,7 +37,6 @@
     "inquirer": "^6.2.1",
     "inquirer-fuzzy-path": "^2.0.1",
     "opn": "^5.4.0",
-    "uuid": "^3.3.2",
     "ws": "^6.1.2"
   }
 }

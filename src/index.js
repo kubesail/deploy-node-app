@@ -95,35 +95,35 @@ async function DeployNodeApp (env /*: string */, opts) {
   const tags = await getDeployTags(env, answers)
 
   process.stdout.write(
-    `\n${WARNING} About to deploy ${style.green.open}${style.bold.open}${env}${
-      style.green.close
-    }: ${tags.env}${style.reset.open}\n\n`
+    `\n${WARNING} About to deploy ${style.green.open}${style.bold.open}${tags.env}${
+      style.reset.open
+    } on ${style.bold.open}${answers.context}${style.reset.open}\n\n`
   )
 
-  if (answers.registry.includes('index.docker.io')) {
-    process.stdout.write(
-      `${WARNING} You are using Docker Hub. If the docker repository does not exist,\n` +
-        `   it may be automatically created with ${style.red.open}PUBLIC${
-          style.red.close
-        } access!\n` +
-        '   Make sure you have all secrets in your ".dockerignore" file,\n' +
-        '   and you may want to make sure your image repository is setup securely!\n\n'
-    )
+  if (!answers.confirm) {
+    if (answers.registry.includes('index.docker.io')) {
+      process.stdout.write(
+        `${WARNING} You are using Docker Hub. If the docker repository does not exist,\n` +
+          `   it may be automatically created with ${style.red.open}PUBLIC${
+            style.red.close
+          } access!\n` +
+          '   Make sure you have all secrets in your ".dockerignore" file,\n' +
+          '   and you may want to make sure your image repository is setup securely!\n\n'
+      )
+    }
   }
 
-  if (!answers.confirm) {
-    const { confirm } = await inquirer.prompt([
-      {
-        name: 'confirm',
-        type: 'confirm',
-        message: 'Are you sure you want to continue?'
-      }
-    ])
-    if (!confirm) {
-      process.exit(1)
+  const { confirm } = await inquirer.prompt([
+    {
+      name: 'confirm',
+      type: 'confirm',
+      message: 'Are you sure you want to continue?'
     }
-    answers.confirm = confirm
+  ])
+  if (!confirm) {
+    process.exit(1)
   }
+  answers.confirm = confirm
 
   // TODO: Check if image has already been built - optional?
 
@@ -240,7 +240,7 @@ async function DeployNodeApp (env /*: string */, opts) {
 
   // TODO: Prompt if its okay to write to package.json
   packageJson = JSON.parse(fs.readFileSync(packageJsonPath))
-  packageJson['deploy-node-app'] = {
+  packageJson['deploy-to-kube'] = {
     [env]: answers
   }
   fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2))
