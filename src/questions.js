@@ -163,9 +163,9 @@ async function promptQuestions (
     ].filter(q => q)
   )
 
+  answers = Object.assign({}, answers, appAnswers, saved)
   answers.registry = answers.registry.replace(/https?:\/\//i, '')
   answers.registry = answers.registry.substr(-1) === '/' ? answers.registry : answers.registry + '/'
-  answers = Object.assign({}, answers, appAnswers, saved)
   return answers
 }
 
