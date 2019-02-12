@@ -4,7 +4,7 @@
 
 Deploy your node.js app to Kubernetes with a single command. No config required.
 
-Supports any kubernetes cluster, including the following:
+Supports any Kubernetes cluster, including the following:
 
 - Google Kubernetes Engine
 - Amazon EKS
