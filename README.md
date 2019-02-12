@@ -1,7 +1,6 @@
 # deploy-to-kube
 
 [![npm version](https://img.shields.io/npm/v/deploy-to-kube.svg?style=flat-square)](https://www.npmjs.com/package/deploy-to-kube)
-[![Build Status](https://img.shields.io/travis/rexxars/react-markdown/master.svg?style=flat-square)](https://travis-ci.org/rexxars/react-markdown)
 
 Deploy your node.js app to Kubernetes with a single command. No config required.
 
@@ -31,14 +30,14 @@ After answering a few questions about your app, this tool can:
 
 ---
 
-deploy-to-kube is proudly sponsored by
+deploy-to-kube is maintained by
 
-[<img src="docs/kubesail-logo.png" alt="Kubesail" width="248">
+[<img src="docs/kubesail-logo.png" alt="Kubesail" width="160">
 <br/>
-Kubeail - an easy, free way to try kubernetes](https://kubesail.com)
+Kubesail - an easy, free way to try kubernetes](https://kubesail.com)
 
 ---
 
 ### Contributing
 
-If you feel that this tool can be improved in any way, feel free to open a pull request!
+If you feel that this tool can be improved in any way, feel free to open an issue or pull request!
