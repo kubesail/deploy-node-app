@@ -16,7 +16,7 @@ Supports any Kubernetes cluster, including the following:
 
 Just run `npx deploy-to-kube` in your node project.
 
-![Example](docs/terminal-example-1.svg)
+![Example](https://github.com/kubesail/deploy-to-kube/raw/master/docs/terminal-example-1.svg?sanitize=true)
 
 ### What does this tool do?
 
