@@ -21,7 +21,7 @@ Just run `npx deploy-to-kube` in your node project.
 ### Prerequisites
 
 - [Docker](https://www.docker.com/get-started)
-- [NodeJS / npm](https://nodejs.org/en/) - NPM includes the `npx` utility needed to run this package without installing
+- [NodeJS / npm](https://nodejs.org/en/) - NPM includes the `npx` utility needed to run this package without being installed
 - [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) - required for creating your deployment, and recommended for managing your deployment after created
 
 ### What does this tool do?
