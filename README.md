@@ -9,7 +9,7 @@ Supports any Kubernetes cluster, including the following:
 - Google Kubernetes Engine
 - Amazon EKS
 - DigitalOcean Kubernetes
-- Kubesail (completely free Kubernetes hosting)
+- Kubesail (**completely free Kubernetes hosting**)
 - Custom Clusters
 
 ### Instructions
