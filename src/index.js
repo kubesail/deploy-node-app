@@ -159,6 +159,7 @@ async function DeployNodeApp (env /*: string */, opts) {
       template: {
         metadata: {
           labels: {
+            deployedBy: 'deploy-to-kube',
             app: name,
             env: env
           }
