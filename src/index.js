@@ -133,7 +133,8 @@ async function DeployNodeApp (env /*: string */, opts) {
     execSync(`docker push ${tags.hash}`, execToStdout)
   }
 
-  const name = packageJson.name.toLowerCase() + '-' + env
+  const packageName = packageJson.name.toLowerCase()
+  const name = packageName + '-' + env
   const deployment = {
     apiVersion: 'apps/v1',
     kind: 'Deployment',
@@ -143,7 +144,7 @@ async function DeployNodeApp (env /*: string */, opts) {
     spec: {
       selector: {
         matchLabels: {
-          app: name,
+          app: packageName,
           env: env
         }
       },
@@ -160,7 +161,7 @@ async function DeployNodeApp (env /*: string */, opts) {
         metadata: {
           labels: {
             deployedBy: 'deploy-to-kube',
-            app: name,
+            app: packageName,
             env: env
           }
         },
