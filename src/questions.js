@@ -30,7 +30,7 @@ async function promptQuestions (
 
   let answers = {}
   let quickConfig = false
-  if (!saved.context) {
+  if (!saved.context || !kubeContexts.includes(saved.context)) {
     if (kubeContexts.length === 1 && kubeContexts[0] === NEW_KUBESAIL_CONTEXT) {
       const kubesailAnswer = await inquirer.prompt([
         {
