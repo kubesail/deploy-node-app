@@ -113,17 +113,19 @@ async function DeployNodeApp (env /*: string */, opts) {
     }
   }
 
-  const { confirm } = await inquirer.prompt([
-    {
-      name: 'confirm',
-      type: 'confirm',
-      message: 'Are you sure you want to continue?'
+  if (opts.confirm) {
+    const { confirm } = await inquirer.prompt([
+      {
+        name: 'confirm',
+        type: 'confirm',
+        message: 'Are you sure you want to continue?'
+      }
+    ])
+    if (!confirm) {
+      process.exit(1)
     }
-  ])
-  if (!confirm) {
-    process.exit(1)
+    answers.confirm = confirm
   }
-  answers.confirm = confirm
 
   // TODO: Check if image has already been built - optional?
 
@@ -254,6 +256,7 @@ program
   .usage(USAGE)
   .version(DNA_VERSION)
   .option('-n, --no-build', 'Don\'t build and push docker container')
+  .option('--no-confirm', 'Do not prompt for confirmation')
   .parse(process.argv)
 
 // Default to production environment
