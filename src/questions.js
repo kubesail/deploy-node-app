@@ -26,7 +26,10 @@ async function promptQuestions (
     )
     saved = {}
   }
-  saved.entrypoint = packageJson.main && fs.existsSync(packageJson.main) ? packageJson.main : null
+
+  saved.entrypoint =
+    saved.entrypoint ||
+    (packageJson.main && fs.existsSync(packageJson.main) ? packageJson.main : null)
 
   let answers = {}
   let quickConfig = false
@@ -144,6 +147,7 @@ async function promptQuestions (
           default: 'index.js',
           excludePath: filepath => {
             const invalidPaths = [
+              '.DS_Store',
               '.git',
               'LICENSE',
               'README',
