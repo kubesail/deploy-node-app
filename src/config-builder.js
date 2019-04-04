@@ -4,10 +4,13 @@ const util = require('util')
 const readFile = util.promisify(fs.readFile)
 
 async function buildComposeConfig (pkg) {
-  const deps = Object.keys(pkg.dependencies)
-  const readFiles = deps.map(dep => readFile(`node_modules/${dep}`))
-  const files = await Promise.all(readFiles)
-  console.log('files', { files })
+  const depNames = Object.keys(pkg.dependencies)
+  const readFiles = depNames.map(dep =>
+    readFile(`node_modules/${dep}/package.json`).then(json => JSON.parse(json))
+  )
+  let files = await Promise.all(readFiles)
+  files = files.filter(file => !!file.spec)
+  console.log('files with specs', { files })
 }
 
 function buildKubeConfig (packageJson) {
