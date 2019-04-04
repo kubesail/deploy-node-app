@@ -16,11 +16,13 @@ const style = require('ansi-styles')
 const {
   readLocalKubeConfig,
   readLocalDockerConfig,
+  buildUiDockerfile,
   buildDockerfile,
   fatal,
   WARNING
 } = require('./util')
 const { promptQuestions } = require('./questions')
+const { buildComposeConfig, buildKubeConfig } = require('./config-builder')
 
 const execToStdout = { stdio: [process.stdin, process.stdout, process.stderr] }
 
@@ -36,16 +38,9 @@ if (typeof packageJson.name !== 'string') {
   fatal('Please add a name to your package.json and re-run')
 }
 
-// Only works for kubectl and docker, as they both respond postively to `{command} version`
-// The `docker version` command will contact the docker server, and error if it cannot be reached
-function checkProgramVersion (input /*: string */) {
-  try {
-    execSync(`${input} version`)
-  } catch (err) {
-    return false
-  }
-  return true
-}
+buildComposeConfig(packageJson)
+// buildKubeConfig(packageJson)
+// process.exit(0) // TODO just for testing...
 
 async function getDeployTags (env, answers) {
   const tags = {}
@@ -71,6 +66,8 @@ async function getDeployTags (env, answers) {
 
   tags.env = `${prefix}${packageJson.name}:${env}`
   tags.hash = `${prefix}${packageJson.name}:${shortHash}`
+  tags.uienv = `${prefix}${packageJson.name}-ui:${env}`
+  tags.uihash = `${prefix}${packageJson.name}-ui:${shortHash}`
   return tags
 }
 
@@ -89,6 +86,13 @@ async function DeployNodeApp (env /*: string */, opts) {
   const containerRegistries = readLocalDockerConfig()
 
   let answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson)
+
+  // TODO use a few heuristics to determine whether to build a UI container.
+  // I.E. is there a /build/index.html or /src/www/public.html, is 'react' present in the dependency list, etc...
+  const buildUi = true
+  if (buildUi) {
+    buildUiDockerfile()
+  }
 
   buildDockerfile(answers.entrypoint)
 
@@ -130,6 +134,9 @@ async function DeployNodeApp (env /*: string */, opts) {
   // TODO: Check if image has already been built - optional?
 
   if (opts.build) {
+    if (buildUi) {
+      execSync(`docker build Dockerfile.ui -t ${tags.uienv} -t ${tags.uihash}`, execToStdout)
+    }
     execSync(`docker build . -t ${tags.env} -t ${tags.hash}`, execToStdout)
     execSync(`docker push ${tags.env}`, execToStdout)
     execSync(`docker push ${tags.hash}`, execToStdout)
