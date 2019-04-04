@@ -1,15 +1,16 @@
 {
-  "name": "deploy-to-kube",
+  "name": "deploy-node-app",
   "version": "0.1.0",
   "description": "Easily deploy Node.js applications to Kubernetes, with one command",
   "main": "src/index.js",
-  "repository": "https://github.com/kubesail/deploy-to-kube",
+  "repository": "https://github.com/kubesail/deploy-node-app",
   "license": "MIT",
   "bin": {
+    "deploy-node-app": "src/index.js",
     "deploy-to-kube": "src/index.js"
   },
   "authors": [
-    "Seandon Mooy <seandon.mooy@gmail.com",
+    "Seandon Mooy <seandon.mooy@gmail.com>",
     "Dan Pastusek <dan@hexial.com>"
   ],
   "devDependencies": {
