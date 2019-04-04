@@ -39,7 +39,7 @@ if (typeof packageJson.name !== 'string') {
 }
 
 buildComposeConfig(packageJson)
-// buildKubeConfig(packageJson)
+buildKubeConfig(packageJson)
 // process.exit(0) // TODO just for testing...
 
 // async function getDeployTags (env, answers) {
