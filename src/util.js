@@ -64,6 +64,15 @@ function readLocalDockerConfig () {
   return containerRegistries
 }
 
+function buildUiDockerfile (staticDir = '/build') {
+  const dockerfilePath = 'Dockerfile.ui'
+  dockerfile = `
+  FROM nginx
+  COPY ${staticDir} /usr/share/nginx/html`
+
+  fs.writeFileSync(dockerfilePath, dockerfile)
+}
+
 function buildDockerfile (entrypoint) {
   // convert windows paths to unix paths
   entrypoint = entrypoint.replace(/\\/g, '/')
@@ -126,6 +135,7 @@ CMD ["node", "${entrypoint}"]
 module.exports = {
   readLocalKubeConfig,
   readLocalDockerConfig,
+  buildUiDockerfile,
   buildDockerfile,
   fatal,
   WARNING,

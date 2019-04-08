@@ -16,13 +16,13 @@ const style = require('ansi-styles')
 const {
   readLocalKubeConfig,
   readLocalDockerConfig,
+  buildUiDockerfile,
   buildDockerfile,
   fatal,
   WARNING
 } = require('./util')
 const { promptQuestions } = require('./questions')
-
-const execToStdout = { stdio: [process.stdin, process.stdout, process.stderr] }
+const { buildComposeConfig, buildKubeConfig } = require('./config-builder')
 
 const packageJsonPath = 'package.json'
 
@@ -34,17 +34,6 @@ try {
 }
 if (typeof packageJson.name !== 'string') {
   fatal('Please add a name to your package.json and re-run')
-}
-
-// Only works for kubectl and docker, as they both respond postively to `{command} version`
-// The `docker version` command will contact the docker server, and error if it cannot be reached
-function checkProgramVersion (input /*: string */) {
-  try {
-    execSync(`${input} version`)
-  } catch (err) {
-    return false
-  }
-  return true
 }
 
 async function getDeployTags (env, answers) {
@@ -71,10 +60,16 @@ async function getDeployTags (env, answers) {
 
   tags.env = `${prefix}${packageJson.name}:${env}`
   tags.hash = `${prefix}${packageJson.name}:${shortHash}`
+  tags.uienv = `${prefix}${packageJson.name}-ui:${env}`
+  tags.uihash = `${prefix}${packageJson.name}-ui:${shortHash}`
   return tags
 }
 
 async function DeployNodeApp (env /*: string */, opts) {
+  const execToStdout = {
+    stdio: [process.stdin, !opts.output ? process.stdout : null, process.stderr]
+  }
+
   if (!commandExists.sync('docker')) {
     fatal('Error - You might need to install or start docker! https://www.docker.com/get-started')
   }
@@ -90,15 +85,24 @@ async function DeployNodeApp (env /*: string */, opts) {
 
   let answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson)
 
+  // TODO use a few heuristics to determine whether to build a UI container.
+  // I.E. is there a /build/index.html or /src/www/public.html, is 'react' present in the dependency list, etc...
+  const buildUi = false
+  if (buildUi) {
+    buildUiDockerfile()
+  }
+
   buildDockerfile(answers.entrypoint)
 
   const tags = await getDeployTags(env, answers)
 
-  process.stdout.write(
-    `\n${WARNING} About to deploy ${style.green.open}${style.bold.open}${tags.env}${
-      style.reset.open
-    } on ${style.bold.open}${answers.context}${style.reset.open}\n\n`
-  )
+  if (!opts.output) {
+    process.stdout.write(
+      `\n${WARNING} About to deploy ${style.green.open}${style.bold.open}${tags.env}${
+        style.reset.open
+      } on ${style.bold.open}${answers.context}${style.reset.open}\n\n`
+    )
+  }
 
   if (!answers.confirm) {
     if (answers.registry.includes('index.docker.io')) {
@@ -113,7 +117,7 @@ async function DeployNodeApp (env /*: string */, opts) {
     }
   }
 
-  if (opts.confirm) {
+  if (opts.confirm && !opts.output) {
     const { confirm } = await inquirer.prompt([
       {
         name: 'confirm',
@@ -130,6 +134,9 @@ async function DeployNodeApp (env /*: string */, opts) {
   // TODO: Check if image has already been built - optional?
 
   if (opts.build) {
+    if (buildUi) {
+      execSync(`docker build Dockerfile.ui -t ${tags.uienv} -t ${tags.uihash}`, execToStdout)
+    }
     execSync(`docker build . -t ${tags.env} -t ${tags.hash}`, execToStdout)
     execSync(`docker push ${tags.env}`, execToStdout)
     execSync(`docker push ${tags.hash}`, execToStdout)
@@ -248,6 +255,13 @@ async function DeployNodeApp (env /*: string */, opts) {
     [env]: answers
   }
   fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2))
+
+  if (opts.output === 'compose') {
+    await buildComposeConfig(packageJson, 'stdout')
+  } else {
+    await buildKubeConfig(packageJson, 'stdout')
+  }
+
   process.exit(0)
 }
 
@@ -257,6 +271,7 @@ program
   .version(DNA_VERSION)
   .option('-n, --no-build', 'Don\'t build and push docker container')
   .option('--no-confirm', 'Do not prompt for confirmation')
+  .option('-o --output [type]', 'Output config format [k8s|compose]')
   .parse(process.argv)
 
 // Default to production environment

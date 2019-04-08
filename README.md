@@ -1,6 +1,6 @@
-# deploy-to-kube
+# deploy-node-app
 
-[![npm version](https://img.shields.io/npm/v/deploy-to-kube.svg?style=flat-square)](https://www.npmjs.com/package/deploy-to-kube)
+[![npm version](https://img.shields.io/npm/v/deploy-node-app.svg?style=flat-square)](https://www.npmjs.com/package/deploy-node-app)
 
 Deploy your node.js app to Kubernetes with a single command. No config required.
 
@@ -14,9 +14,9 @@ Supports any Kubernetes cluster, including the following:
 
 ### Instructions
 
-Just run `npx deploy-to-kube` in your node project.
+Just run `npx deploy-node-app` in your node project.
 
-![Example](https://github.com/kubesail/deploy-to-kube/raw/master/docs/terminal-example-1.svg?sanitize=true)
+![Example](https://github.com/kubesail/deploy-node-app/raw/master/docs/terminal-example-1.svg?sanitize=true)
 
 ### Prerequisites
 
@@ -36,7 +36,7 @@ After answering a few questions about your app, this tool can:
 
 ---
 
-deploy-to-kube is maintained by
+deploy-node-app is maintained by
 
 [<img src="docs/kubesail-logo.png" alt="Kubesail" width="160">
 <br/>
