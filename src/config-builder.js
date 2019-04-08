@@ -25,7 +25,7 @@ async function buildComposeConfig (pkg, output = 'file') {
         deployments[deployment.metadata.name] = {
           ports,
           // volumes: [{ '.': '/code' }], // TODO
-          redis: [{ image }]
+          image
         }
       })
     })
