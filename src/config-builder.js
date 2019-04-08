@@ -4,7 +4,7 @@ const yaml = require('js-yaml')
 
 const readFile = util.promisify(fs.readFile)
 
-async function buildComposeConfig (pkg) {
+async function buildComposeConfig (pkg, output = 'file') {
   const depNames = Object.keys(pkg.dependencies)
   const readFiles = depNames.map(dep =>
     readFile(`node_modules/${dep}/package.json`).then(json => JSON.parse(json))
@@ -31,35 +31,38 @@ async function buildComposeConfig (pkg) {
     })
 
   // Write out docker compose file
-  fs.writeFileSync(
-    './docker-compose.yaml',
-    yaml.safeDump({
-      version: '2',
-      services: deployments
-    })
-  )
+  const config = yaml.safeDump({
+    version: '2',
+    services: deployments
+  })
+  if (output) {
+    fs.writeFileSync('docker-compose.yaml', config)
+  } else {
+    process.stdout.write(config)
+  }
 }
 
-async function buildKubeConfig (pkg) {
+async function buildKubeConfig (pkg, output = 'file') {
   const depNames = Object.keys(pkg.dependencies)
   const readFiles = depNames.map(dep =>
     readFile(`node_modules/${dep}/package.json`).then(json => JSON.parse(json))
   )
   let files = await Promise.all(readFiles)
-  let deployments = []
+  let configs = []
   files
     .filter(file => !!file.deployments)
-    .forEach(file => (deployments = deployments.concat(file.deployments)))
+    .forEach(file => (configs = configs.concat(file.deployments)))
 
-  let services = []
-  files.filter(file => !!file.services).forEach(file => (services = services.concat(file.services)))
-
-  deployments = yaml.safeDump(deployments)
-  services = yaml.safeDump(services)
+  files.filter(file => !!file.services).forEach(file => (configs = configs.concat(file.services)))
 
   // Write out Kubernetes config
-  fs.writeFileSync('./kube-deployments.yaml', deployments)
-  fs.writeFileSync('./kube-services.yaml', services)
+  const config = yaml.safeDump(configs)
+  console.log({ config })
+  if (output) {
+    fs.writeFileSync('kube-config.yaml', config)
+  } else {
+    process.stdout.write(config)
+  }
 }
 
 module.exports = { buildComposeConfig, buildKubeConfig }
