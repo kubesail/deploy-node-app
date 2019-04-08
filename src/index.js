@@ -18,11 +18,12 @@ const {
   readLocalDockerConfig,
   buildUiDockerfile,
   buildDockerfile,
+  shouldUseYarn,
   fatal,
   WARNING
 } = require('./util')
 const { promptQuestions } = require('./questions')
-const { buildComposeConfig, buildKubeConfig } = require('./config-builder')
+const { buildDependencyConfig, buildAppDeployment } = require('./config-builder')
 
 const packageJsonPath = 'package.json'
 
@@ -36,13 +37,13 @@ if (typeof packageJson.name !== 'string') {
   fatal('Please add a name to your package.json and re-run')
 }
 
-async function getDeployTags (env, answers) {
+async function getDeployTags (env, answers, shouldBuild) {
   const tags = {}
   const shortHash = execSync('git rev-parse HEAD')
     .toString()
     .substr(0, 7)
   let prefix = answers.registry
-  if (!answers.registryUsername && answers.registry.includes('docker.io')) {
+  if (!answers.registryUsername && answers.registry.includes('docker.io') && shouldBuild) {
     const { username } = await inquirer.prompt({
       name: 'username',
       type: 'input',
@@ -66,10 +67,6 @@ async function getDeployTags (env, answers) {
 }
 
 async function DeployNodeApp (env /*: string */, opts) {
-  const execToStdout = {
-    stdio: [process.stdin, !opts.output ? process.stdout : null, process.stderr]
-  }
-
   if (!commandExists.sync('docker')) {
     fatal('Error - You might need to install or start docker! https://www.docker.com/get-started')
   }
@@ -80,23 +77,25 @@ async function DeployNodeApp (env /*: string */, opts) {
     )
   }
 
+  const execOpts = {
+    stdio: [process.stdin, opts.output !== '-' ? process.stdout : null, process.stderr]
+  }
+
+  const buildUi = fs.existsSync('/build/index.html')
+
   const kubeContexts = readLocalKubeConfig()
   const containerRegistries = readLocalDockerConfig()
 
   let answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson)
 
-  // TODO use a few heuristics to determine whether to build a UI container.
-  // I.E. is there a /build/index.html or /src/www/public.html, is 'react' present in the dependency list, etc...
-  const buildUi = false
   if (buildUi) {
     buildUiDockerfile()
   }
-
   buildDockerfile(answers.entrypoint)
 
-  const tags = await getDeployTags(env, answers)
+  const tags = await getDeployTags(env, answers, opts.build)
 
-  if (!opts.output) {
+  if (opts.output !== '-') {
     process.stdout.write(
       `\n${WARNING} About to deploy ${style.green.open}${style.bold.open}${tags.env}${
         style.reset.open
@@ -117,7 +116,7 @@ async function DeployNodeApp (env /*: string */, opts) {
     }
   }
 
-  if (opts.confirm && !opts.output) {
+  if (opts.confirm && opts.output !== '-') {
     const { confirm } = await inquirer.prompt([
       {
         name: 'confirm',
@@ -131,91 +130,25 @@ async function DeployNodeApp (env /*: string */, opts) {
     answers.confirm = confirm
   }
 
+  // Build static files if needed
+  if (packageJson.scripts && packageJson.scripts.build && opts.build) {
+    const pkgMgr = shouldUseYarn() ? 'yarn' : 'npm run'
+    execSync(`${pkgMgr} build`, execOpts)
+  }
+
   // TODO: Check if image has already been built - optional?
 
   if (opts.build) {
     if (buildUi) {
-      execSync(`docker build Dockerfile.ui -t ${tags.uienv} -t ${tags.uihash}`, execToStdout)
+      execSync(`docker build -f Dockerfile.ui . -t ${tags.uienv} -t ${tags.uihash}`, execOpts)
     }
-    execSync(`docker build . -t ${tags.env} -t ${tags.hash}`, execToStdout)
-    execSync(`docker push ${tags.env}`, execToStdout)
-    execSync(`docker push ${tags.hash}`, execToStdout)
+    execSync(`docker build . -t ${tags.env} -t ${tags.hash}`, execOpts)
+    execSync(`docker push ${tags.env}`, execOpts)
+    execSync(`docker push ${tags.hash}`, execOpts)
   }
 
-  const packageName = packageJson.name.toLowerCase()
-  const name = packageName + '-' + env
-  const deployment = {
-    apiVersion: 'apps/v1',
-    kind: 'Deployment',
-    metadata: {
-      name
-    },
-    spec: {
-      selector: {
-        matchLabels: {
-          app: packageName,
-          env: env
-        }
-      },
-      minReadySeconds: 5,
-      strategy: {
-        type: 'RollingUpdate',
-        rollingUpdate: {
-          maxSurge: 1,
-          maxUnavailable: 0
-        }
-      },
-      replicas: 1,
-      template: {
-        metadata: {
-          labels: {
-            deployedBy: 'deploy-to-kube',
-            app: packageName,
-            env: env
-          }
-        },
-        spec: {
-          volumes: [],
-          // TODO:
-          // imagePullSecrets: [
-          //   {
-          //     name: 'regsecret'
-          //   }
-          // ],
-          containers: [
-            {
-              name,
-              image: tags.env,
-              imagePullPolicy: 'Always',
-              ports: [
-                {
-                  name: answers.protocol,
-                  containerPort: parseInt(answers.port, 10)
-                }
-              ],
-              // envFrom: [
-              //   {
-              //     secretRef: {
-              //       name: env
-              //     }
-              //   }
-              // ],
-              resources: {
-                requests: {
-                  cpu: '1m',
-                  memory: '32Mi'
-                },
-                limits: {
-                  cpu: '100m',
-                  memory: '64Mi'
-                }
-              }
-            }
-          ]
-        }
-      }
-    }
-  }
+  const deployment = buildAppDeployment(packageJson, env, tags, answers)
+  const name = deployment.metadata.name
 
   const deploymentFile = `deployment-${env}.yaml`
   const existingDeploymentFile = fs.existsSync(deploymentFile)
@@ -231,12 +164,12 @@ async function DeployNodeApp (env /*: string */, opts) {
   } catch (err) {}
 
   if (!existingDeployment) {
-    execSync(`kubectl --context=${answers.context} apply -f ${deploymentFile}`, execToStdout)
+    execSync(`kubectl --context=${answers.context} apply -f ${deploymentFile}`, execOpts)
   }
 
   execSync(
     `kubectl --context=${answers.context} set image deployment/${name} ${name}=${tags.hash}`,
-    execToStdout
+    execOpts
   )
 
   let serviceWarning = ''
@@ -251,15 +184,22 @@ async function DeployNodeApp (env /*: string */, opts) {
 
   // TODO: Prompt if its okay to write to package.json
   packageJson = JSON.parse(fs.readFileSync(packageJsonPath))
-  packageJson['deploy-to-kube'] = {
+  packageJson['deploy-node-app'] = {
     [env]: answers
   }
   fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2))
 
-  if (opts.output === 'compose') {
-    await buildComposeConfig(packageJson, 'stdout')
+  // Write config file
+  const format = ['kube', 'kubernetes', 'k8s'].includes(opts.format) ? 'k8s' : 'compose'
+  const config = await buildDependencyConfig(packageJson, format)
+  if (opts.output === '-') {
+    process.stdout.write(config)
   } else {
-    await buildKubeConfig(packageJson, 'stdout')
+    let filename = opts.output
+    if (!filename) {
+      filename = format === 'compose' ? 'docker-compose.yaml' : 'deployment.yaml'
+    }
+    fs.writeFileSync(filename, config)
   }
 
   process.exit(0)
@@ -270,8 +210,13 @@ program
   .usage(USAGE)
   .version(DNA_VERSION)
   .option('-n, --no-build', 'Don\'t build and push docker container')
+  .option('-d, --no-deploy', 'Don\'t deploy to kubernetes')
   .option('--no-confirm', 'Do not prompt for confirmation')
-  .option('-o --output [type]', 'Output config format [k8s|compose]')
+  .option('-f, --format [type]', 'Output config format [k8s|compose]')
+  .option(
+    '-o, --output [filename]',
+    'File for config output. "-" will write to stdout. Default is docker-compose.yaml or deployment.yaml depending on format'
+  )
   .parse(process.argv)
 
 // Default to production environment

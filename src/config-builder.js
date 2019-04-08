@@ -4,65 +4,140 @@ const yaml = require('js-yaml')
 
 const readFile = util.promisify(fs.readFile)
 
-async function buildComposeConfig (pkg, output = 'file') {
+async function buildDependencyConfig (pkg, format = 'compose') {
   const depNames = Object.keys(pkg.dependencies)
-  const readFiles = depNames.map(dep =>
-    readFile(`node_modules/${dep}/package.json`).then(json => JSON.parse(json))
-  )
+  const readFiles = depNames.map(async dep => {
+    try {
+      return await readFile(`node_modules/${dep}/package.json`).then(json => JSON.parse(json))
+    } catch (err) {
+      return Promise.resolve(null)
+    }
+  })
   let files = await Promise.all(readFiles)
 
+  // filter out deps without a package.json, or without any specified deployments
+  files = files.filter(file => file !== null).filter(file => !!file.deployments)
+
+  const config = format === 'compose' ? buildCompose(files) : buildKube(files)
+  return yaml.safeDump(config)
+}
+
+function buildCompose (files) {
   // Point of confusion: In Docker Compose, "services" are analagous to Kube "deployments",
   // meaning if you define a "service" you want a container running for that object
   let deployments = {}
-  files
-    .filter(file => !!file.deployments)
-    .forEach(file => {
-      file.deployments.forEach(deployment => {
-        const image = deployment.spec.template.spec.containers[0].image // TODO ?.
-        const ports = deployment.spec.template.spec.containers[0].ports.map(
-          port => `${port.containerPort}`
-        )
-        deployments[deployment.metadata.name] = {
-          ports,
-          // volumes: [{ '.': '/code' }], // TODO
-          image
-        }
-      })
+  files.forEach(file => {
+    file.deployments.forEach(deployment => {
+      const image = deployment.spec.template.spec.containers[0].image
+      const ports = deployment.spec.template.spec.containers[0].ports.map(
+        port => `${port.containerPort}`
+      )
+      deployments[deployment.metadata.name] = {
+        ports,
+        // volumes: [{ '.': '/code' }], // TODO
+        image
+      }
     })
+  })
 
   // Write out docker compose file
-  const config = yaml.safeDump({
+  return {
     version: '2',
     services: deployments
-  })
-  if (output) {
-    fs.writeFileSync('docker-compose.yaml', config)
-  } else {
-    process.stdout.write(config)
   }
 }
 
-async function buildKubeConfig (pkg, output = 'file') {
-  const depNames = Object.keys(pkg.dependencies)
-  const readFiles = depNames.map(dep =>
-    readFile(`node_modules/${dep}/package.json`).then(json => JSON.parse(json))
-  )
-  let files = await Promise.all(readFiles)
+function buildKube (files) {
   let configs = []
-  files
-    .filter(file => !!file.deployments)
-    .forEach(file => (configs = configs.concat(file.deployments)))
+  files.forEach(file => {
+    if (Array.isArray(file.deployments)) {
+      configs = configs.concat(file.deployments)
+    }
+  })
+  files.forEach(file => {
+    if (Array.isArray(file.services)) {
+      configs = configs.concat(file.services)
+    }
+  })
+  return configs
+}
 
-  files.filter(file => !!file.services).forEach(file => (configs = configs.concat(file.services)))
+function buildAppDeployment (pkg, env, tags, answers) {
+  const packageName = pkg.name.toLowerCase()
+  const name = packageName + '-' + env
 
-  // Write out Kubernetes config
-  const config = yaml.safeDump(configs)
-  console.log({ config })
-  if (output) {
-    fs.writeFileSync('kube-config.yaml', config)
-  } else {
-    process.stdout.write(config)
+  return {
+    apiVersion: 'apps/v1',
+    kind: 'Deployment',
+    metadata: {
+      name
+    },
+    spec: {
+      selector: {
+        matchLabels: {
+          app: packageName,
+          env: env
+        }
+      },
+      minReadySeconds: 5,
+      strategy: {
+        type: 'RollingUpdate',
+        rollingUpdate: {
+          maxSurge: 1,
+          maxUnavailable: 0
+        }
+      },
+      replicas: 1,
+      template: {
+        metadata: {
+          labels: {
+            deployedBy: 'deploy-node-app',
+            app: packageName,
+            env: env
+          }
+        },
+        spec: {
+          volumes: [],
+          // TODO:
+          // imagePullSecrets: [
+          //   {
+          //     name: 'regsecret'
+          //   }
+          // ],
+          containers: [
+            {
+              name,
+              image: tags.env,
+              imagePullPolicy: 'Always',
+              ports: [
+                {
+                  name: answers.protocol,
+                  containerPort: parseInt(answers.port, 10)
+                }
+              ],
+              // envFrom: [
+              //   {
+              //     secretRef: {
+              //       name: env
+              //     }
+              //   }
+              // ],
+              resources: {
+                requests: {
+                  cpu: '1m',
+                  memory: '32Mi'
+                },
+                limits: {
+                  cpu: '100m',
+                  memory: '64Mi'
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
   }
 }
 
-module.exports = { buildComposeConfig, buildKubeConfig }
+module.exports = { buildDependencyConfig, buildAppDeployment }

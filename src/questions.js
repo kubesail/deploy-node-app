@@ -14,7 +14,7 @@ async function promptQuestions (
   kubeContexts /*: Array<string> */,
   packageJson /*: Object */
 ) {
-  let saved = packageJson['deploy-to-kube'] && packageJson['deploy-to-kube'][env]
+  let saved = packageJson['deploy-node-app'] && packageJson['deploy-node-app'][env]
 
   if (!saved) {
     // Gives some context to what we are about to do and why we are asking questions:
