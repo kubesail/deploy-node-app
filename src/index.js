@@ -23,7 +23,7 @@ const {
   WARNING
 } = require('./util')
 const { promptQuestions } = require('./questions')
-const { buildDependencyConfig, buildAppDeployment } = require('./config-builder')
+const { buildDependencyConfig, buildAppDeployment, buildUiDeployment } = require('./config-builder')
 
 const packageJsonPath = 'package.json'
 
@@ -81,14 +81,14 @@ async function DeployNodeApp (env /*: string */, opts) {
     stdio: [process.stdin, opts.output !== '-' ? process.stdout : null, process.stderr]
   }
 
-  const buildUi = fs.existsSync('/build/index.html')
+  const deployUi = fs.existsSync('public/index.html') || fs.existsSync('build/index.html')
 
   const kubeContexts = readLocalKubeConfig()
   const containerRegistries = readLocalDockerConfig()
 
   let answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson)
 
-  if (buildUi) {
+  if (deployUi) {
     buildUiDockerfile()
   }
   buildDockerfile(answers.entrypoint)
@@ -99,11 +99,21 @@ async function DeployNodeApp (env /*: string */, opts) {
     process.stdout.write(
       `\n${WARNING} About to deploy ${style.green.open}${style.bold.open}${tags.env}${
         style.reset.open
-      } on ${style.bold.open}${answers.context}${style.reset.open}\n\n`
+      } on ${style.bold.open}${answers.context}${style.reset.open}`
     )
+    if (deployUi) {
+      process.stdout.write(
+        `\n${WARNING} About to deploy ${style.green.open}${style.bold.open}${tags.uienv}${
+          style.reset.open
+        } on ${style.bold.open}${answers.context}${style.reset.open}`
+      )
+    }
+    process.stdout.write('\n\n')
+
+    // TODO warn for each dependency container that will be launched
   }
 
-  if (!answers.confirm) {
+  if (!answers.confirmed) {
     if (answers.registry.includes('index.docker.io')) {
       process.stdout.write(
         `${WARNING} You are using Docker Hub. If the docker repository does not exist,\n` +
@@ -117,18 +127,24 @@ async function DeployNodeApp (env /*: string */, opts) {
   }
 
   if (opts.confirm && opts.output !== '-') {
-    const { confirm } = await inquirer.prompt([
+    const { confirmed } = await inquirer.prompt([
       {
-        name: 'confirm',
+        name: 'confirmed',
         type: 'confirm',
         message: 'Are you sure you want to continue?'
       }
     ])
-    if (!confirm) {
+    if (!confirmed) {
       process.exit(1)
     }
-    answers.confirm = confirm
+    answers.confirmed = confirmed
   }
+
+  // TODO determine API hostname in following order:
+  // 2) attempt to read / apply kube service and pull from response
+  // 1) from package.json in deploy-node-app answers
+  // 3) interactive prompt
+  // Then set REACT_APP_API_HOST env var before building static files
 
   // Build static files if needed
   if (packageJson.scripts && packageJson.scripts.build && opts.build) {
@@ -139,38 +155,69 @@ async function DeployNodeApp (env /*: string */, opts) {
   // TODO: Check if image has already been built - optional?
 
   if (opts.build) {
-    if (buildUi) {
-      execSync(`docker build -f Dockerfile.ui . -t ${tags.uienv} -t ${tags.uihash}`, execOpts)
-    }
     execSync(`docker build . -t ${tags.env} -t ${tags.hash}`, execOpts)
     execSync(`docker push ${tags.env}`, execOpts)
     execSync(`docker push ${tags.hash}`, execOpts)
+    if (deployUi) {
+      execSync(`docker build -f Dockerfile.ui . -t ${tags.uienv} -t ${tags.uihash}`, execOpts)
+      execSync(`docker push ${tags.uienv}`, execOpts)
+      execSync(`docker push ${tags.uihash}`, execOpts)
+    }
   }
 
+  // Deploy main app
   const deployment = buildAppDeployment(packageJson, env, tags, answers)
   const name = deployment.metadata.name
-
+  // TODO write these configs to a single kube config file
   const deploymentFile = `deployment-${env}.yaml`
   const existingDeploymentFile = fs.existsSync(deploymentFile)
   if (!existingDeploymentFile) {
     fs.writeFileSync(deploymentFile, yaml.safeDump(deployment))
   }
-
   let existingDeployment
   try {
     existingDeployment = execSync(`kubectl --context=${answers.context} get deployment ${name}`, {
       stdio: []
     }).toString()
   } catch (err) {}
-
   if (!existingDeployment) {
     execSync(`kubectl --context=${answers.context} apply -f ${deploymentFile}`, execOpts)
   }
-
   execSync(
     `kubectl --context=${answers.context} set image deployment/${name} ${name}=${tags.hash}`,
     execOpts
   )
+
+  // Optionally deploy static files / UI container
+  if (deployUi) {
+    const uiDeployment = buildUiDeployment(packageJson, env, tags, answers)
+    const uiName = uiDeployment.metadata.name
+    // TODO write these configs to a single kube config file
+    const uiDeploymentFile = `deployment-ui-${env}.yaml`
+    const existingUiDeploymentFile = fs.existsSync(uiDeploymentFile)
+    if (!existingUiDeploymentFile) {
+      fs.writeFileSync(uiDeploymentFile, yaml.safeDump(uiDeployment))
+    }
+
+    let existingUiDeployment
+    try {
+      existingUiDeployment = execSync(
+        `kubectl --context=${answers.context} get deployment ${uiName}`,
+        { stdio: [] }
+      ).toString()
+    } catch (err) {}
+
+    if (!existingUiDeployment) {
+      execSync(`kubectl --context=${answers.context} apply -f ${uiDeploymentFile}`, execOpts)
+    }
+
+    execSync(
+      `kubectl --context=${answers.context} set image deployment/${uiName} ${uiName}=${
+        tags.uihash
+      }`,
+      execOpts
+    )
+  }
 
   let serviceWarning = ''
   if (!answers.context.includes('kubesail')) {

@@ -63,8 +63,8 @@ function buildKube (files) {
 }
 
 function buildAppDeployment (pkg, env, tags, answers) {
-  const packageName = pkg.name.toLowerCase()
-  const name = packageName + '-' + env
+  const appName = pkg.name.toLowerCase()
+  const name = `${appName}-${env}`
 
   return {
     apiVersion: 'apps/v1',
@@ -75,7 +75,7 @@ function buildAppDeployment (pkg, env, tags, answers) {
     spec: {
       selector: {
         matchLabels: {
-          app: packageName,
+          app: appName,
           env: env
         }
       },
@@ -92,7 +92,7 @@ function buildAppDeployment (pkg, env, tags, answers) {
         metadata: {
           labels: {
             deployedBy: 'deploy-node-app',
-            app: packageName,
+            app: appName,
             env: env
           }
         },
@@ -140,4 +140,76 @@ function buildAppDeployment (pkg, env, tags, answers) {
   }
 }
 
-module.exports = { buildDependencyConfig, buildAppDeployment }
+// Assuming nginx container, listening on port 80
+function buildUiDeployment (pkg, env, tags, answers) {
+  const appName = `${pkg.name.toLowerCase()}-ui`
+  const name = `${appName}-${env}`
+
+  return {
+    apiVersion: 'apps/v1',
+    kind: 'Deployment',
+    metadata: {
+      name
+    },
+    spec: {
+      selector: {
+        matchLabels: {
+          app: appName,
+          env: env
+        }
+      },
+      minReadySeconds: 5,
+      strategy: {
+        type: 'RollingUpdate',
+        rollingUpdate: {
+          maxSurge: 1,
+          maxUnavailable: 0
+        }
+      },
+      replicas: 1,
+      template: {
+        metadata: {
+          labels: {
+            deployedBy: 'deploy-node-app',
+            app: appName,
+            env: env
+          }
+        },
+        spec: {
+          volumes: [],
+          // TODO:
+          // imagePullSecrets: [
+          //   {
+          //     name: 'regsecret'
+          //   }
+          // ],
+          containers: [
+            {
+              name,
+              image: tags.uienv,
+              imagePullPolicy: 'Always',
+              ports: [
+                {
+                  name: 'http',
+                  containerPort: 80
+                }
+              ],
+              resources: {
+                requests: {
+                  cpu: '1m',
+                  memory: '32Mi'
+                },
+                limits: {
+                  cpu: '100m',
+                  memory: '64Mi'
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+
+module.exports = { buildDependencyConfig, buildAppDeployment, buildUiDeployment }
