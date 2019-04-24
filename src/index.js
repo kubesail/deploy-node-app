@@ -23,7 +23,13 @@ const {
   WARNING
 } = require('./util')
 const { promptQuestions } = require('./questions')
-const { buildDependencyConfig, buildAppDeployment, buildUiDeployment } = require('./config-builder')
+const {
+  buildDependencyConfig,
+  buildAppDeployment,
+  buildUiDeployment,
+  buildAppService
+  // buildUiService
+} = require('./config-builder')
 
 const packageJsonPath = 'package.json'
 
@@ -179,7 +185,7 @@ async function DeployNodeApp (env /*: string */, opts) {
     existingDeployment = execSync(`kubectl --context=${answers.context} get deployment ${name}`, {
       stdio: []
     }).toString()
-  } catch (err) {}
+  } catch {}
   if (!existingDeployment) {
     execSync(`kubectl --context=${answers.context} apply -f ${deploymentFile}`, execOpts)
   }
@@ -219,8 +225,20 @@ async function DeployNodeApp (env /*: string */, opts) {
     )
   }
 
-  let serviceWarning = ''
-  if (!answers.context.includes('kubesail')) {
+  if (answers.context.includes('kubesail')) {
+    // Expose Service on KubeSail
+    const service = buildAppService(packageJson, env, tags, answers)
+    const serviceName = service.metadata.name
+    const serviceFile = `service-${env}.yaml`
+    const existingServiceFile = fs.existsSync(serviceFile)
+    if (!existingServiceFile) {
+      fs.writeFileSync(serviceFile, yaml.safeDump(service))
+    }
+    execSync(`kubectl --context=${answers.context} apply -f ${serviceFile}`, execOpts)
+    const hostname = JSON.parse(service.metadata.annotations['getambassador.io/config']).host
+
+    let serviceWarning = ''
+  } else {
     serviceWarning =
       '\nYou may need to expose your deployment on kubernetes via a service.\n' +
       'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.\n'
