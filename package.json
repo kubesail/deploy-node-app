@@ -34,7 +34,7 @@
     "ansi-styles": "^3.2.1",
     "command-exists": "^1.2.8",
     "commander": "^2.19.0",
-    "get-kubesail-config": "^0.0.3",
+    "get-kubesail-config": "^1.0.4",
     "inquirer": "^6.2.1",
     "inquirer-fuzzy-path": "^2.0.1",
     "opn": "^5.4.0",
