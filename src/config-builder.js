@@ -213,9 +213,53 @@ function buildUiDeployment (pkg, env, tags, answers) {
 }
 
 // Currently only useful for KubeSail
-function buildAppService (pkg, env, tags, answers) {
+function buildAppService (pkg, env, tags, answers, namespace, exposeExternally = true) {
   const appName = pkg.name.toLowerCase()
-  const name = `${appName}-${env}`
+  const name = `${appName}-${env}-http`
+
+  return {
+    apiVersion: 'v1',
+    kind: 'Service',
+    metadata: {
+      annotations: exposeExternally
+        ? {
+          'getambassador.io/config': JSON.stringify({
+            apiVersion: 'ambassador/v1',
+            kind: 'Mapping',
+            name: `${name}.${namespace}`,
+            prefix: '/',
+            service: `http://${name}.${namespace}:${answers.port}`,
+            host: `${appName}--${namespace}.kubesail.io`, // TODO allow custom domains
+            timeout_ms: 10000,
+            use_websocket: true
+          })
+        }
+        : null,
+      name: `${name}`
+    },
+    spec: {
+      ports: [
+        {
+          port: answers.port,
+          protocol: 'TCP',
+          targetPort: answers.port
+        }
+      ],
+
+      selector: {
+        deployedBy: 'deploy-node-app',
+        app: appName,
+        env: env
+      }
+    }
+  }
+}
+
+// Currently only useful for KubeSail
+// Assuming nginx container, listening on port 80
+function buildUiService (pkg, env, tags, answers, namespace) {
+  const appName = `${pkg.name.toLowerCase()}-ui`
+  const name = `${appName}-${env}-http`
 
   return {
     apiVersion: 'v1',
@@ -227,23 +271,24 @@ function buildAppService (pkg, env, tags, answers) {
           kind: 'Mapping',
           name: `${name}.${namespace}`,
           prefix: '/',
-          service: `http://${name}.${namespace}:${port.containerPort}`,
-          host: `${deploymentName}--${namespace}.kubesail.io`, // TODO allow custom domains
+          service: `http://${name}.${namespace}:80`,
+          host: `${appName}-www--${namespace}.kubesail.io`, // TODO allow custom domains
           timeout_ms: 10000,
           use_websocket: true
         })
       },
-      name: `${name}-http`
+      name: `${name}`
     },
     spec: {
       ports: [
         {
-          port: answers.port,
+          port: 80,
           protocol: 'TCP',
-          targetPort: answers.port
+          targetPort: 80
         }
       ],
       selector: {
+        deployedBy: 'deploy-node-app',
         app: appName,
         env: env
       }
@@ -251,4 +296,10 @@ function buildAppService (pkg, env, tags, answers) {
   }
 }
 
-module.exports = { buildDependencyConfig, buildAppDeployment, buildUiDeployment, buildAppService }
+module.exports = {
+  buildDependencyConfig,
+  buildAppDeployment,
+  buildUiDeployment,
+  buildAppService,
+  buildUiService
+}

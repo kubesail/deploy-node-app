@@ -45,6 +45,16 @@ function readLocalKubeConfig () {
   return kubeContexts
 }
 
+function readKubeConfigNamespace (context) {
+  try {
+    const kubeConfig = yaml.safeLoad(fs.readFileSync(KUBE_CONFIG_PATH))
+    const namespace = kubeConfig.contexts.find(({ name }) => name === context).context.namespace
+    return namespace
+  } catch (err) {
+    return null
+  }
+}
+
 function readLocalDockerConfig () {
   // Read local .docker configuration to see if the user has container registries already
   let containerRegistries = []
@@ -146,6 +156,7 @@ module.exports = {
   readLocalDockerConfig,
   buildUiDockerfile,
   buildDockerfile,
+  readKubeConfigNamespace,
   shouldUseYarn,
   fatal,
   WARNING,
