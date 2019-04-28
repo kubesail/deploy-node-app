@@ -76,7 +76,7 @@ function readLocalDockerConfig () {
 
 function buildUiDockerfile (staticDir = '/build') {
   const dockerfilePath = 'Dockerfile.ui'
-  dockerfile = `
+  const dockerfile = `
   FROM nginx
   COPY ${staticDir} /usr/share/nginx/html`
 

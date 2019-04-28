@@ -39,5 +39,8 @@
     "inquirer-fuzzy-path": "^2.0.1",
     "opn": "^5.4.0",
     "ws": "^6.1.2"
+  },
+  "prettier": {
+    "printWidth": 100
   }
 }
