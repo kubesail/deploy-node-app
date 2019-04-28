@@ -32,7 +32,7 @@ After answering a few questions about your app, this tool can:
 1. Build a Docker image
 1. Create a Kubernetes deployment file
 1. Deploy your app on a Kubernetes cluster
-   - Configure a free namespace on Kubesail.com (if desired)
+   - Configure a free namespace on KubeSail (if desired)
 
 ---
 

@@ -18,12 +18,19 @@ const {
   readLocalDockerConfig,
   buildUiDockerfile,
   buildDockerfile,
+  readKubeConfigNamespace,
   shouldUseYarn,
   fatal,
   WARNING
 } = require('./util')
 const { promptQuestions } = require('./questions')
-const { buildDependencyConfig, buildAppDeployment, buildUiDeployment } = require('./config-builder')
+const {
+  buildDependencyConfig,
+  buildAppDeployment,
+  buildUiDeployment,
+  buildAppService,
+  buildUiService
+} = require('./config-builder')
 
 const packageJsonPath = 'package.json'
 
@@ -84,6 +91,7 @@ async function DeployNodeApp (env /*: string */, opts) {
   const deployUi = fs.existsSync('public/index.html') || fs.existsSync('build/index.html')
 
   const kubeContexts = readLocalKubeConfig()
+
   const containerRegistries = readLocalDockerConfig()
 
   let answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson)
@@ -117,8 +125,8 @@ async function DeployNodeApp (env /*: string */, opts) {
     if (answers.registry.includes('index.docker.io')) {
       process.stdout.write(
         `${WARNING} You are using Docker Hub. If the docker repository does not exist,\n` +
-          `   it may be automatically created with ${style.red.open}PUBLIC${
-            style.red.close
+          `   it may be automatically created with ${style.yellow.open}PUBLIC${
+            style.reset.open
           } access!\n` +
           '   Make sure you have all secrets in your ".dockerignore" file,\n' +
           '   and you may want to make sure your image repository is setup securely!\n\n'
@@ -179,7 +187,7 @@ async function DeployNodeApp (env /*: string */, opts) {
     existingDeployment = execSync(`kubectl --context=${answers.context} get deployment ${name}`, {
       stdio: []
     }).toString()
-  } catch (err) {}
+  } catch {}
   if (!existingDeployment) {
     execSync(`kubectl --context=${answers.context} apply -f ${deploymentFile}`, execOpts)
   }
@@ -220,15 +228,54 @@ async function DeployNodeApp (env /*: string */, opts) {
   }
 
   let serviceWarning = ''
-  if (!answers.context.includes('kubesail')) {
+  // Expose Service on KubeSail if desired
+  if (answers.context.includes('kubesail')) {
+    const namespace = readKubeConfigNamespace(answers.context)
+    if (deployUi) {
+      const service = buildUiService(packageJson, env, tags, answers, namespace)
+      const serviceFile = `service-ui-${env}.yaml`
+      const existingServiceFile = fs.existsSync(serviceFile)
+      if (existingServiceFile) {
+        process.stdout.write(
+          `\n${style.yellow.open}${serviceFile} exists - not overwriting${style.reset.open}\n`
+        )
+      } else {
+        fs.writeFileSync(serviceFile, yaml.safeDump(service))
+      }
+      execSync(`kubectl --context=${answers.context} apply -f ${serviceFile}`, execOpts)
+      try {
+        const hostname = JSON.parse(service.metadata.annotations['getambassador.io/config']).host
+        serviceWarning += `Your UI is available at https://${hostname}\n`
+      } catch {}
+    }
+
+    const exposeExternally = !deployUi
+    const service = buildAppService(packageJson, env, tags, answers, namespace, exposeExternally)
+    const serviceFile = `service-${env}.yaml`
+    const existingServiceFile = fs.existsSync(serviceFile)
+    if (existingServiceFile) {
+      process.stdout.write(
+        `\n${style.yellow.open}${serviceFile} exists - not overwriting${style.reset.open}\n`
+      )
+    } else {
+      fs.writeFileSync(serviceFile, yaml.safeDump(service))
+    }
+    execSync(`kubectl --context=${answers.context} apply -f ${serviceFile}`, execOpts)
+    try {
+      const hostname = JSON.parse(service.metadata.annotations['getambassador.io/config']).host
+      serviceWarning += `Your app is available at https://${hostname}\n`
+    } catch {}
+  } else {
     serviceWarning =
       '\nYou may need to expose your deployment on kubernetes via a service.\n' +
       'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.\n'
   }
-  process.stdout.write('\n\n✨  Your application has been deployed! ✨\n\n\n' + serviceWarning)
+
+  process.stdout.write(
+    `\n\n\n✨  Your application has been deployed! ✨\n\n\n${serviceWarning}\n\n\n`
+  )
 
   // TODO: warn if node_modules is not in .dockerignore or .gitignore
-
   // TODO: Prompt if its okay to write to package.json
   packageJson = JSON.parse(fs.readFileSync(packageJsonPath))
   packageJson['deploy-node-app'] = {

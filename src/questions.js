@@ -42,7 +42,7 @@ async function promptQuestions (
           message:
             'You don\'t appear to have a Kubernetes config.\n' +
             '  This tool can configure a free kubernetes namespace on \n' +
-            '  Kubesail in order to help you deploy your application easily.\n' +
+            '  KubeSail in order to help you deploy your application easily.\n' +
             '  You will be redirected to the Kubesail website.\n' +
             '\n' +
             '  Would you like to continue?'
