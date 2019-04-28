@@ -1,7 +1,6 @@
 // @flow
 
 // eslint-disable-next-line security/detect-child-process
-const execSync = require('child_process').execSync
 const inquirer = require('inquirer')
 const fs = require('fs')
 const commandExists = require('command-exists')
@@ -9,6 +8,7 @@ const yaml = require('js-yaml')
 const style = require('ansi-styles')
 
 const {
+  execSyncWithEnv,
   readLocalKubeConfig,
   readLocalDockerConfig,
   buildUiDockerfile,
@@ -31,7 +31,7 @@ const { promptQuestions } = require('./questions')
 
 async function getDeployTags (name, env, answers, shouldBuild) {
   const tags = {}
-  const shortHash = execSync('git rev-parse HEAD')
+  const shortHash = execSyncWithEnv('git rev-parse HEAD')
     .toString()
     .substr(0, 7)
   let prefix = answers.registry
@@ -60,13 +60,11 @@ async function getDeployTags (name, env, answers, shouldBuild) {
 
 async function DeployNodeApp (packageJson /*: Object */, env /*: string */, opts) {
   if (!commandExists.sync('docker')) {
-    fatal('Error - You might need to install or start docker! https://www.docker.com/get-started')
+    fatal('Error - Please install docker! https://www.docker.com/get-started')
   }
 
   if (!commandExists.sync('kubectl')) {
-    fatal(
-      'Error - You might need to install kubectl! https://kubernetes.io/docs/tasks/tools/install-kubectl/'
-    )
+    fatal('Error - Please install kubectl! https://kubernetes.io/docs/tasks/tools/install-kubectl/')
   }
 
   const execOpts = {
@@ -142,19 +140,22 @@ async function DeployNodeApp (packageJson /*: Object */, env /*: string */, opts
   // Build static files if needed
   if (packageJson.scripts && packageJson.scripts.build && opts.build) {
     const pkgMgr = shouldUseYarn() ? 'yarn' : 'npm run'
-    execSync(`${pkgMgr} build`, execOpts)
+    execSyncWithEnv(`${pkgMgr} build`, execOpts)
   }
 
   // TODO: Check if image has already been built - optional?
 
   if (opts.build) {
-    execSync(`docker build . -t ${tags.env} -t ${tags.hash}`, execOpts)
-    execSync(`docker push ${tags.env}`, execOpts)
-    execSync(`docker push ${tags.hash}`, execOpts)
+    execSyncWithEnv(`docker build . -t ${tags.env} -t ${tags.hash}`, execOpts)
+    execSyncWithEnv(`docker push ${tags.env}`, execOpts)
+    execSyncWithEnv(`docker push ${tags.hash}`, execOpts)
     if (deployUi) {
-      execSync(`docker build -f Dockerfile.ui . -t ${tags.uienv} -t ${tags.uihash}`, execOpts)
-      execSync(`docker push ${tags.uienv}`, execOpts)
-      execSync(`docker push ${tags.uihash}`, execOpts)
+      execSyncWithEnv(
+        `docker build -f Dockerfile.ui . -t ${tags.uienv} -t ${tags.uihash}`,
+        execOpts
+      )
+      execSyncWithEnv(`docker push ${tags.uienv}`, execOpts)
+      execSyncWithEnv(`docker push ${tags.uihash}`, execOpts)
     }
   }
 
@@ -169,14 +170,17 @@ async function DeployNodeApp (packageJson /*: Object */, env /*: string */, opts
   }
   let existingDeployment
   try {
-    existingDeployment = execSync(`kubectl --context=${answers.context} get deployment ${name}`, {
-      stdio: []
-    }).toString()
+    existingDeployment = execSyncWithEnv(
+      `kubectl --context=${answers.context} get deployment ${name}`,
+      {
+        stdio: []
+      }
+    ).toString()
   } catch {}
   if (!existingDeployment) {
-    execSync(`kubectl --context=${answers.context} apply -f ${deploymentFile}`, execOpts)
+    execSyncWithEnv(`kubectl --context=${answers.context} apply -f ${deploymentFile}`, execOpts)
   }
-  execSync(
+  execSyncWithEnv(
     `kubectl --context=${answers.context} set image deployment/${name} ${name}=${tags.hash}`,
     execOpts
   )
@@ -194,17 +198,17 @@ async function DeployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
     let existingUiDeployment
     try {
-      existingUiDeployment = execSync(
+      existingUiDeployment = execSyncWithEnv(
         `kubectl --context=${answers.context} get deployment ${uiName}`,
         { stdio: [] }
       ).toString()
     } catch (err) {}
 
     if (!existingUiDeployment) {
-      execSync(`kubectl --context=${answers.context} apply -f ${uiDeploymentFile}`, execOpts)
+      execSyncWithEnv(`kubectl --context=${answers.context} apply -f ${uiDeploymentFile}`, execOpts)
     }
 
-    execSync(
+    execSyncWithEnv(
       `kubectl --context=${answers.context} set image deployment/${uiName} ${uiName}=${
         tags.uihash
       }`,
@@ -227,7 +231,7 @@ async function DeployNodeApp (packageJson /*: Object */, env /*: string */, opts
       } else {
         fs.writeFileSync(serviceFile, yaml.safeDump(service))
       }
-      execSync(`kubectl --context=${answers.context} apply -f ${serviceFile}`, execOpts)
+      execSyncWithEnv(`kubectl --context=${answers.context} apply -f ${serviceFile}`, execOpts)
       try {
         const hostname = JSON.parse(service.metadata.annotations['getambassador.io/config']).host
         serviceWarning += `Your UI is available at https://${hostname}\n`
@@ -245,7 +249,7 @@ async function DeployNodeApp (packageJson /*: Object */, env /*: string */, opts
     } else {
       fs.writeFileSync(serviceFile, yaml.safeDump(service))
     }
-    execSync(`kubectl --context=${answers.context} apply -f ${serviceFile}`, execOpts)
+    execSyncWithEnv(`kubectl --context=${answers.context} apply -f ${serviceFile}`, execOpts)
     try {
       const hostname = JSON.parse(service.metadata.annotations['getambassador.io/config']).host
       serviceWarning += `Your app is available at https://${hostname}\n`

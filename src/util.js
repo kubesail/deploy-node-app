@@ -20,6 +20,16 @@ function fatal (message /*: string */) {
   process.exit(1)
 }
 
+const execSyncWithEnv = (cmd, args, options = {}) => {
+  execSync(
+    cmd,
+    args,
+    Object.assign({}, options, {
+      env: Object.assign({}, process.env, options.env)
+    })
+  )
+}
+
 function readLocalKubeConfig () {
   // Read local .kube configuration to see if the user has an existing kube context they want to use
   let kubeContexts = []
@@ -156,6 +166,7 @@ function shouldUseYarn () {
 }
 
 module.exports = {
+  execSyncWithEnv,
   readLocalKubeConfig,
   readLocalDockerConfig,
   buildUiDockerfile,
