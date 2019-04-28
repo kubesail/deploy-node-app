@@ -3,6 +3,8 @@ const fs = require('fs')
 const path = require('path')
 const homedir = require('os').homedir()
 const yaml = require('js-yaml')
+// eslint-disable-next-line security/detect-child-process
+const execSync = require('child_process').execSync
 
 const WARNING = `${style.green.open}!!${style.green.close}`
 const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
