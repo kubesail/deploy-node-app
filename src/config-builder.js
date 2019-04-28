@@ -1,3 +1,5 @@
+// @flow
+
 const fs = require('fs')
 const util = require('util')
 const yaml = require('js-yaml')

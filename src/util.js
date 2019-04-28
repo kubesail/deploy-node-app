@@ -1,3 +1,5 @@
+// @flow
+
 const style = require('ansi-styles')
 const fs = require('fs')
 const path = require('path')
