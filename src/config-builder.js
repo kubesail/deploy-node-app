@@ -18,7 +18,7 @@ async function buildDependencyConfig (pkg, format = 'compose') {
   let files = await Promise.all(readFiles)
 
   // filter out deps without a package.json, or without any specified deployments
-  files = files.filter(file => file !== null).filter(file => !!file.deployments)
+  files = files.filter(file => file !== null).filter(file => !!file['deploy-node-app'])
 
   const config = format === 'compose' ? buildCompose(files) : buildKube(files)
   return yaml.safeDump(config)

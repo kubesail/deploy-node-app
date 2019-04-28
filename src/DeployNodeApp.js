@@ -8,6 +8,7 @@ const yaml = require('js-yaml')
 const style = require('ansi-styles')
 
 const {
+  getDeployTags,
   execSyncWithEnv,
   readLocalKubeConfig,
   readLocalDockerConfig,
@@ -28,35 +29,6 @@ const {
 } = require('./config-builder')
 
 const { promptQuestions } = require('./questions')
-
-async function getDeployTags (name, env, answers, shouldBuild) {
-  const tags = {}
-  const shortHash = execSyncWithEnv('git rev-parse HEAD')
-    .toString()
-    .substr(0, 7)
-  let prefix = answers.registry
-  if (!answers.registryUsername && answers.registry.includes('docker.io') && shouldBuild) {
-    const { username } = await inquirer.prompt({
-      name: 'username',
-      type: 'input',
-      message: 'What is your docker hub username?',
-      validate: function (username) {
-        if (username.length < 4) return 'Invalid username'
-        return true
-      }
-    })
-    answers.registryUsername = username
-  }
-  if (answers.registry.includes('docker.io') && answers.registryUsername) {
-    prefix = `${answers.registryUsername}/`
-  }
-
-  tags.env = `${prefix}${name}:${env}`
-  tags.hash = `${prefix}${name}:${shortHash}`
-  tags.uienv = `${prefix}${name}-ui:${env}`
-  tags.uihash = `${prefix}${name}-ui:${shortHash}`
-  return tags
-}
 
 async function DeployNodeApp (packageJson /*: Object */, env /*: string */, opts) {
   if (!commandExists.sync('docker')) {

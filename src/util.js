@@ -5,6 +5,7 @@ const fs = require('fs')
 const path = require('path')
 const homedir = require('os').homedir()
 const yaml = require('js-yaml')
+const inquirer = require('inquirer')
 // eslint-disable-next-line security/detect-child-process
 const execSync = require('child_process').execSync
 
@@ -28,6 +29,35 @@ const execSyncWithEnv = (cmd, args, options = {}) => {
       env: Object.assign({}, process.env, options.env)
     })
   )
+}
+
+async function getDeployTags (name, env, answers, shouldBuild) {
+  const tags = {}
+  const shortHash = execSyncWithEnv('git rev-parse HEAD')
+    .toString()
+    .substr(0, 7)
+  let prefix = answers.registry
+  if (!answers.registryUsername && answers.registry.includes('docker.io') && shouldBuild) {
+    const { username } = await inquirer.prompt({
+      name: 'username',
+      type: 'input',
+      message: 'What is your docker hub username?',
+      validate: function (username) {
+        if (username.length < 4) return 'Invalid username'
+        return true
+      }
+    })
+    answers.registryUsername = username
+  }
+  if (answers.registry.includes('docker.io') && answers.registryUsername) {
+    prefix = `${answers.registryUsername}/`
+  }
+
+  tags.env = `${prefix}${name}:${env}`
+  tags.hash = `${prefix}${name}:${shortHash}`
+  tags.uienv = `${prefix}${name}-ui:${env}`
+  tags.uihash = `${prefix}${name}-ui:${shortHash}`
+  return tags
 }
 
 function readLocalKubeConfig () {
@@ -166,6 +196,7 @@ function shouldUseYarn () {
 }
 
 module.exports = {
+  getDeployTags,
   execSyncWithEnv,
   readLocalKubeConfig,
   readLocalDockerConfig,
