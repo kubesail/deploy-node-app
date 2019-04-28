@@ -8,7 +8,8 @@ const program = require('commander')
 
 const { fatal } = require('./util')
 const { DeployNodeApp } = require('./DeployNodeApp')
-const dnaPackageJson = require('./package.json')
+// eslint-disable-next-line
+const dnaPackageJson = require(__dirname + '/../package.json')
 
 let packageJson
 try {
@@ -36,4 +37,4 @@ program
 
 // Default to production environment
 // TODO: Pass auto argument (and others) to DeployNodeApp
-DeployNodeApp(program.args[0] || 'prod', program)
+DeployNodeApp(packageJson, program.args[0] || 'prod', program)
