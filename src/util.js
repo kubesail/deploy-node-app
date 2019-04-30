@@ -1,8 +1,13 @@
+// @flow
+
 const style = require('ansi-styles')
 const fs = require('fs')
 const path = require('path')
 const homedir = require('os').homedir()
 const yaml = require('js-yaml')
+const inquirer = require('inquirer')
+// eslint-disable-next-line security/detect-child-process
+const execSync = require('child_process').execSync
 
 const WARNING = `${style.green.open}!!${style.green.close}`
 const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
@@ -14,6 +19,45 @@ const NEW_KUBESAIL_CONTEXT = `KubeSail${style.gray.open} | Deploy on a free Kube
 function fatal (message /*: string */) {
   process.stderr.write(`${ERR_ARROWS} ${message}\n`)
   process.exit(1)
+}
+
+const execSyncWithEnv = (cmd, args, options = {}) => {
+  return execSync(
+    cmd,
+    args,
+    Object.assign({}, options, {
+      env: Object.assign({}, process.env, options.env)
+    })
+  )
+}
+
+async function getDeployTags (name, env, answers, shouldBuild) {
+  const tags = {}
+  const shortHash = execSyncWithEnv('git rev-parse HEAD')
+    .toString()
+    .substr(0, 7)
+  let prefix = answers.registry
+  if (!answers.registryUsername && answers.registry.includes('docker.io') && shouldBuild) {
+    const { username } = await inquirer.prompt({
+      name: 'username',
+      type: 'input',
+      message: 'What is your docker hub username?',
+      validate: function (username) {
+        if (username.length < 4) return 'Invalid username'
+        return true
+      }
+    })
+    answers.registryUsername = username
+  }
+  if (answers.registry.includes('docker.io') && answers.registryUsername) {
+    prefix = `${answers.registryUsername}/`
+  }
+
+  tags.env = `${prefix}${name}:${env}`
+  tags.hash = `${prefix}${name}:${shortHash}`
+  tags.uienv = `${prefix}${name}-ui:${env}`
+  tags.uihash = `${prefix}${name}-ui:${shortHash}`
+  return tags
 }
 
 function readLocalKubeConfig () {
@@ -76,7 +120,7 @@ function readLocalDockerConfig () {
 
 function buildUiDockerfile (staticDir = '/build') {
   const dockerfilePath = 'Dockerfile.ui'
-  dockerfile = `
+  const dockerfile = `
   FROM nginx
   COPY ${staticDir} /usr/share/nginx/html`
 
@@ -152,6 +196,8 @@ function shouldUseYarn () {
 }
 
 module.exports = {
+  getDeployTags,
+  execSyncWithEnv,
   readLocalKubeConfig,
   readLocalDockerConfig,
   buildUiDockerfile,
