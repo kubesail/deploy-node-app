@@ -7,7 +7,7 @@ const fs = require('fs')
 const program = require('commander')
 
 const { fatal } = require('./util')
-const { DeployNodeApp } = require('./DeployNodeApp')
+const { DeployNodeApp } = require('./deployNodeApp')
 // eslint-disable-next-line
 const dnaPackageJson = require(__dirname + '/../package.json')
 

@@ -26,7 +26,7 @@ const {
   buildUiDeployment,
   buildAppService,
   buildUiService
-} = require('./config-builder')
+} = require('./configBuilder')
 
 const { promptQuestions } = require('./questions')
 
