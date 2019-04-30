@@ -22,7 +22,7 @@ function fatal (message /*: string */) {
 }
 
 const execSyncWithEnv = (cmd, args, options = {}) => {
-  execSync(
+  return execSync(
     cmd,
     args,
     Object.assign({}, options, {

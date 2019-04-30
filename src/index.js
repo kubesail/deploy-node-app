@@ -28,6 +28,7 @@ program
   .option('-n, --no-build', 'Don\'t build and push docker container')
   .option('-d, --no-deploy', 'Don\'t deploy to kubernetes')
   .option('--no-confirm', 'Do not prompt for confirmation')
+  .option('-s, --skip metamodule', 'name of metamodule to skip')
   .option('-f, --format [type]', 'Output config format [k8s|compose]')
   .option(
     '-o, --output [filename]',

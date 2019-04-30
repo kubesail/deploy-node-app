@@ -21,7 +21,7 @@ const {
 } = require('./util')
 
 const {
-  buildDependencyConfig,
+  findMetaModules,
   buildAppDeployment,
   buildUiDeployment,
   buildAppService,
@@ -246,13 +246,13 @@ async function DeployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   // Write config file
   const format = ['kube', 'kubernetes', 'k8s'].includes(opts.format) ? 'k8s' : 'compose'
-  const config = await buildDependencyConfig(packageJson, format)
+  const config = await findMetaModules(packageJson, format)
   if (opts.output === '-') {
     process.stdout.write(config)
   } else {
     let filename = opts.output
     if (!filename) {
-      filename = format === 'compose' ? 'docker-compose.yaml' : 'deployment.yaml'
+      filename = format === 'compose' ? 'docker-compose.yaml' : 'kustomization.yaml'
     }
     fs.writeFileSync(filename, config)
   }

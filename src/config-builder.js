@@ -6,7 +6,7 @@ const yaml = require('js-yaml')
 
 const readFile = util.promisify(fs.readFile)
 
-async function buildDependencyConfig (pkg, format = 'compose') {
+async function findMetaModules (pkg, format = 'compose') {
   const depNames = Object.keys(pkg.dependencies)
   const readFiles = depNames.map(async dep => {
     try {
@@ -17,51 +17,47 @@ async function buildDependencyConfig (pkg, format = 'compose') {
   })
   let files = await Promise.all(readFiles)
 
-  // filter out deps without a package.json, or without any specified deployments
+  // filter out deps without a package.json and without any specified deployments
   files = files.filter(file => file !== null).filter(file => !!file['deploy-node-app'])
 
-  const config = format === 'compose' ? buildCompose(files) : buildKube(files)
+  const config = format === 'compose' ? buildCompose(files) : buildKustomize(files)
   return yaml.safeDump(config)
 }
 
-function buildCompose (files) {
-  // Point of confusion: In Docker Compose, "services" are analagous to Kube "deployments",
-  // meaning if you define a "service" you want a container running for that object
-  let deployments = {}
-  files.forEach(file => {
-    file.deployments.forEach(deployment => {
-      const image = deployment.spec.template.spec.containers[0].image
-      const ports = deployment.spec.template.spec.containers[0].ports.map(
-        port => `${port.containerPort}`
-      )
-      deployments[deployment.metadata.name] = {
-        ports,
-        // volumes: [{ '.': '/code' }], // TODO
-        image
+function buildCompose (dependencies) {
+  let services = {}
+  dependencies.forEach(dependency => {
+    if (dependency['deploy-node-app'].metamodule) {
+      const filename = `./node_modules/${dependency.name}/docker-compose.yaml`
+      if (fs.existsSync(filename)) {
+        const config = yaml.safeLoad(fs.readFileSync(filename))
+        console.log({ config })
+        services = Object.assign({}, services, config.services)
+      } else {
+        process.stdout.write('Warning:', dependency.name, 'doesn\'t support Docker Compose mode\n')
       }
-    })
+    }
   })
 
-  // Write out docker compose file
   return {
     version: '2',
-    services: deployments
+    services
   }
 }
 
-function buildKube (files) {
-  let configs = []
-  files.forEach(file => {
-    if (Array.isArray(file.deployments)) {
-      configs = configs.concat(file.deployments)
+function buildKustomize (dependencies) {
+  let bases = []
+  dependencies.forEach(dependency => {
+    if (dependency['deploy-node-app'].metamodule) {
+      if (fs.existsSync(`./node_modules/${dependency.name}/kustomization.yaml`)) {
+        bases.push(`./node_modules/${dependency.name}`)
+      } else {
+        process.stdout.write('Warning:', dependency.name, 'doesn\'t support Kustomize mode\n')
+      }
     }
   })
-  files.forEach(file => {
-    if (Array.isArray(file.services)) {
-      configs = configs.concat(file.services)
-    }
-  })
-  return configs
+
+  return { bases }
 }
 
 function buildAppDeployment (pkg, env, tags, answers) {
@@ -299,7 +295,7 @@ function buildUiService (pkg, env, tags, answers, namespace) {
 }
 
 module.exports = {
-  buildDependencyConfig,
+  findMetaModules,
   buildAppDeployment,
   buildUiDeployment,
   buildAppService,
