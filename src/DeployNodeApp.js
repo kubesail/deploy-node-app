@@ -4,7 +4,6 @@
 const inquirer = require('inquirer')
 const fs = require('fs')
 const path = require('path')
-const commandExists = require('command-exists')
 const yaml = require('js-yaml')
 const style = require('ansi-styles')
 
@@ -16,7 +15,8 @@ const {
   readKubeConfigNamespace,
   shouldUseYarn,
   fatal,
-  WARNING
+  WARNING,
+  ensureBinaries
 } = require('./util')
 
 const {
@@ -33,13 +33,7 @@ const infrastructureDir = 'inf'
 const { promptQuestions } = require('./questions')
 
 async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts) {
-  if (!commandExists.sync('docker')) {
-    fatal('Error - Please install docker! https://www.docker.com/get-started')
-  }
-
-  if (!commandExists.sync('kubectl')) {
-    fatal('Error - Please install kubectl! https://kubernetes.io/docs/tasks/tools/install-kubectl/')
-  }
+  ensureBinaries()
 
   const execOpts = {
     stdio: [process.stdin, opts.output !== '-' ? process.stdout : null, process.stderr]

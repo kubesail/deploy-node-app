@@ -8,6 +8,7 @@ const yaml = require('js-yaml')
 const inquirer = require('inquirer')
 // eslint-disable-next-line security/detect-child-process
 const execSync = require('child_process').execSync
+const commandExists = require('command-exists')
 
 const WARNING = `${style.green.open}!!${style.green.close}`
 const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
@@ -29,6 +30,59 @@ const execSyncWithEnv = (cmd, args, options = {}) => {
       env: Object.assign({}, process.env, options.env)
     })
   )
+}
+
+function ensureBinaries () {
+  if (!commandExists.sync('docker')) {
+    fatal('Error - Please install docker! https://www.docker.com/get-started')
+  }
+
+  if (!commandExists.sync('kubectl')) {
+    fatal('Error - Please install kubectl! https://kubernetes.io/docs/tasks/tools/install-kubectl/')
+  }
+
+  try {
+    const {
+      clientVersion: { major, minor }
+    } = JSON.parse(execSyncWithEnv('kubectl version --client=true -o json'))
+
+    if (parseInt(major, 10) < 1 || parseInt(minor, 10) < 14) {
+      process.stdout.write(
+        `${style.red.open}>> deploy-node-app requires kubectl v1.14 or higher.${
+          style.red.close
+        }\n\n`
+      )
+      process.stdout.write('You can upgrade kubectl ')
+      let cmd
+      switch (process.platform) {
+        case 'darwin':
+          cmd = `${style.cyan.open}brew upgrade kubernetes-cli${style.reset.open}`
+          process.stdout.write(
+            `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-macos`
+          )
+          break
+        case 'linux':
+          cmd = `${style.cyan.open}sudo apt-get install kubectl${style.reset.open}`
+          process.stdout.write(
+            `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-linux`
+          )
+          break
+        case 'win32':
+          cmd = `${style.cyan.open}choco install kubernetes-cli${style.reset.open}`
+          process.stdout.write(
+            `by running \n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-windows`
+          )
+          break
+        default:
+          process.stdout.write(
+            'by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/'
+          )
+      }
+      process.exit(1)
+    }
+  } catch {
+    fatal('Could not determine kubectl version')
+  }
 }
 
 async function getDeployTags (name, env, answers, shouldBuild) {
@@ -136,5 +190,6 @@ module.exports = {
   shouldUseYarn,
   fatal,
   WARNING,
+  ensureBinaries,
   NEW_KUBESAIL_CONTEXT
 }
