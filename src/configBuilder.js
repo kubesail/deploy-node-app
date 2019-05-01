@@ -138,6 +138,40 @@ function buildAppDeployment (pkg, env, tags, answers) {
   }
 }
 
+function buildUiConfigMap () {
+  return {
+    apiVersion: 'apps/v1',
+    data: {
+      default: `
+      server {
+        root /www/data;
+
+        location / {
+        }
+
+        location /images/ {
+        }
+
+        location ~ \.(mp3|mp4) {
+            root /www/media;
+        }
+    }
+
+        upstream hello {
+            server hello;
+        }
+
+        server {
+            listen 80;
+
+            location / {
+                proxy_pass http://hello;
+            }
+        }`
+    }
+  }
+}
+
 // Assuming nginx container, listening on port 80
 function buildUiDeployment (pkg, env, tags, answers) {
   const appName = `${pkg.name.toLowerCase()}-ui`
@@ -294,10 +328,80 @@ function buildUiService (pkg, env, tags, answers, namespace) {
   }
 }
 
+function buildUiDockerfile (staticDir = '/build') {
+  const dockerfilePath = 'Dockerfile.ui'
+  const dockerfile = `
+  FROM nginx
+  COPY ${staticDir} /usr/share/nginx/html`
+
+  fs.writeFileSync(dockerfilePath, dockerfile)
+}
+
+function buildDockerfile (entrypoint) {
+  // convert windows paths to unix paths
+  entrypoint = entrypoint.replace(/\\/g, '/')
+
+  let dockerfile
+  let dockerignore
+  const dockerfilePath = 'Dockerfile'
+  const dockerignorePath = '.dockerignore'
+
+  if (fs.existsSync(dockerfilePath)) {
+    try {
+      dockerfile = fs.readFileSync(dockerfilePath)
+    } catch (err) {
+      fatal(`It seems you have a Dockerfile at ${dockerfilePath}, but it is not readable!`)
+    }
+  } else {
+    // TODO: Detect (or get from options, yarn versus npm)
+    dockerfile = `
+FROM node:alpine
+
+WORKDIR /app
+
+ENV NODE_ENV="production"
+
+COPY package.json yarn.loc[k] package-lock.jso[n] /app/
+
+RUN \\
+  # apk add build-base make gcc g++ linux-headers python-dev libc-dev libc6-compat && \\
+  yarn install --no-cache --production && \\
+  adduser -S nodejs && \\
+  chown -R nodejs /app && \\
+  chown -R nodejs /home/nodejs
+
+COPY . /app/
+
+USER nodejs
+
+CMD ["node", "${entrypoint}"]
+      `
+
+    fs.writeFileSync(dockerfilePath, dockerfile)
+  }
+
+  if (fs.existsSync(dockerignorePath)) {
+    try {
+      dockerignore = fs.readFileSync(dockerignorePath)
+    } catch (err) {
+      fatal(
+        `It seems you have a .dockerignore file at ${dockerignorePath}, but it is not readable!`
+      )
+    }
+  } else {
+    dockerignore = '.git\nnode_modules'
+    fs.writeFileSync(dockerignorePath, dockerignore)
+  }
+
+  return { dockerfile, dockerignore }
+}
+
 module.exports = {
   findMetaModules,
   buildAppDeployment,
   buildUiDeployment,
   buildAppService,
-  buildUiService
+  buildUiService,
+  buildDockerfile,
+  buildUiDockerfile
 }
