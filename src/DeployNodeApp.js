@@ -30,7 +30,7 @@ const {
 
 const { promptQuestions } = require('./questions')
 
-async function DeployNodeApp (packageJson /*: Object */, env /*: string */, opts) {
+async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts) {
   if (!commandExists.sync('docker')) {
     fatal('Error - Please install docker! https://www.docker.com/get-started')
   }
@@ -261,5 +261,5 @@ async function DeployNodeApp (packageJson /*: Object */, env /*: string */, opts
 }
 
 module.exports = {
-  DeployNodeApp
+  deployNodeApp
 }

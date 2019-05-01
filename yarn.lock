@@ -1520,9 +1520,10 @@ get-caller-file@^1.0.1:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/get-caller-file/-/get-caller-file-1.0.3.tgz#f978fa4c90d1dfe7ff2d6beda2a515e713bdcf4a"
 
-get-kubesail-config@^0.0.3:
-  version "0.0.3"
-  resolved "https://registry.yarnpkg.com/get-kubesail-config/-/get-kubesail-config-0.0.3.tgz#4116988fbdddfeaf8116f5e3316f9aef6dc4b6f7"
+get-kubesail-config@^1.0.4:
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/get-kubesail-config/-/get-kubesail-config-1.0.4.tgz#a19bd307ac4a6ce3154493aa3aaaeef27570a19f"
+  integrity sha512-Qd5wUobm4TIHzAaZ8fiE79neBLmjbNTKzjaYZpBj+Z0F6xoqZPWVcJfhVq0/L70xnV0x53ZKIwXF3fmphJEltg==
   dependencies:
     ansi-styles "^3.2.1"
     get-port "^4.1.0"
