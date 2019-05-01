@@ -132,8 +132,6 @@ module.exports = {
   execSyncWithEnv,
   readLocalKubeConfig,
   readLocalDockerConfig,
-  buildUiDockerfile,
-  buildDockerfile,
   readKubeConfigNamespace,
   shouldUseYarn,
   fatal,

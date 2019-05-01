@@ -46,7 +46,7 @@ function buildCompose (dependencies) {
 }
 
 function buildKustomize (dependencies) {
-  let bases = []
+  let bases = ['./inf']
   dependencies.forEach(dependency => {
     if (dependency['deploy-node-app'].metamodule) {
       if (fs.existsSync(`./node_modules/${dependency.name}/kustomization.yaml`)) {
