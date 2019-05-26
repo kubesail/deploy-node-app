@@ -25,6 +25,7 @@ program
   .arguments('[env]')
   .usage(USAGE)
   .version(dnaPackageJson.version)
+  .option('--generate-local-env', 'Generates local environment variables')
   .option('-n, --no-build', 'Don\'t build and push docker container')
   .option('-d, --no-deploy', 'Don\'t deploy to kubernetes')
   .option('--no-confirm', 'Do not prompt for confirmation')

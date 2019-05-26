@@ -45,6 +45,26 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   const containerRegistries = readLocalDockerConfig()
 
+  if (opts.generateLocalEnv) {
+    const compose = yaml.safeLoad(fs.readFileSync('docker-compose.yaml'))
+    const containers = Object.keys(compose.services)
+    const mapping = {}
+    containers.forEach(container => {
+      const containerId = execSyncWithEnv(`docker-compose ps -q ${container}`)
+      compose.services[container].ports.forEach(port => {
+        const hostPort = execSyncWithEnv(
+          `docker inspect ${containerId
+            .toString()
+            .trim()} --format='{{(index (index .NetworkSettings.Ports "6379/tcp") 0).HostPort}}'`
+        )
+          .toString()
+          .trim()
+        mapping[container] = hostPort
+      })
+    })
+    process.exit(1)
+  }
+
   let answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson)
   buildDockerfile(answers.entrypoint)
 
