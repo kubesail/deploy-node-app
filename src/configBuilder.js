@@ -31,7 +31,6 @@ function buildCompose (dependencies) {
       const filename = `./node_modules/${dependency.name}/docker-compose.yaml`
       if (fs.existsSync(filename)) {
         const config = yaml.safeLoad(fs.readFileSync(filename))
-        console.log({ config })
         services = Object.assign({}, services, config.services)
       } else {
         process.stdout.write('Warning:', dependency.name, 'doesn\'t support Docker Compose mode\n')

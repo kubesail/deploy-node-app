@@ -81,7 +81,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     }
   }
 
-  if (opts.confirm && opts.output !== '-') {
+  if (opts.confirm && opts.output !== '-' && (opts.build || opts.deploy)) {
     const { confirmed } = await inquirer.prompt([
       {
         name: 'confirmed',
@@ -119,9 +119,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   const name = deployment.metadata.name
   // TODO write these configs to a single kube config file
   const deploymentFile = path.join(infrastructureDir, `deployment-${env}.yaml`)
-  appKustomizeConfig.resources.push(deploymentFile)
+  appKustomizeConfig.resources.push(`deployment-${env}.yaml`)
   const existingDeploymentFile = fs.existsSync(deploymentFile)
-  if (existingDeploymentFile) {
+  if (existingDeploymentFile && opts.output !== '-') {
     process.stdout.write(
       `${style.yellow.open}${deploymentFile} exists - not overwriting${style.reset.open}\n`
     )
@@ -135,21 +135,24 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   if (answers.context.includes('kubesail')) {
     const namespace = readKubeConfigNamespace(answers.context)
     const service = buildAppService(packageJson, env, tags, answers, namespace)
-    const serviceFile = path.join(infrastructureDir, `service-${env}.yaml`)
+    const serviceFile = `service-${env}.yaml`
+    const serviceFilePath = path.join(infrastructureDir, serviceFile)
     appKustomizeConfig.resources.push(serviceFile)
-    const existingServiceFile = fs.existsSync(serviceFile)
-    if (existingServiceFile) {
+    const existingServiceFile = fs.existsSync(serviceFilePath)
+    if (existingServiceFile && opts.output !== '-') {
       process.stdout.write(
-        `${style.yellow.open}${serviceFile} exists - not overwriting${style.reset.open}\n`
+        `${style.yellow.open}${serviceFilePath} exists - not overwriting${style.reset.open}\n`
       )
     } else {
-      fs.writeFileSync(serviceFile, yaml.safeDump(service))
+      fs.writeFileSync(serviceFilePath, yaml.safeDump(service))
     }
 
-    try {
-      appHostname = JSON.parse(service.metadata.annotations['getambassador.io/config']).host
-      svcMsg += `\nYour App is available at https://${appHostname}\n`
-    } catch {}
+    if (opts.deploy) {
+      try {
+        appHostname = JSON.parse(service.metadata.annotations['getambassador.io/config']).host
+        svcMsg += `\nYour App is available at https://${appHostname}\n`
+      } catch {}
+    }
   } else {
     svcMsg =
       '\nYou may need to expose your deployment on kubernetes via a service.\n' +
@@ -210,9 +213,8 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         execOpts
       )
     }
+    process.stdout.write(`\n\n✨  Your application has been deployed! ✨\n\n${svcMsg}`)
   }
-
-  process.stdout.write(`\n\n✨  Your application has been deployed! ✨\n\n${svcMsg}`)
 
   process.exit(0)
 }
@@ -241,33 +243,39 @@ function handleUi ({ packageJson, appHostname, opts, tags, execOpts, answers, en
   const uiName = uiDeployment.metadata.name
   // TODO write these configs to a single kube config file
   const uiDeploymentFile = path.join(infrastructureDir, `deployment-ui-${env}.yaml`)
-  resources.push(uiDeploymentFile)
+  resources.push(`deployment-ui-${env}.yaml`)
   const existingUiDeploymentFile = fs.existsSync(uiDeploymentFile)
   if (!existingUiDeploymentFile) {
     fs.writeFileSync(uiDeploymentFile, yaml.safeDump(uiDeployment))
   } else {
-    process.stdout.write(
-      `${style.yellow.open}${uiDeploymentFile} exists - not overwriting${style.reset.open}\n`
-    )
+    if (opts.output !== '-') {
+      process.stdout.write(
+        `${style.yellow.open}${uiDeploymentFile} exists - not overwriting${style.reset.open}\n`
+      )
+    }
   }
 
   if (answers.context.includes('kubesail')) {
     const namespace = readKubeConfigNamespace(answers.context)
     const service = buildUiService(packageJson, env, tags, answers, namespace)
     const serviceFile = path.join(infrastructureDir, `service-ui-${env}.yaml`)
-    resources.push(serviceFile)
+    resources.push(`service-ui-${env}.yaml`)
     const existingServiceFile = fs.existsSync(serviceFile)
     if (existingServiceFile) {
-      process.stdout.write(
-        `${style.yellow.open}${serviceFile} exists - not overwriting${style.reset.open}\n`
-      )
+      if (opts.output !== '-') {
+        process.stdout.write(
+          `${style.yellow.open}${serviceFile} exists - not overwriting${style.reset.open}\n`
+        )
+      }
     } else {
       fs.writeFileSync(serviceFile, yaml.safeDump(service))
     }
-    try {
-      const hostname = JSON.parse(service.metadata.annotations['getambassador.io/config']).host
-      svcMsg += `Your UI (static site) is available at https://${hostname}\n`
-    } catch {}
+    if (opts.deploy) {
+      try {
+        const hostname = JSON.parse(service.metadata.annotations['getambassador.io/config']).host
+        svcMsg += `Your UI (static site) is available at https://${hostname}\n`
+      } catch {}
+    }
   }
 
   return { uiName, resources, svcMsg }
