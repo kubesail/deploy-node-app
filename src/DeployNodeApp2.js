@@ -21,96 +21,18 @@ const {
 } = require('./util')
 const { promptQuestions } = require('./questions')
 
-const cwd = process.cwd()
-const readFile = util.promisify(fs.readFile)
-const statFile = util.promisify(fs.stat)
-const writeFile = util.promisify(fs.writeFile)
-const copyFile = util.promisify(fs.copyFile)
-
-/**
- * Discovers "meta-module" packages within the package.json dep tree
- * Returns an array of package.json blobs from deps marked with a special key
- */
-async function findMetaModules (packageJson /*: Object */) /*: Array<Object> */ {
-  const depNames = Object.keys(packageJson.dependencies)
-  const readFiles = depNames.map(async dep => {
-    try {
-      return await readFile(`node_modules/${dep}/package.json`).then(json => JSON.parse(json))
-    } catch (err) {
-      return Promise.resolve(null)
-    }
-  })
-  const files = await Promise.all(readFiles)
-  // filter out deps without a package.json and without any specified deployments
-  return files.filter(file => file !== null).filter(file => !!file['deploy-node-app'])
-}
-
-/**
- * Concatenates all environment variables from all metamodules
- * Returns a flat object of KEYS and VALUES where KEYS are environment variables and VALUES are their data
- */
-async function generateLocalEnv (
-  metaModules /*: Array<Object> */,
-  detectPorts /*: void|'compose'|'k8s' */
-) /*: Array<Object> */ {
-  let envVars = {}
-  const ports = {}
-  for (let i = 0; i < metaModules.length; i++) {
-    const mm = metaModules[i]
-    if (await statFile(`node_modules/${mm.name}/lib/config.js`)) {
-      // eslint-disable-next-line security/detect-non-literal-require
-      const vars = require(`${process.cwd()}/node_modules/${mm.name}/lib/config`)
-      for (const env in vars) {
-        envVars[env] = vars[env]
-      }
-    }
-    if (mm['deploy-node-app'].ports) {
-      for (const portName in mm['deploy-node-app'].ports) {
-        const portSpec = mm['deploy-node-app'].ports[portName]
-        const name = mm['deploy-node-app'].containerName || mm.name.split('/').pop()
-        if (detectPorts === 'compose') {
-          envVars = Object.assign({}, envVars, await detectComposePorts(name, portName, portSpec))
-        } else if (detectPorts) {
-          fatal(
-            'generateLocalEnv() detectPorts is only available via docker-compose for now, sorry!'
-          )
-        }
-      }
-    }
-  }
-  return envVars
-}
-
-/**
- * Calls on docker-compose to provide us with port mapping information
- * In other words, if we know redis has a docker port assignment of 6379/tcp, we can
- * try our best to find the randomized hostPort. This allows for zero port conflicts between projects1
- * as well as a sort of "forced best practice", in that the driver -must- obey the randomized PORT value to work!
- */
-async function detectComposePorts (
-  name /*: string */,
-  portName /*: string */,
-  portSpec /*: string */
-) {
-  const ports = {}
-  const containers = (await execSyncWithEnv(`docker-compose ps -q ${name}`)).split('\n')
-  for (const container of containers) {
-    ports[portName] = await execSyncWithEnv(
-      `docker inspect ${container} --format='{{(index (index .NetworkSettings.Ports "${portSpec}") 0).HostPort}}'`
-    )
-  }
-  return ports
-}
-
-/**
- * Top level wrapper for Deploy Node App
- */
 async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts /*: Object */) {
   const metaModules = await findMetaModules(packageJson)
   const output = opts.output
   const silence = output === '-'
   const prompts = opts.confirm
   const overwrite = opts.overwrite
+
+  const cwd = process.cwd()
+  const readFile = util.promisify(fs.readFile)
+  const statFile = util.promisify(fs.stat)
+  const writeFile = util.promisify(fs.writeFile)
+  const copyFile = util.promisify(fs.copyFile)
 
   function log () {
     if (silence) return
@@ -122,6 +44,91 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     // eslint-disable-next-line no-console
     console.error('FATAL', ...arguments)
     process.exit(1)
+  }
+
+  /**
+   * Discovers "meta-module" packages within the package.json dep tree
+   * Returns an array of package.json blobs from deps marked with a special key
+   */
+  async function findMetaModules (packageJson /*: Object */) /*: Array<Object> */ {
+    const depNames = Object.keys(packageJson.dependencies)
+    const readFiles = depNames.map(async dep => {
+      try {
+        return await readFile(`node_modules/${dep}/package.json`).then(json => JSON.parse(json))
+      } catch (err) {
+        return Promise.resolve(null)
+      }
+    })
+    const files = await Promise.all(readFiles)
+    // filter out deps without a package.json and without any specified deployments
+    return files.filter(file => file !== null).filter(file => !!file['deploy-node-app'])
+  }
+
+  /**
+   * Concatenates all environment variables from all metamodules
+   * Returns a flat object of KEYS and VALUES where KEYS are environment variables and VALUES are their data
+   */
+  async function generateLocalEnv (
+    metaModules /*: Array<Object> */,
+    detectPorts /*: void|'compose'|'k8s' */
+  ) /*: Array<Object> */ {
+    let envVars = {}
+    const ports = {}
+    for (let i = 0; i < metaModules.length; i++) {
+      const mm = metaModules[i]
+      if (await statFile(`node_modules/${mm.name}/lib/config.js`)) {
+        // eslint-disable-next-line security/detect-non-literal-require
+        const vars = require(`${process.cwd()}/node_modules/${mm.name}/lib/config`)
+        for (const env in vars) {
+          envVars[env] = vars[env]
+        }
+      }
+      if (mm['deploy-node-app'].ports) {
+        for (const portName in mm['deploy-node-app'].ports) {
+          const portSpec = mm['deploy-node-app'].ports[portName]
+          const name = mm['deploy-node-app'].containerName || mm.name.split('/').pop()
+          if (detectPorts === 'compose') {
+            envVars = Object.assign({}, envVars, await detectComposePorts(name, portName, portSpec))
+          } else if (detectPorts) {
+            fatal(
+              'generateLocalEnv() detectPorts is only available via docker-compose for now, sorry!'
+            )
+          }
+        }
+      }
+    }
+    return envVars
+  }
+
+  /**
+   * Calls on docker-compose to provide us with port mapping information
+   * In other words, if we know redis has a docker port assignment of 6379/tcp, we can
+   * try our best to find the randomized hostPort. This allows for zero port conflicts between projects1
+   * as well as a sort of "forced best practice", in that the driver -must- obey the randomized PORT value to work!
+   */
+  async function detectComposePorts (
+    name /*: string */,
+    portName /*: string */,
+    portSpec /*: string */
+  ) {
+    const ports = {}
+    let composeFileFound
+    try {
+      composeFileFound = await statFile(`${cwd}/docker-compose.yaml`)
+    } catch {}
+    if (!composeFileFound) {
+      log(
+        'It doesn\'t look like docker-compose is used here, so I can\'t automatically detect ports for you'
+      )
+      return {}
+    }
+    const containers = (await execSyncWithEnv(`docker-compose ps -q ${name}`)).split('\n')
+    for (const container of containers) {
+      ports[portName] = await execSyncWithEnv(
+        `docker inspect ${container} --format='{{(index (index .NetworkSettings.Ports "${portSpec}") 0).HostPort}}'`
+      )
+    }
+    return ports
   }
 
   async function confirmWriteFile (
