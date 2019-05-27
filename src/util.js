@@ -30,6 +30,8 @@ const execSyncWithEnv = (cmd, args, options = {}) => {
       env: Object.assign({}, process.env, options.env)
     })
   )
+    .toString()
+    .trim()
 }
 
 function ensureBinaries () {

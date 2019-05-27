@@ -49,8 +49,12 @@ async function findMetaModules (packageJson /*: Object */) /*: Array<Object> */ 
  * Concatenates all environment variables from all metamodules
  * Returns a flat object of KEYS and VALUES where KEYS are environment variables and VALUES are their data
  */
-async function generateLocalEnv (metaModules /*: Array<Object> */) /*: Array<Object> */ {
-  const envVars = {}
+async function generateLocalEnv (
+  metaModules /*: Array<Object> */,
+  detectPorts /*: void|'compose'|'k8s' */
+) /*: Array<Object> */ {
+  let envVars = {}
+  const ports = {}
   for (let i = 0; i < metaModules.length; i++) {
     const mm = metaModules[i]
     if (await statFile(`node_modules/${mm.name}/lib/config.js`)) {
@@ -61,12 +65,41 @@ async function generateLocalEnv (metaModules /*: Array<Object> */) /*: Array<Obj
       }
     }
     if (mm['deploy-node-app'].ports) {
-      for (const env in mm['deploy-node-app'].ports) {
-        envVars[env] = mm['deploy-node-app'].ports[env]
+      for (const portName in mm['deploy-node-app'].ports) {
+        const portSpec = mm['deploy-node-app'].ports[portName]
+        const name = mm['deploy-node-app'].containerName || mm.name.split('/').pop()
+        if (detectPorts === 'compose') {
+          envVars = Object.assign({}, envVars, await detectComposePorts(name, portName, portSpec))
+        } else if (detectPorts) {
+          fatal(
+            'generateLocalEnv() detectPorts is only available via docker-compose for now, sorry!'
+          )
+        }
       }
     }
   }
   return envVars
+}
+
+/**
+ * Calls on docker-compose to provide us with port mapping information
+ * In other words, if we know redis has a docker port assignment of 6379/tcp, we can
+ * try our best to find the randomized hostPort. This allows for zero port conflicts between projects1
+ * as well as a sort of "forced best practice", in that the driver -must- obey the randomized PORT value to work!
+ */
+async function detectComposePorts (
+  name /*: string */,
+  portName /*: string */,
+  portSpec /*: string */
+) {
+  const ports = {}
+  const containers = (await execSyncWithEnv(`docker-compose ps -q ${name}`)).split('\n')
+  for (const container of containers) {
+    ports[portName] = await execSyncWithEnv(
+      `docker inspect ${container} --format='{{(index (index .NetworkSettings.Ports "${portSpec}") 0).HostPort}}'`
+    )
+  }
+  return ports
 }
 
 /**
@@ -127,7 +160,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         else if (confirmOverwrite === SHOWDIFF_TEXT) {
           if (copySource) {
             try {
-              execSyncWithEnv(`git diff ${fullCopySource} ${fullPath}`).toString()
+              execSyncWithEnv(`git diff ${fullCopySource} ${fullPath}`)
             } catch (err) {
               process.stdout.write(err.output.toString('utf8') + '\n')
             }
@@ -159,7 +192,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   }
 
   if (opts.generateLocalEnv) {
-    const envVars = await generateLocalEnv(metaModules)
+    const envVars = await generateLocalEnv(metaModules, opts.format)
     const envVarLines = []
     for (const env in envVars) {
       envVarLines.push(`${env}=${envVars[env]}`)
@@ -167,7 +200,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     await confirmWriteFile({ path: '.env', content: envVarLines.join('\n') + '\n' })
     let ignored
     try {
-      ignored = execSyncWithEnv('git grep \'.env$\' .gitignore').toString()
+      ignored = execSyncWithEnv('git grep \'^.env$\' .gitignore')
     } catch (err) {}
     if (!ignored) {
       log(
