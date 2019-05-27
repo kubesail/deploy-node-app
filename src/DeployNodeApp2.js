@@ -22,7 +22,6 @@ const {
 const { promptQuestions } = require('./questions')
 
 async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts /*: Object */) {
-  const metaModules = await findMetaModules(packageJson)
   const output = opts.output
   const silence = output === '-'
   const prompts = opts.confirm
@@ -56,6 +55,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       try {
         return await readFile(`node_modules/${dep}/package.json`).then(json => JSON.parse(json))
       } catch (err) {
+        console.error('Unable to load package.json:', err.message)
         return Promise.resolve(null)
       }
     })
@@ -73,7 +73,6 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     detectPorts /*: void|'compose'|'k8s' */
   ) /*: Array<Object> */ {
     let envVars = {}
-    const ports = {}
     for (let i = 0; i < metaModules.length; i++) {
       const mm = metaModules[i]
       if (await statFile(`node_modules/${mm.name}/lib/config.js`)) {
@@ -118,7 +117,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     } catch {}
     if (!composeFileFound) {
       log(
-        'It doesn\'t look like docker-compose is used here, so I can\'t automatically detect ports for you'
+        'WARN: It doesn\'t look like docker-compose is used here, so I can\'t automatically detect ports for you - using default values!'
       )
       return {}
     }
@@ -172,7 +171,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
               process.stdout.write(err.output.toString('utf8') + '\n')
             }
           } else {
-            console.log('Not supported yet')
+            console.error('TODO: Diffs for generated files are not supported yet')
           }
           await confirmWriteFile({ path, content, copySource, noPrompts })
         }
@@ -198,22 +197,24 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     } else throw new Error('Please provide one of content, copySource for confirmWriteFile')
   }
 
+  const metaModules = await findMetaModules(packageJson)
+
   if (opts.generateLocalEnv) {
     const envVars = await generateLocalEnv(metaModules, opts.format)
     const envVarLines = []
     for (const env in envVars) {
       envVarLines.push(`${env}=${envVars[env]}`)
     }
-    await confirmWriteFile({ path: '.env', content: envVarLines.join('\n') + '\n' })
     let ignored
     try {
       ignored = execSyncWithEnv('git grep \'^.env$\' .gitignore')
     } catch (err) {}
     if (!ignored) {
       log(
-        'WARN: It doesnt look like you have .env ignored by your .gitignore file! This is usually a bad idea! Fix with: "echo .env >> .gitignore"'
+        'WARN: It doesn\'t look like you have .env ignored by your .gitignore file! This is usually a bad idea! Fix with: "echo .env >> .gitignore"'
       )
     }
+    await confirmWriteFile({ path: '.env', content: envVarLines.join('\n') + '\n' })
     return null
   }
 
