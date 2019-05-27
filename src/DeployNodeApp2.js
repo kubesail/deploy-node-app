@@ -19,6 +19,7 @@ const {
   WARNING,
   ensureBinaries
 } = require('./util')
+const { promptQuestions } = require('./questions')
 
 const cwd = process.cwd()
 const readFile = util.promisify(fs.readFile)
@@ -86,14 +87,20 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   function fatal () {
     // eslint-disable-next-line no-console
-    console.error(...arguments)
+    console.error('FATAL', ...arguments)
     process.exit(1)
   }
 
   async function confirmWriteFile (
-    { path, content, copySource } /*: { path: string, content: string, copySource: string } */
+    {
+      path,
+      content,
+      copySource,
+      noPrompts
+    } /*: { path: string, content: string, copySource: string, noPrompts: boolean } */
   ) {
     const fullPath = `${cwd}/${path}`
+    const fullCopySource = `${__dirname}/${copySource}`
     let doWrite = false
     if (overwrite) doWrite = true
     else {
@@ -101,13 +108,34 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       try {
         exists = await statFile(fullPath)
       } catch (err) {}
-      if (exists && prompts) {
-        const confirmOverwrite = await inquirer.prompt({
+      if (exists && prompts && !noPrompts) {
+        const YES_TEXT = 'Yes (overwrite)'
+        const NO_TEXT = 'No, dont touch'
+        const SHOWDIFF_TEXT = 'Show diff'
+        const confirmOverwrite = (await inquirer.prompt({
           name: 'overwrite',
-          type: 'confirm',
-          message: `Would you like to overwrite "${path}"?`
-        })
-        if (confirmOverwrite) doWrite = true
+          type: 'expand',
+          message: `Would you like to overwrite "${path}"?`,
+          choices: [
+            { key: 'Y', value: YES_TEXT },
+            { key: 'N', value: NO_TEXT },
+            { key: 'D', value: SHOWDIFF_TEXT }
+          ],
+          default: 0
+        })).overwrite
+        if (confirmOverwrite === YES_TEXT) doWrite = true
+        else if (confirmOverwrite === SHOWDIFF_TEXT) {
+          if (copySource) {
+            try {
+              execSyncWithEnv(`git diff ${fullCopySource} ${fullPath}`).toString()
+            } catch (err) {
+              process.stdout.write(err.output.toString('utf8') + '\n')
+            }
+          } else {
+            console.log('Not supported yet')
+          }
+          await confirmWriteFile({ path, content, copySource, noPrompts })
+        }
       } else if (exists && !prompts) {
         log(
           `Refusing to overwrite "${path}"... Continuing... (Use --overwrite to ignore this check)`
@@ -121,7 +149,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     } else if (content || copySource) {
       try {
         if (content) writeFile(fullPath, content)
-        else if (copySource) copyFile(`${__dirname}/${copySource}`, path)
+        else if (copySource) copyFile(fullCopySource, path)
         log(`Successfully ${content ? 'wrote' : 'wrote from template'} "${path}"`)
       } catch (err) {
         fatal(`Error writing ${path}:`, err.message)
@@ -149,13 +177,34 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     return null
   }
 
-  await confirmWriteFile({ path: 'Dockerfile', copySource: './defaults/Dockerfile' })
+  const kubeContexts = readLocalKubeConfig()
+  const containerRegistries = readLocalDockerConfig()
+  const answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson)
+  const tags = await getDeployTags(packageJson.name, env, answers, opts.build)
 
-  if (!(await statFile('inf'))) fatal('There is no ./inf directory in this repository!')
+  packageJson['deploy-node-app'] = {
+    [env]: answers
+  }
+  await confirmWriteFile({
+    path: 'package.json',
+    content: JSON.stringify(packageJson, null, 2),
+    noPrompts: true
+  })
+
+  await confirmWriteFile({
+    path: 'Dockerfile',
+    copySource: 'defaults/Dockerfile'
+  })
+
+  let infDirExists = false
+  try {
+    infDirExists = await statFile('inf')
+  } catch {}
+  if (!infDirExists) fatal('There is no ./inf directory in this repository!')
 
   await confirmWriteFile({
     path: 'inf/node-deployment.yaml',
-    copySource: './defaults/deployment.yaml'
+    copySource: 'defaults/deployment.yaml'
   })
 }
 
