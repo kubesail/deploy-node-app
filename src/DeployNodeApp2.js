@@ -26,7 +26,11 @@ const statFile = util.promisify(fs.stat)
 const writeFile = util.promisify(fs.writeFile)
 const copyFile = util.promisify(fs.copyFile)
 
-async function findMetaModules (packageJson /*: Object */) {
+/**
+ * Discovers "meta-module" packages within the package.json dep tree
+ * Returns an array of package.json blobs from deps marked with a special key
+ */
+async function findMetaModules (packageJson /*: Object */) /*: Array<Object> */ {
   const depNames = Object.keys(packageJson.dependencies)
   const readFiles = depNames.map(async dep => {
     try {
@@ -40,7 +44,11 @@ async function findMetaModules (packageJson /*: Object */) {
   return files.filter(file => file !== null).filter(file => !!file['deploy-node-app'])
 }
 
-async function generateLocalEnv (metaModules /*: Array<Object> */) {
+/**
+ * Concatenates all environment variables from all metamodules
+ * Returns a flat object of KEYS and VALUES where KEYS are environment variables and VALUES are their data
+ */
+async function generateLocalEnv (metaModules /*: Array<Object> */) /*: Array<Object> */ {
   const envVars = {}
   for (let i = 0; i < metaModules.length; i++) {
     const mm = metaModules[i]
@@ -60,6 +68,9 @@ async function generateLocalEnv (metaModules /*: Array<Object> */) {
   return envVars
 }
 
+/**
+ * Top level wrapper for Deploy Node App
+ */
 async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts /*: Object */) {
   const metaModules = await findMetaModules(packageJson)
   const output = opts.output
