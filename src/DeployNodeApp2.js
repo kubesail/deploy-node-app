@@ -30,6 +30,7 @@ const statFile = util.promisify(fs.stat)
 const writeFile = util.promisify(fs.writeFile)
 const copyFile = util.promisify(fs.copyFile)
 const makedirP = util.promisify(makedirpCB)
+const unlinkFile = util.promisify(fs.unlink)
 
 async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts /*: Object */) {
   const output = opts.output
@@ -202,6 +203,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
             } catch (err) {
               process.stdout.write('diff:\n' + err.output.toString('utf8') + '\n')
             }
+            await unlinkFile(tmpFile)
           }
           await confirmWriteFile({ path, content, copySource, noPrompts })
         }
