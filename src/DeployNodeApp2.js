@@ -7,6 +7,7 @@ const path = require('path')
 const inquirer = require('inquirer')
 const yaml = require('js-yaml')
 const style = require('ansi-styles')
+const makedirpCB = require('mkdirp')
 
 const {
   getDeployTags,
@@ -21,17 +22,21 @@ const {
 } = require('./util')
 const { promptQuestions } = require('./questions')
 
+const TMP_FILE_PATH = 'tmp'
+const CONFIG_FILE_PATH = 'config'
+
+const readFile = util.promisify(fs.readFile)
+const statFile = util.promisify(fs.stat)
+const writeFile = util.promisify(fs.writeFile)
+const copyFile = util.promisify(fs.copyFile)
+const makedirP = util.promisify(makedirpCB)
+
 async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts /*: Object */) {
   const output = opts.output
   const silence = output === '-'
   const prompts = opts.confirm
   const overwrite = opts.overwrite
-
   const cwd = process.cwd()
-  const readFile = util.promisify(fs.readFile)
-  const statFile = util.promisify(fs.stat)
-  const writeFile = util.promisify(fs.writeFile)
-  const copyFile = util.promisify(fs.copyFile)
 
   function log () {
     if (silence) return
@@ -130,6 +135,19 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     return ports
   }
 
+  function checkForGitIgnored (pattern /*: string */) {
+    let ignored
+    try {
+      ignored = execSyncWithEnv(`git grep '^${pattern}/$' .gitignore`)
+    } catch (err) {}
+    if (!ignored) {
+      log(
+        `WARN: It doesn't look like you have ${pattern} ignored by your .gitignore file! This is usually a bad idea! Fix with: "echo '${pattern}' >> .gitignore"`
+      )
+    }
+    return ignored
+  }
+
   async function confirmWriteFile (
     {
       path,
@@ -141,7 +159,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     const fullPath = `${cwd}/${path}`
     const fullCopySource = `${__dirname}/${copySource}`
     let doWrite = false
-    if (overwrite) doWrite = true
+    if (overwrite || noPrompts) doWrite = true
     else {
       let exists = false
       try {
@@ -166,12 +184,24 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         else if (confirmOverwrite === SHOWDIFF_TEXT) {
           if (copySource) {
             try {
-              execSyncWithEnv(`git diff ${fullCopySource} ${fullPath}`)
+              process.stdout.write(
+                'diff:\n' + execSyncWithEnv(`diff ${fullCopySource} ${fullPath}`) + '\n'
+              )
             } catch (err) {
-              process.stdout.write(err.output.toString('utf8') + '\n')
+              process.stdout.write('diff:\n' + err.output.toString('utf8') + '\n')
             }
           } else {
-            console.error('TODO: Diffs for generated files are not supported yet')
+            checkForGitIgnored(`${TMP_FILE_PATH}/`)
+            await makedirP(TMP_FILE_PATH)
+            const tmpFile = `${TMP_FILE_PATH}/${path.replace(/\//g, '-')}.tmp`
+            await writeFile(tmpFile, content)
+            try {
+              process.stdout.write(
+                'diff:\n' + execSyncWithEnv(`diff ${tmpFile} ${fullPath}`) + '\n'
+              )
+            } catch (err) {
+              process.stdout.write('diff:\n' + err.output.toString('utf8') + '\n')
+            }
           }
           await confirmWriteFile({ path, content, copySource, noPrompts })
         }
@@ -205,15 +235,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     for (const env in envVars) {
       envVarLines.push(`${env}=${envVars[env]}`)
     }
-    let ignored
-    try {
-      ignored = execSyncWithEnv('git grep \'^.env$\' .gitignore')
-    } catch (err) {}
-    if (!ignored) {
-      log(
-        'WARN: It doesn\'t look like you have .env ignored by your .gitignore file! This is usually a bad idea! Fix with: "echo .env >> .gitignore"'
-      )
-    }
+    checkForGitIgnored('.env')
     await confirmWriteFile({ path: '.env', content: envVarLines.join('\n') + '\n' })
     return null
   }
@@ -223,13 +245,14 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   const answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson)
   const tags = await getDeployTags(packageJson.name, env, answers, opts.build)
 
-  packageJson['deploy-node-app'] = {
-    [env]: answers
+  if (!packageJson['deploy-node-app']) {
+    packageJson['deploy-node-app'] = {}
   }
+  packageJson['deploy-node-app'][env] = answers
+
   await confirmWriteFile({
     path: 'package.json',
-    content: JSON.stringify(packageJson, null, 2),
-    noPrompts: true
+    content: JSON.stringify(packageJson, null, 2)
   })
 
   await confirmWriteFile({
@@ -237,14 +260,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     copySource: 'defaults/Dockerfile'
   })
 
-  let infDirExists = false
-  try {
-    infDirExists = await statFile('inf')
-  } catch {}
-  if (!infDirExists) fatal('There is no ./inf directory in this repository!')
-
+  await makedirP(CONFIG_FILE_PATH)
   await confirmWriteFile({
-    path: 'inf/node-deployment.yaml',
+    path: `${CONFIG_FILE_PATH}/node-deployment.yaml`,
     copySource: 'defaults/deployment.yaml'
   })
 }
