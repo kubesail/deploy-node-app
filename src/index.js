@@ -7,7 +7,7 @@ const fs = require('fs')
 const program = require('commander')
 
 const { fatal } = require('./util')
-const { deployNodeApp } = require('./deployNodeApp')
+const { deployNodeApp } = require('./deployNodeApp2')
 // eslint-disable-next-line
 const dnaPackageJson = require(__dirname + '/../package.json')
 
@@ -28,6 +28,7 @@ program
   .option('--generate-local-env', 'Generates local environment variables')
   .option('-n, --no-build', 'Don\'t build and push docker container')
   .option('-d, --no-deploy', 'Don\'t deploy to kubernetes')
+  .option('-f, --overwrite', 'Overwrite local files')
   .option('--no-confirm', 'Do not prompt for confirmation')
   .option('-s, --skip metamodule', 'name of metamodule to skip')
   .option('-f, --format [type]', 'Output config format [k8s|compose]')
