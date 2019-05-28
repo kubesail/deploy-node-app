@@ -172,19 +172,28 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       ignored = execSyncWithEnv(`git grep '^${pattern}/$' .gitignore`)
     } catch (err) {}
     if (!ignored) {
-      log(
-        `WARN: It doesn't look like you have ${pattern} ignored by your .gitignore file! This is usually a bad idea! Fix with: "echo '${pattern}' >> .gitignore"`
-      )
+      log(`WARN: It doesn't look like you have ${pattern} ignored by your .gitignore file!`)
+      log(`WARN: This is usually a bad idea! Fix with: "echo '${pattern}' >> .gitignore"`)
     }
     return ignored
   }
 
+  /**
+   *
+   * The meat and potatoes of Deploy-Node-App, confirmWriteFile takes either a string of content or a template file
+   * and copies it to the users directory. It will prompt the user, unless:
+   *   --overwrite is set, in which case any changes will be writen without asking
+   *   -o - is set, in which case we will write our outputs to stdout, not prompting and not writing
+   * confirmWriteFile also supports diffing!
+   * Provide only one of content or templatePath!
+   */
   async function confirmWriteFile (
     path /*: string */,
     { content, templatePath } /*: { content: string, templatePath: string } */
   ) {
     const fullPath = `${cwd}/${path}`
     const fullTemplatePath = `${__dirname}/${templatePath}`
+    if (content && templatePath) throw new Error('Provide only one of content, templatePath')
     let doWrite = false
     if (overwrite) doWrite = true
     else {
@@ -193,6 +202,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         exists = await statFile(fullPath)
       } catch (err) {}
 
+      // Use md5 checksums to determine if files have changes - if they have not, no reason to prompt!
       let tmpFileMD5
       let fileMD5
       const tmpFile = `${TMP_FILE_PATH}/${path.replace(/\//g, '-')}.tmp`
@@ -265,8 +275,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     for (const env in envVars) {
       envVarLines.push(`${env}=${envVars[env]}`)
     }
+    const content = envVarLines.join('\n') + '\n'
     checkForGitIgnored('.env')
-    await confirmWriteFile('.env', { content: envVarLines.join('\n') + '\n' })
+    if (output === '-') process.stdout.write(content)
+    else await confirmWriteFile('.env', { content })
     return null
   }
 
