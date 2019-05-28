@@ -150,15 +150,15 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   }
 
   async function confirmWriteFile (
+    path /*: string */,
     {
-      path,
       content,
-      copySource,
+      templatePath,
       noPrompts
-    } /*: { path: string, content: string, copySource: string, noPrompts: boolean } */
+    } /*: { content: string, templatePath: string, noPrompts: boolean } */
   ) {
     const fullPath = `${cwd}/${path}`
-    const fullCopySource = `${__dirname}/${copySource}`
+    const fullTemplatePath = `${__dirname}/${templatePath}`
     let doWrite = false
     if (overwrite || noPrompts) doWrite = true
     else {
@@ -183,10 +183,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         })).overwrite
         if (confirmOverwrite === YES_TEXT) doWrite = true
         else if (confirmOverwrite === SHOWDIFF_TEXT) {
-          if (copySource) {
+          if (templatePath) {
             try {
               process.stdout.write(
-                'diff:\n' + execSyncWithEnv(`diff ${fullCopySource} ${fullPath}`) + '\n'
+                'diff:\n' + execSyncWithEnv(`diff ${fullTemplatePath} ${fullPath}`) + '\n'
               )
             } catch (err) {
               process.stdout.write('diff:\n' + err.output.toString('utf8') + '\n')
@@ -205,7 +205,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
             }
             await unlinkFile(tmpFile)
           }
-          await confirmWriteFile({ path, content, copySource, noPrompts })
+          await confirmWriteFile(path, { content, templatePath, noPrompts })
         }
       } else if (exists && !prompts) {
         log(
@@ -217,20 +217,21 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     }
     if (!doWrite) {
       return false
-    } else if (content || copySource) {
+    } else if (content || templatePath) {
       try {
         if (content) writeFile(fullPath, content)
-        else if (copySource) copyFile(fullCopySource, path)
+        else if (templatePath) copyFile(fullTemplatePath, path)
         log(`Successfully ${content ? 'wrote' : 'wrote from template'} "${path}"`)
       } catch (err) {
         fatal(`Error writing ${path}:`, err.message)
       }
       return true
-    } else throw new Error('Please provide one of content, copySource for confirmWriteFile')
+    } else throw new Error('Please provide one of content, templatePath for confirmWriteFile')
   }
 
   const metaModules = await findMetaModules(packageJson)
 
+  // deploy-node-app --generate-local-env
   if (opts.generateLocalEnv) {
     const envVars = await generateLocalEnv(metaModules, opts.format)
     const envVarLines = []
@@ -238,10 +239,11 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       envVarLines.push(`${env}=${envVars[env]}`)
     }
     checkForGitIgnored('.env')
-    await confirmWriteFile({ path: '.env', content: envVarLines.join('\n') + '\n' })
+    await confirmWriteFile('.env', { content: envVarLines.join('\n') + '\n' })
     return null
   }
 
+  ensureBinaries() // Ensure 'kubectl', 'docker', etc...
   const kubeContexts = readLocalKubeConfig()
   const containerRegistries = readLocalDockerConfig()
   const answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson)
@@ -252,21 +254,31 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   }
   packageJson['deploy-node-app'][env] = answers
 
-  await confirmWriteFile({
-    path: 'package.json',
-    content: JSON.stringify(packageJson, null, 2)
-  })
-
-  await confirmWriteFile({
-    path: 'Dockerfile',
-    copySource: 'defaults/Dockerfile'
-  })
-
+  await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) })
+  await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
   await makedirP(CONFIG_FILE_PATH)
-  await confirmWriteFile({
-    path: `${CONFIG_FILE_PATH}/node-deployment.yaml`,
-    copySource: 'defaults/deployment.yaml'
-  })
+  if (opts.format === 'k8s') {
+    if (output === '-') {
+      // TODO: ...
+    } else {
+      await confirmWriteFile({
+        path: `${CONFIG_FILE_PATH}/node-deployment.yaml`,
+        templatePath: 'defaults/deployment.yaml'
+      })
+    }
+  } else if (opts.format === 'compose') {
+    if (output === '-') {
+      // TODO: ...
+    } else {
+      await confirmWriteFile({
+        path: `${CONFIG_FILE_PATH}/node-deployment.yaml`,
+        templatePath: 'defaults/deployment.yaml'
+      })
+    }
+  } else {
+    console.error('ERROR: Unsupported format option provided!')
+    process.exit(1)
+  }
 }
 
 module.exports = {
