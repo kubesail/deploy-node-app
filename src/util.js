@@ -111,8 +111,6 @@ async function getDeployTags (name, env, answers, shouldBuild) {
 
   tags.env = `${prefix}${name}:${env}`
   tags.hash = `${prefix}${name}:${shortHash}`
-  tags.uienv = `${prefix}${name}-ui:${env}`
-  tags.uihash = `${prefix}${name}-ui:${shortHash}`
   return tags
 }
 

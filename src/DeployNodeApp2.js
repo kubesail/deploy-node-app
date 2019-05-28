@@ -189,32 +189,36 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
    */
   async function confirmWriteFile (
     path /*: string */,
-    { content, templatePath } /*: { content: string, templatePath: string } */
+    { content, templatePath, output } /*: { content: string, templatePath: string } */
   ) {
     const fullPath = `${cwd}/${path}`
     const fullTemplatePath = `${__dirname}/${templatePath}`
+    const tmpFile = `${TMP_FILE_PATH}/${path.replace(/\//g, '-')}.tmp`
+
     if (content && templatePath) throw new Error('Provide only one of content, templatePath')
     let doWrite = false
     if (overwrite) doWrite = true
     else {
       let exists = false
-      try {
-        exists = await statFile(fullPath)
-      } catch (err) {}
 
-      // Use md5 checksums to determine if files have changes - if they have not, no reason to prompt!
-      let tmpFileMD5
-      let fileMD5
-      const tmpFile = `${TMP_FILE_PATH}/${path.replace(/\//g, '-')}.tmp`
-      if (exists) {
-        fileMD5 = await md5file(fullPath)
-        if (content) {
-          await writeFile(tmpFile, content)
-          tmpFileMD5 = await md5file(tmpFile)
-        } else if (templatePath) {
-          tmpFileMD5 = await md5file(fullTemplatePath)
+      if (output !== '-') {
+        try {
+          exists = await statFile(fullPath)
+        } catch (err) {}
+
+        // Use md5 checksums to determine if files have changes - if they have not, no reason to prompt!
+        let tmpFileMD5
+        let fileMD5
+        if (exists) {
+          fileMD5 = await md5file(fullPath)
+          if (content) {
+            await writeFile(tmpFile, content)
+            tmpFileMD5 = await md5file(tmpFile)
+          } else if (templatePath) {
+            tmpFileMD5 = await md5file(fullTemplatePath)
+          }
+          if (tmpFileMD5 && fileMD5 && tmpFileMD5 === fileMD5) return false
         }
-        if (tmpFileMD5 && fileMD5 && tmpFileMD5 === fileMD5) return false
       }
 
       if (exists && prompts && !silence) {
@@ -251,12 +255,17 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         doWrite = true
       }
     }
-    if (!doWrite) {
+    if (!doWrite && output !== '-') {
       return false
     } else if (content || templatePath) {
       try {
-        if (content) writeFile(fullPath, content)
-        else if (templatePath) copyFile(fullTemplatePath, path)
+        if (content) {
+          if (output === '-') process.stdout.write(content + '\n')
+          else writeFile(fullPath, content)
+        } else if (templatePath) {
+          if (output === '-') process.stdout.write((await readFile(fullTemplatePath)).toString())
+          else copyFile(fullTemplatePath, path)
+        }
         log(`Successfully ${content ? 'wrote' : 'wrote from template'} "${path}"`)
       } catch (err) {
         fatal(`Error writing ${path}:`, err.message)
@@ -278,7 +287,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     const content = envVarLines.join('\n') + '\n'
     checkForGitIgnored('.env')
     if (output === '-') process.stdout.write(content)
-    else await confirmWriteFile('.env', { content })
+    else await confirmWriteFile('.env', { content, output })
     return null
   }
 
@@ -288,32 +297,23 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   const answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson)
   const tags = await getDeployTags(packageJson.name, env, answers, opts.build)
 
-  if (!packageJson['deploy-node-app']) {
-    packageJson['deploy-node-app'] = {}
-  }
+  if (!packageJson['deploy-node-app']) packageJson['deploy-node-app'] = {}
   packageJson['deploy-node-app'][env] = answers
 
   await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) })
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
   await makedirP(CONFIG_FILE_PATH)
   if (opts.format === 'k8s') {
-    if (output === '-') {
-      // TODO: ...
-    } else {
-      await confirmWriteFile(`${CONFIG_FILE_PATH}/node-deployment.yaml`, {
-        templatePath: 'defaults/deployment.yaml'
-      })
-    }
+    await confirmWriteFile(`${CONFIG_FILE_PATH}/node-deployment.yaml`, {
+      templatePath: 'defaults/deployment.yaml'
+    })
   } else if (opts.format === 'compose') {
     const composeFileData = buildComposeFile(metaModules)
     const composeFileDataYAML = yaml.safeDump(composeFileData)
-    if (output === '-') {
-      process.stdout.write(composeFileDataYAML + '\n')
-    } else {
-      await confirmWriteFile(`${CONFIG_FILE_PATH}/node-deployment.yaml`, {
-        templatePath: 'defaults/deployment.yaml'
-      })
-    }
+    await confirmWriteFile(`${CONFIG_FILE_PATH}/docker-compose.yaml`, {
+      content: composeFileDataYAML + '\n',
+      output
+    })
   } else {
     console.error('ERROR: Unsupported format option provided!')
     process.exit(1)
