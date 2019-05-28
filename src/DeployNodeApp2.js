@@ -67,7 +67,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     })
     const files = await Promise.all(readFiles)
     // filter out deps without a package.json and without any specified deployments
-    return files.filter(file => file !== null).filter(file => !!file['deploy-node-app'])
+    return files
+      .filter(file => file !== null)
+      .filter(file => file['deploy-node-app'] && file['deploy-node-app'].metamodule === true)
   }
 
   /**
@@ -103,6 +105,24 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       }
     }
     return envVars
+  }
+
+  function buildComposeFile (metaModules /*: Array<Object> */) {
+    let services = {}
+    metaModules.forEach(dependency => {
+      const filename = `./node_modules/${dependency.name}/docker-compose.yaml`
+      if (fs.existsSync(filename)) {
+        const config = yaml.safeLoad(fs.readFileSync(filename))
+        services = Object.assign({}, services, config.services)
+      } else {
+        process.stdout.write('Warning:', dependency.name, 'doesn\'t support Docker Compose mode\n')
+      }
+    })
+
+    return {
+      version: '2',
+      services
+    }
   }
 
   /**
@@ -151,22 +171,18 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   async function confirmWriteFile (
     path /*: string */,
-    {
-      content,
-      templatePath,
-      noPrompts
-    } /*: { content: string, templatePath: string, noPrompts: boolean } */
+    { content, templatePath } /*: { content: string, templatePath: string } */
   ) {
     const fullPath = `${cwd}/${path}`
     const fullTemplatePath = `${__dirname}/${templatePath}`
     let doWrite = false
-    if (overwrite || noPrompts) doWrite = true
+    if (overwrite) doWrite = true
     else {
       let exists = false
       try {
         exists = await statFile(fullPath)
       } catch (err) {}
-      if (exists && prompts && !noPrompts) {
+      if (exists && prompts && !silence) {
         const YES_TEXT = 'Yes (overwrite)'
         const NO_TEXT = 'No, dont touch'
         const SHOWDIFF_TEXT = 'Show diff'
@@ -205,7 +221,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
             }
             await unlinkFile(tmpFile)
           }
-          await confirmWriteFile(path, { content, templatePath, noPrompts })
+          await confirmWriteFile(path, { content, templatePath })
         }
       } else if (exists && !prompts) {
         log(
@@ -261,17 +277,17 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     if (output === '-') {
       // TODO: ...
     } else {
-      await confirmWriteFile({
-        path: `${CONFIG_FILE_PATH}/node-deployment.yaml`,
+      await confirmWriteFile(`${CONFIG_FILE_PATH}/node-deployment.yaml`, {
         templatePath: 'defaults/deployment.yaml'
       })
     }
   } else if (opts.format === 'compose') {
+    const composeFileData = buildComposeFile(metaModules)
+    const composeFileDataYAML = yaml.safeDump(composeFileData)
     if (output === '-') {
-      // TODO: ...
+      process.stdout.write(composeFileDataYAML + '\n')
     } else {
-      await confirmWriteFile({
-        path: `${CONFIG_FILE_PATH}/node-deployment.yaml`,
+      await confirmWriteFile(`${CONFIG_FILE_PATH}/node-deployment.yaml`, {
         templatePath: 'defaults/deployment.yaml'
       })
     }
