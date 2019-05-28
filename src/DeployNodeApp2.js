@@ -125,6 +125,14 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     }
   }
 
+  function tryDiff (src /*: string */, dest /*: string */) {
+    try {
+      process.stdout.write('diff:\n' + execSyncWithEnv(`diff ${src} ${dest}`) + '\n')
+    } catch (err) {
+      process.stdout.write('diff:\n' + err.output.toString('utf8') + '\n')
+    }
+  }
+
   /**
    * Calls on docker-compose to provide us with port mapping information
    * In other words, if we know redis has a docker port assignment of 6379/tcp, we can
@@ -200,25 +208,13 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         if (confirmOverwrite === YES_TEXT) doWrite = true
         else if (confirmOverwrite === SHOWDIFF_TEXT) {
           if (templatePath) {
-            try {
-              process.stdout.write(
-                'diff:\n' + execSyncWithEnv(`diff ${fullTemplatePath} ${fullPath}`) + '\n'
-              )
-            } catch (err) {
-              process.stdout.write('diff:\n' + err.output.toString('utf8') + '\n')
-            }
+            tryDiff(fullTemplatePath, fullPath)
           } else {
             checkForGitIgnored(`${TMP_FILE_PATH}/`)
             await makedirP(TMP_FILE_PATH)
             const tmpFile = `${TMP_FILE_PATH}/${path.replace(/\//g, '-')}.tmp`
             await writeFile(tmpFile, content)
-            try {
-              process.stdout.write(
-                'diff:\n' + execSyncWithEnv(`diff ${tmpFile} ${fullPath}`) + '\n'
-              )
-            } catch (err) {
-              process.stdout.write('diff:\n' + err.output.toString('utf8') + '\n')
-            }
+            tryDiff(tmpFile, fullPath)
             await unlinkFile(tmpFile)
           }
           await confirmWriteFile(path, { content, templatePath })
