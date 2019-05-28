@@ -37,6 +37,7 @@
     "get-kubesail-config": "^1.0.4",
     "inquirer": "^6.3.1",
     "inquirer-fuzzy-path": "^2.0.3",
+    "md5-file": "^4.0.0",
     "mkdirp": "^0.5.1",
     "opn": "^6.0.0",
     "ws": "^7.0.0"

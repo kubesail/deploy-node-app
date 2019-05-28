@@ -8,6 +8,7 @@ const inquirer = require('inquirer')
 const yaml = require('js-yaml')
 const style = require('ansi-styles')
 const makedirpCB = require('mkdirp')
+const md5fileCB = require('md5-file')
 
 const {
   getDeployTags,
@@ -31,6 +32,7 @@ const writeFile = util.promisify(fs.writeFile)
 const copyFile = util.promisify(fs.copyFile)
 const makedirP = util.promisify(makedirpCB)
 const unlinkFile = util.promisify(fs.unlink)
+const md5file = util.promisify(md5fileCB)
 
 async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts /*: Object */) {
   const output = opts.output
@@ -190,6 +192,21 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       try {
         exists = await statFile(fullPath)
       } catch (err) {}
+
+      let tmpFileMD5
+      let fileMD5
+      const tmpFile = `${TMP_FILE_PATH}/${path.replace(/\//g, '-')}.tmp`
+      if (exists) {
+        fileMD5 = await md5file(fullPath)
+        if (content) {
+          await writeFile(tmpFile, content)
+          tmpFileMD5 = await md5file(tmpFile)
+        } else if (templatePath) {
+          tmpFileMD5 = await md5file(fullTemplatePath)
+        }
+        if (tmpFileMD5 && fileMD5 && tmpFileMD5 === fileMD5) return false
+      }
+
       if (exists && prompts && !silence) {
         const YES_TEXT = 'Yes (overwrite)'
         const NO_TEXT = 'No, dont touch'
@@ -211,9 +228,6 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
             tryDiff(fullTemplatePath, fullPath)
           } else {
             checkForGitIgnored(`${TMP_FILE_PATH}/`)
-            await makedirP(TMP_FILE_PATH)
-            const tmpFile = `${TMP_FILE_PATH}/${path.replace(/\//g, '-')}.tmp`
-            await writeFile(tmpFile, content)
             tryDiff(tmpFile, fullPath)
             await unlinkFile(tmpFile)
           }
@@ -242,6 +256,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   }
 
   const metaModules = await findMetaModules(packageJson)
+  await makedirP(TMP_FILE_PATH)
 
   // deploy-node-app --generate-local-env
   if (opts.generateLocalEnv) {
