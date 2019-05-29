@@ -132,7 +132,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   function tryDiff (src /*: string */, dest /*: string */) {
     try {
-      process.stdout.write('diff:\n' + execSyncWithEnv(`diff ${src} ${dest}`) + '\n', execOpts)
+      process.stdout.write('diff:\n' + execSyncWithEnv(`diff ${src} ${dest}`) + '\n')
     } catch (err) {
       process.stdout.write('diff:\n' + err.output.toString('utf8') + '\n')
     }
@@ -160,11 +160,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       )
       return {}
     }
-    const containers = (await execSyncWithEnv(`docker-compose ps -q ${name}`, execOpts)).split('\n')
+    const containers = (await execSyncWithEnv(`docker-compose ps -q ${name}`)).split('\n')
     for (const container of containers) {
       ports[portName] = await execSyncWithEnv(
-        `docker inspect ${container} --format='{{(index (index .NetworkSettings.Ports "${portSpec}") 0).HostPort}}'`,
-        execOpts
+        `docker inspect ${container} --format='{{(index (index .NetworkSettings.Ports "${portSpec}") 0).HostPort}}'`
       )
     }
     return ports
@@ -173,7 +172,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   function checkForGitIgnored (pattern /*: string */) {
     let ignored
     try {
-      ignored = execSyncWithEnv(`git grep '^${pattern}/$' .gitignore`, execOpts)
+      ignored = execSyncWithEnv(`git grep '^${pattern}/$' .gitignore`)
     } catch (err) {}
     if (!ignored) {
       log(`WARN: It doesn't look like you have ${pattern} ignored by your .gitignore file!`)
@@ -308,6 +307,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
   await makedirP(CONFIG_FILE_PATH)
   if (opts.format === 'k8s') {
+    // TODO: Write kustomization data (if kube)
     await confirmWriteFile(`${CONFIG_FILE_PATH}/node-deployment.yaml`, {
       templatePath: 'defaults/deployment.yaml'
     })
@@ -331,7 +331,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     try {
       execSyncWithEnv(`docker build . -t ${tags.hash}`, execOpts)
     } catch (err) {
-      console.error('Docker build failed!', err.message)
+      console.error('Docker build failed!', err.message, err.stack)
       process.exit(1)
     }
   }
@@ -342,13 +342,15 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     execSyncWithEnv(`docker push ${tags.hash}`, execOpts)
 
     if (opts.format === 'k8s') {
+      // TODO: Apply kustomization
       // TODO: Support multiple deployments per repository
       const cmd = `kubectl --context=${answers.context} set image deployment/${packageJson.name} ${
         packageJson.name
       }=${tags.hash}`
       log(`Running: \`${cmd}\``)
-      execSyncWithEnv(cmd, execOpts)
+      execSyncWithEnv(cmd)
     } else if (opts.format === 'compose') {
+      // Docker stack deploy? Docker compose up?
     } else throw new Error(`Unsupported format: "${opts.format}"`)
   }
 }

@@ -23,15 +23,14 @@ function fatal (message /*: string */) {
 }
 
 const execSyncWithEnv = (cmd, args, options = {}) => {
-  return execSync(
+  const output = execSync(
     cmd,
     args,
     Object.assign({}, options, {
       env: Object.assign({}, process.env, options.env)
     })
   )
-    .toString()
-    .trim()
+  if (output) return output.toString().trim()
 }
 
 function ensureBinaries () {
