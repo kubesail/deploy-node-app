@@ -51,6 +51,16 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     process.exit(1)
   }
 
+  const format = ['kube', 'kubernetes', 'k8s'].includes(opts.format)
+    ? 'k8s'
+    : opts.format === 'compose'
+      ? 'compose'
+      : null
+  if (!format) {
+    fatal('ERROR: Unsupported format option provided!')
+    process.exit(1)
+  }
+
   /**
    * Discovers "meta-module" packages within the package.json dep tree
    * Returns an array of package.json blobs from deps marked with a special key
@@ -320,16 +330,13 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     await confirmWriteFile(`${CONFIG_FILE_PATH}/node-deployment.yaml`, {
       templatePath: 'defaults/deployment.yaml'
     })
-  } else if (opts.format === 'compose') {
+  } else {
     const composeFileData = buildComposeFile(metaModules)
     const composeFileDataYAML = yaml.safeDump(composeFileData)
     await confirmWriteFile('docker-compose.yaml', {
       content: composeFileDataYAML + '\n',
       output
     })
-  } else {
-    console.error('ERROR: Unsupported format option provided!')
-    process.exit(1)
   }
 
   await confirmWriteFile('.dockerignore', { templatePath: 'defaults/.dockerignore' })
@@ -345,6 +352,16 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     }
   }
 
+  // Handle UI
+  const handleUi =
+    execSyncWithEnv(`docker run ${tags.hash} ls build/index.html`) === 'build/index.html'
+  if (handleUi && opts.format === 'k8s') {
+    // TODO: Write kustomization data (if kube)
+    await confirmWriteFile(`${CONFIG_FILE_PATH}/static-deployment.yaml`, {
+      templatePath: 'defaults/deployment.yaml'
+    })
+  }
+
   // Deploy
   if (opts.deploy) {
     log(`Now deploying "${tags.hash}"`)
@@ -358,9 +375,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       }=${tags.hash}`
       log(`Running: \`${cmd}\``)
       execSyncWithEnv(cmd)
-    } else if (opts.format === 'compose') {
-      // Docker stack deploy? Docker compose up?
-    } else throw new Error(`Unsupported format: "${opts.format}"`)
+    } else {
+      execSyncWithEnv('docker-compose up -d')
+    }
   }
 }
 
