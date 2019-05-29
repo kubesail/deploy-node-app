@@ -110,10 +110,12 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           }
         }
       }
+      // TODO: For now, we'll assume the local environment is docker-compose, and use localhost
+      // This should be improved to support remote docker, by checking for DOCKER_HOST
+      // If kubernetes, we can kubectl proxy && use localhost, or try to use cluster address?
+      // Or prompt?
       if (mm['deploy-node-app'].host) {
-        // If docker, check for DOCKER_HOST, if not, use localhost
-        // If kubernetes, kubectl proxy && localhost, or try to use cluster address?
-        // Or prompt?
+        envVars[mm['deploy-node-app'].host] = 'localhost'
       }
     }
     return envVars

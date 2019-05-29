@@ -59,19 +59,19 @@ function ensureBinaries () {
         case 'darwin':
           cmd = `${style.cyan.open}brew upgrade kubernetes-cli${style.reset.open}`
           process.stdout.write(
-            `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-macos`
+            `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-macos\n`
           )
           break
         case 'linux':
           cmd = `${style.cyan.open}sudo apt-get install kubectl${style.reset.open}`
           process.stdout.write(
-            `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-linux`
+            `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-linux\n`
           )
           break
         case 'win32':
           cmd = `${style.cyan.open}choco install kubernetes-cli${style.reset.open}`
           process.stdout.write(
-            `by running \n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-windows`
+            `by running \n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-windows\n`
           )
           break
         default:
