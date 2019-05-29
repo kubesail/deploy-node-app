@@ -6,7 +6,7 @@ const path = require('path')
 
 const inquirer = require('inquirer')
 const yaml = require('js-yaml')
-const style = require('ansi-styles')
+const chalk = require('chalk')
 const makedirpCB = require('mkdirp')
 const md5fileCB = require('md5-file')
 
@@ -15,10 +15,6 @@ const {
   execSyncWithEnv,
   readLocalKubeConfig,
   readLocalDockerConfig,
-  readKubeConfigNamespace,
-  shouldUseYarn,
-  fatal,
-  WARNING,
   ensureBinaries
 } = require('./util')
 const { promptQuestions } = require('./questions')
@@ -50,9 +46,8 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     console.log(...arguments)
   }
 
-  function fatal () {
-    // eslint-disable-next-line no-console
-    console.error('FATAL', ...arguments)
+  function fatal (msg) {
+    console.error(chalk.red(`>> ${msg}`))
     process.exit(1)
   }
 
@@ -170,6 +165,11 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       return {}
     }
     const containers = (await execSyncWithEnv(`docker-compose ps -q ${name}`)).split('\n')
+    if (containers.length === 1 && containers[0] === '') {
+      fatal(
+        'You appear to have no running containers. Please start docker-compose services with "docker-compose up"'
+      )
+    }
     for (const container of containers) {
       ports[portName] = await execSyncWithEnv(
         `docker inspect ${container} --format='{{(index (index .NetworkSettings.Ports "${portSpec}") 0).HostPort}}'`
@@ -280,7 +280,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         }
         log(`Successfully ${content ? 'wrote' : 'wrote from template'} "${path}"`)
       } catch (err) {
-        fatal(`Error writing ${path}:`, err.message)
+        fatal(`Error writing ${path}: ${err.message}`)
       }
       return true
     } else throw new Error('Please provide one of content, templatePath for confirmWriteFile')
