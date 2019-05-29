@@ -89,9 +89,11 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     for (let i = 0; i < metaModules.length; i++) {
       const mm = metaModules[i]
       if (await statFile(`node_modules/${mm.name}/lib/config.js`)) {
+        // TODO: Handle missing lib/config
         // eslint-disable-next-line security/detect-non-literal-require
         const vars = require(`${process.cwd()}/node_modules/${mm.name}/lib/config`)
         for (const env in vars) {
+          // TODO: Warn on overwrite
           envVars[env] = vars[env]
         }
       }
@@ -107,6 +109,11 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
             )
           }
         }
+      }
+      if (mm['deploy-node-app'].host) {
+        // If docker, check for DOCKER_HOST, if not, use localhost
+        // If kubernetes, kubectl proxy && localhost, or try to use cluster address?
+        // Or prompt?
       }
     }
     return envVars
