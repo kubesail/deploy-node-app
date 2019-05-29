@@ -329,12 +329,22 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   if (opts.build) {
     log(`Now building "${tags.hash}"`)
     execSyncWithEnv(`docker build . -t ${tags.hash}`, execOpts)
-    execSyncWithEnv(`docker push ${tags.hash}`, execOpts)
   }
 
   // Deploy
   if (opts.deploy) {
     log(`Now deploying "${tags.hash}"`)
+    execSyncWithEnv(`docker push ${tags.hash}`, execOpts)
+
+    if (opts.format === 'k8s') {
+      // TODO: Support multiple deployments per repository
+      const cmd = `kubectl --context=${answers.context} set image deployment/${packageJson.name} ${
+        packageJson.name
+      }=${tags.hash}`
+      log(`Running: \`${cmd}\``)
+      execSyncWithEnv(cmd, execOpts)
+    } else if (opts.format === 'compose') {
+    } else throw new Error(`Unsupported format: "${opts.format}"`)
   }
 }
 

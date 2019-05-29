@@ -5,7 +5,7 @@ WORKDIR /app
 ENV NODE_ENV="production"
 
 # Add common build deps
-RUN apk add build-base make gcc g++ linux-headers python-dev libc-dev libc6-compat jq
+RUN apt-get update && apt-get install -y build-essential python-dev jq
 
 COPY package.json yarn.loc[k] package-lock.jso[n] /app/
 
