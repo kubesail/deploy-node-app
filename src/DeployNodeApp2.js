@@ -328,7 +328,12 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   // Build
   if (opts.build) {
     log(`Now building "${tags.hash}"`)
-    execSyncWithEnv(`docker build . -t ${tags.hash}`, execOpts)
+    try {
+      execSyncWithEnv(`docker build . -t ${tags.hash}`, execOpts)
+    } catch (err) {
+      console.error('Docker build failed!', err.message)
+      process.exit(1)
+    }
   }
 
   // Deploy
