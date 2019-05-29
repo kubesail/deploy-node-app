@@ -87,7 +87,7 @@ function ensureBinaries () {
   }
 }
 
-async function getDeployTags (name, env, answers, shouldBuild) {
+async function getDeployTags (name, answers, shouldBuild) {
   const tags = {}
   const shortHash = execSyncWithEnv('git rev-parse HEAD')
     .toString()
@@ -109,7 +109,6 @@ async function getDeployTags (name, env, answers, shouldBuild) {
     prefix = `${answers.registryUsername}/`
   }
 
-  tags.env = `${prefix}${name}:${env}`
   tags.hash = `${prefix}${name}:${shortHash}`
   return tags
 }

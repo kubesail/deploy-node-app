@@ -24,7 +24,7 @@ const {
 const { promptQuestions } = require('./questions')
 
 const TMP_FILE_PATH = 'tmp'
-const CONFIG_FILE_PATH = 'config'
+const CONFIG_FILE_PATH = 'inf'
 
 const readFile = util.promisify(fs.readFile)
 const statFile = util.promisify(fs.stat)
@@ -37,9 +37,12 @@ const md5file = util.promisify(md5fileCB)
 async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts /*: Object */) {
   const output = opts.output
   const silence = output === '-'
-  const prompts = opts.confirm
+  const prompts = !opts.confirm
   const overwrite = opts.overwrite
   const cwd = process.cwd()
+  const execOpts = {
+    stdio: [process.stdin, opts.output !== '-' ? process.stdout : null, process.stderr]
+  }
 
   function log () {
     if (silence) return
@@ -129,7 +132,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   function tryDiff (src /*: string */, dest /*: string */) {
     try {
-      process.stdout.write('diff:\n' + execSyncWithEnv(`diff ${src} ${dest}`) + '\n')
+      process.stdout.write('diff:\n' + execSyncWithEnv(`diff ${src} ${dest}`) + '\n', execOpts)
     } catch (err) {
       process.stdout.write('diff:\n' + err.output.toString('utf8') + '\n')
     }
@@ -157,10 +160,11 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       )
       return {}
     }
-    const containers = (await execSyncWithEnv(`docker-compose ps -q ${name}`)).split('\n')
+    const containers = (await execSyncWithEnv(`docker-compose ps -q ${name}`, execOpts)).split('\n')
     for (const container of containers) {
       ports[portName] = await execSyncWithEnv(
-        `docker inspect ${container} --format='{{(index (index .NetworkSettings.Ports "${portSpec}") 0).HostPort}}'`
+        `docker inspect ${container} --format='{{(index (index .NetworkSettings.Ports "${portSpec}") 0).HostPort}}'`,
+        execOpts
       )
     }
     return ports
@@ -169,7 +173,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   function checkForGitIgnored (pattern /*: string */) {
     let ignored
     try {
-      ignored = execSyncWithEnv(`git grep '^${pattern}/$' .gitignore`)
+      ignored = execSyncWithEnv(`git grep '^${pattern}/$' .gitignore`, execOpts)
     } catch (err) {}
     if (!ignored) {
       log(`WARN: It doesn't look like you have ${pattern} ignored by your .gitignore file!`)
@@ -261,10 +265,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       try {
         if (content) {
           if (output === '-') process.stdout.write(content + '\n')
-          else writeFile(fullPath, content)
+          else await writeFile(fullPath, content)
         } else if (templatePath) {
           if (output === '-') process.stdout.write((await readFile(fullTemplatePath)).toString())
-          else copyFile(fullTemplatePath, path)
+          else await copyFile(fullTemplatePath, fullPath)
         }
         log(`Successfully ${content ? 'wrote' : 'wrote from template'} "${path}"`)
       } catch (err) {
@@ -295,7 +299,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   const kubeContexts = readLocalKubeConfig()
   const containerRegistries = readLocalDockerConfig()
   const answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson)
-  const tags = await getDeployTags(packageJson.name, env, answers, opts.build)
+  const tags = await getDeployTags(packageJson.name, answers, opts.build)
 
   if (!packageJson['deploy-node-app']) packageJson['deploy-node-app'] = {}
   packageJson['deploy-node-app'][env] = answers
@@ -310,13 +314,27 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   } else if (opts.format === 'compose') {
     const composeFileData = buildComposeFile(metaModules)
     const composeFileDataYAML = yaml.safeDump(composeFileData)
-    await confirmWriteFile(`${CONFIG_FILE_PATH}/docker-compose.yaml`, {
+    await confirmWriteFile('docker-compose.yaml', {
       content: composeFileDataYAML + '\n',
       output
     })
   } else {
     console.error('ERROR: Unsupported format option provided!')
     process.exit(1)
+  }
+
+  await confirmWriteFile('.dockerignore', { templatePath: 'defaults/.dockerignore' })
+
+  // Build
+  if (opts.build) {
+    log(`Now building "${tags.hash}"`)
+    execSyncWithEnv(`docker build . -t ${tags.hash}`, execOpts)
+    execSyncWithEnv(`docker push ${tags.hash}`, execOpts)
+  }
+
+  // Deploy
+  if (opts.deploy) {
+    log(`Now deploying "${tags.hash}"`)
   }
 }
 
