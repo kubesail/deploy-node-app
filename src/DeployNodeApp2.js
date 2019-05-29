@@ -359,6 +359,8 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     // TODO: Write kustomization data (if kube)
     await confirmWriteFile(`${CONFIG_FILE_PATH}/static-deployment.yaml`, {
       templatePath: 'defaults/deployment.yaml'
+      // TODO add template vars
+      // TODO update entrypoint to use NGINX
     })
   }
 
