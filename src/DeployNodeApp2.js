@@ -21,6 +21,7 @@ const { promptQuestions } = require('./questions')
 
 const TMP_FILE_PATH = 'tmp'
 const CONFIG_FILE_PATH = 'inf'
+const WWW_FILE_PATH = 'src/www'
 
 const readFile = util.promisify(fs.readFile)
 const statFile = util.promisify(fs.stat)
@@ -353,15 +354,17 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   }
 
   // Handle UI
-  const handleUi =
-    execSyncWithEnv(`docker run ${tags.hash} ls build/index.html`) === 'build/index.html'
-  if (handleUi && opts.format === 'k8s') {
-    // TODO: Write kustomization data (if kube)
-    await confirmWriteFile(`${CONFIG_FILE_PATH}/static-deployment.yaml`, {
-      templatePath: 'defaults/deployment.yaml'
-      // TODO add template vars
-      // TODO update entrypoint to use NGINX
-    })
+  if (await statFile(WWW_FILE_PATH)) {
+    if (opts.format === 'k8s') {
+      // TODO: Write kustomization data (if kube)
+      await confirmWriteFile(`${CONFIG_FILE_PATH}/static-deployment.yaml`, {
+        templatePath: 'defaults/deployment.yaml'
+        // TODO add template vars
+        // TODO update entrypoint to use NGINX
+      })
+    } else {
+      log('TODO: Write docker compose for nginx')
+    }
   }
 
   // Deploy
