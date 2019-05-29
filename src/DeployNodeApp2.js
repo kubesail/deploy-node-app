@@ -381,7 +381,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       log(`Running: \`${cmd}\``)
       execSyncWithEnv(cmd)
     } else {
-      execSyncWithEnv('docker-compose up -d')
+      execSyncWithEnv('docker-compose up --remove-orphans --quiet-pull -d')
     }
   }
 }
