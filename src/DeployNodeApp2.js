@@ -211,11 +211,33 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
    */
   async function confirmWriteFile (
     path /*: string */,
-    { content, templatePath, output } /*: { content: string, templatePath: string } */
+    {
+      content,
+      templatePath,
+      output,
+      vars
+    } /*: {
+      content: string,
+      templatePath: string,
+      output: string,
+      vars: Object|void
+    } */
   ) {
+    console.log({ templatePath, vars })
     const fullPath = `${cwd}/${path}`
     const fullTemplatePath = `${__dirname}/${templatePath}`
     const tmpFile = `${TMP_FILE_PATH}/${path.replace(/\//g, '-')}.tmp`
+
+    let template
+    if (templatePath && vars) {
+      template = (await readFile(fullTemplatePath)).toString()
+      Object.keys(vars).forEach(key => {
+        template = template.replace(new RegExp(`{{${key}}}`, 'g'), vars[key])
+      })
+      await writeFile(tmpFile, template)
+    }
+
+    console.log({ template })
 
     if (content && templatePath) throw new Error('Provide only one of content, templatePath')
     let doWrite = false
@@ -260,14 +282,14 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         })).overwrite
         if (confirmOverwrite === YES_TEXT) doWrite = true
         else if (confirmOverwrite === SHOWDIFF_TEXT) {
-          if (templatePath) {
-            tryDiff(fullTemplatePath, fullPath)
+          if (template) {
+            tryDiff(tmpFile, fullPath)
           } else {
             checkForGitIgnored(`${TMP_FILE_PATH}/`)
             tryDiff(tmpFile, fullPath)
             await unlinkFile(tmpFile)
           }
-          await confirmWriteFile(path, { content, templatePath })
+          await confirmWriteFile(path, { template, templatePath })
         }
       } else if (exists && !prompts) {
         log(
@@ -285,7 +307,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           if (output === '-') process.stdout.write(content + '\n')
           else await writeFile(fullPath, content)
         } else if (templatePath) {
-          if (output === '-') process.stdout.write((await readFile(fullTemplatePath)).toString())
+          if (output === '-') process.stdout.write(template)
           else await copyFile(fullTemplatePath, fullPath)
         }
         log(`Successfully ${content ? 'wrote' : 'wrote from template'} "${path}"`)
@@ -358,7 +380,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   if (handleUi && opts.format === 'k8s') {
     // TODO: Write kustomization data (if kube)
     await confirmWriteFile(`${CONFIG_FILE_PATH}/static-deployment.yaml`, {
-      templatePath: 'defaults/deployment.yaml'
+      templatePath: 'defaults/deployment.yaml',
+      vars: {
+        name: 'danthespaceman'
+      }
       // TODO add template vars
       // TODO update entrypoint to use NGINX
     })
