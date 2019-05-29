@@ -167,7 +167,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     const containers = (await execSyncWithEnv(`docker-compose ps -q ${name}`)).split('\n')
     if (containers.length === 1 && containers[0] === '') {
       fatal(
-        'You appear to have no running containers. Please start docker-compose services with "docker-compose up"'
+        'Failed to discover ports. You have some containers that are not yet running. Please run "docker-compose up" first.'
       )
     }
     for (const container of containers) {
