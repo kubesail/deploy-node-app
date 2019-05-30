@@ -94,19 +94,33 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     let envVars = {}
     for (let i = 0; i < metaModules.length; i++) {
       const mm = metaModules[i]
-      if (await statFile(`node_modules/${mm.name}/lib/config.js`)) {
-        // TODO: Handle missing lib/config
-        // eslint-disable-next-line security/detect-non-literal-require
-        const vars = require(`${process.cwd()}/node_modules/${mm.name}/lib/config`)
-        for (const env in vars) {
-          // TODO: Warn on overwrite
-          envVars[env] = vars[env]
+      const metadata = mm['deploy-node-app']
+      const configFile = metadata.config || 'lib/config.js'
+      if (await statFile(`node_modules/${mm.name}/${configFile}`)) {
+        try {
+          // eslint-disable-next-line security/detect-non-literal-require
+          const vars = require(`${process.cwd()}/node_modules/${mm.name}/${configFile}`)
+          for (const env in vars) {
+            log(
+              `WARN: MetaModule "${
+                mm.name
+              }" overwrites an already existing environment variable, "${env}"!`
+            )
+            envVars[env] = vars[env]
+          }
+        } catch (err) {
+          fatal(
+            `Unable to include MetaModule "${
+              mm.name
+            }"'s configuration file!\nConfig file: "${configFile}\n"`,
+            err.message
+          )
         }
       }
-      if (mm['deploy-node-app'].ports) {
-        for (const portName in mm['deploy-node-app'].ports) {
-          const portSpec = mm['deploy-node-app'].ports[portName]
-          const name = mm['deploy-node-app'].containerName || mm.name.split('/').pop()
+      if (metadata.ports) {
+        for (const portName in metadata.ports) {
+          const portSpec = metadata.ports[portName]
+          const name = metadata.containerName || mm.name.split('/').pop()
           if (detectPorts === 'compose') {
             envVars = Object.assign({}, envVars, await detectComposePorts(name, portName, portSpec))
           } else if (detectPorts) {
@@ -120,8 +134,8 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       // This should be improved to support remote docker, by checking for DOCKER_HOST
       // If kubernetes, we can kubectl proxy && use localhost, or try to use cluster address?
       // Or prompt?
-      if (mm['deploy-node-app'].host) {
-        envVars[mm['deploy-node-app'].host] = 'localhost'
+      if (metadata.host) {
+        envVars[metadata.host] = 'localhost'
       }
     }
     return envVars
@@ -327,7 +341,6 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
   await makedirP(CONFIG_FILE_PATH)
   if (opts.format === 'k8s') {
-    // TODO: Write kustomization data (if kube)
     await confirmWriteFile(`${CONFIG_FILE_PATH}/node-deployment.yaml`, {
       templatePath: 'defaults/deployment.yaml'
     })
