@@ -311,6 +311,23 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     } else throw new Error('Please provide one of content, templatePath for confirmWriteFile')
   }
 
+  async function buildKustomize (metaModules /*: Array<Object> */) {
+    let bases = [`./${CONFIG_FILE_PATH}`]
+    for (let i = 0; i < metaModules.length; i++) {
+      const mm = metaModules[i]
+      if (await statFile(`./node_modules/${mm.name}/kustomization.yaml`)) {
+        bases.push(`./node_modules/${mm.name}`)
+      } else {
+        process.stdout.write('Warning:', mm.name, 'doesn\'t support Kustomize mode\n')
+      }
+    }
+    return { bases }
+  }
+
+  //
+  // Begin deploy-node-app
+  //
+
   const metaModules = await findMetaModules(packageJson)
   await makedirP(TMP_FILE_PATH)
 
@@ -341,6 +358,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
   await makedirP(CONFIG_FILE_PATH)
   if (opts.format === 'k8s') {
+    await confirmWriteFile(`${CONFIG_FILE_PATH}/kustomization.yaml`, {
+      content: await buildKustomize()
+    })
     await confirmWriteFile(`${CONFIG_FILE_PATH}/node-deployment.yaml`, {
       templatePath: 'defaults/deployment.yaml'
     })
