@@ -7,8 +7,6 @@ const path = require('path')
 const inquirer = require('inquirer')
 const yaml = require('js-yaml')
 const chalk = require('chalk')
-const makedirpCB = require('mkdirp')
-const md5fileCB = require('md5-file')
 
 const {
   getDeployTags,
@@ -25,10 +23,7 @@ const CONFIG_FILE_PATH = 'inf'
 const readFile = util.promisify(fs.readFile)
 const statFile = util.promisify(fs.stat)
 const writeFile = util.promisify(fs.writeFile)
-const copyFile = util.promisify(fs.copyFile)
-const makedirP = util.promisify(makedirpCB)
-const unlinkFile = util.promisify(fs.unlink)
-const md5file = util.promisify(md5fileCB)
+const mkdir = util.promisify(fs.mkdir)
 
 async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts /*: Object */) {
   const output = opts.output
@@ -144,11 +139,18 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     }
   }
 
-  function tryDiff (src /*: string */, dest /*: string */) {
+  function tryDiff (content /*: string */, existingPath /*: string */) {
     try {
-      process.stdout.write('diff:\n' + execSyncWithEnv(`diff ${src} ${dest}`) + '\n')
+      // escape string for feeding into bash (echo)
+      const lines = content
+        .slice(0, -1)
+        .split('\n')
+        .map(line => line.replace(/./g, '\\$&'))
+      const cmd = `echo ${lines.join('"\n"')} | diff ${existingPath} -`
+      const diff = execSyncWithEnv(cmd)
+      process.stdout.write(`diff:\n${diff}\n`)
     } catch (err) {
-      process.stdout.write('diff:\n' + err.output.toString('utf8') + '\n')
+      process.stdout.write(`diff:\n${err.output.toString('utf8')}\n`)
     }
   }
 
@@ -223,49 +225,36 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       vars: Object|void
     } */
   ) {
-    console.log({ templatePath, vars })
     const fullPath = `${cwd}/${path}`
     const fullTemplatePath = `${__dirname}/${templatePath}`
-    const tmpFile = `${TMP_FILE_PATH}/${path.replace(/\//g, '-')}.tmp`
 
     let template
-    if (templatePath && vars) {
+    if (templatePath) {
       template = (await readFile(fullTemplatePath)).toString()
-      Object.keys(vars).forEach(key => {
-        template = template.replace(new RegExp(`{{${key}}}`, 'g'), vars[key])
-      })
-      await writeFile(tmpFile, template)
+      if (vars) {
+        Object.keys(vars).forEach(key => {
+          template = template.replace(new RegExp(`{{${key}}}`, 'g'), vars[key])
+        })
+      }
     }
-
-    console.log({ template })
 
     if (content && templatePath) throw new Error('Provide only one of content, templatePath')
     let doWrite = false
-    if (overwrite) doWrite = true
-    else {
-      let exists = false
-
+    let existingContent
+    try {
+      existingContent = (await readFile(fullPath)).toString()
+    } catch {}
+    if (overwrite) {
+      doWrite = true
+    } else {
       if (output !== '-') {
-        try {
-          exists = await statFile(fullPath)
-        } catch (err) {}
-
-        // Use md5 checksums to determine if files have changes - if they have not, no reason to prompt!
-        let tmpFileMD5
-        let fileMD5
-        if (exists) {
-          fileMD5 = await md5file(fullPath)
-          if (content) {
-            await writeFile(tmpFile, content)
-            tmpFileMD5 = await md5file(tmpFile)
-          } else if (templatePath) {
-            tmpFileMD5 = await md5file(fullTemplatePath)
-          }
-          if (tmpFileMD5 && fileMD5 && tmpFileMD5 === fileMD5) return false
+        // If existing file matches the content we're about to write, then bail early
+        if (existingContent === (content || template)) {
+          return false
         }
       }
 
-      if (exists && prompts && !silence) {
+      if (existingContent && prompts && !silence) {
         const YES_TEXT = 'Yes (overwrite)'
         const NO_TEXT = 'No, dont touch'
         const SHOWDIFF_TEXT = 'Show diff'
@@ -282,34 +271,24 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         })).overwrite
         if (confirmOverwrite === YES_TEXT) doWrite = true
         else if (confirmOverwrite === SHOWDIFF_TEXT) {
-          if (template) {
-            tryDiff(tmpFile, fullPath)
-          } else {
-            checkForGitIgnored(`${TMP_FILE_PATH}/`)
-            tryDiff(tmpFile, fullPath)
-            await unlinkFile(tmpFile)
-          }
-          await confirmWriteFile(path, { template, templatePath })
+          tryDiff(content || template, fullPath)
+          await confirmWriteFile(path, { templatePath, vars })
         }
-      } else if (exists && !prompts) {
+      } else if (existingContent && !prompts) {
         log(
           `Refusing to overwrite "${path}"... Continuing... (Use --overwrite to ignore this check)`
         )
-      } else if (!exists) {
+      } else if (!existingContent) {
         doWrite = true
       }
     }
+
     if (!doWrite && output !== '-') {
       return false
-    } else if (content || templatePath) {
+    } else if (content || template) {
       try {
-        if (content) {
-          if (output === '-') process.stdout.write(content + '\n')
-          else await writeFile(fullPath, content)
-        } else if (templatePath) {
-          if (output === '-') process.stdout.write(template)
-          else await copyFile(fullTemplatePath, fullPath)
-        }
+        if (output === '-') process.stdout.write((content || template) + '\n')
+        else await writeFile(fullPath, content || template)
         log(`Successfully ${content ? 'wrote' : 'wrote from template'} "${path}"`)
       } catch (err) {
         fatal(`Error writing ${path}: ${err.message}`)
@@ -319,7 +298,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   }
 
   const metaModules = await findMetaModules(packageJson)
-  await makedirP(TMP_FILE_PATH)
+  await mkdir(TMP_FILE_PATH, { recursive: true })
 
   // deploy-node-app --generate-local-env
   if (opts.generateLocalEnv) {
@@ -346,11 +325,17 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) })
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
-  await makedirP(CONFIG_FILE_PATH)
+  await mkdir(CONFIG_FILE_PATH, { recursive: true })
   if (opts.format === 'k8s') {
     // TODO: Write kustomization data (if kube)
     await confirmWriteFile(`${CONFIG_FILE_PATH}/node-deployment.yaml`, {
-      templatePath: 'defaults/deployment.yaml'
+      templatePath: 'defaults/deployment.yaml',
+      vars: {
+        name: packageJson.name,
+        image: tags.hash,
+        env,
+        port: answers.port
+      }
     })
   } else {
     const composeFileData = buildComposeFile(metaModules)
@@ -380,10 +365,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   if (handleUi && opts.format === 'k8s') {
     // TODO: Write kustomization data (if kube)
     await confirmWriteFile(`${CONFIG_FILE_PATH}/static-deployment.yaml`, {
-      templatePath: 'defaults/deployment.yaml',
-      vars: {
-        name: 'danthespaceman'
-      }
+      templatePath: 'defaults/deployment.yaml'
       // TODO add template vars
       // TODO update entrypoint to use NGINX
     })
