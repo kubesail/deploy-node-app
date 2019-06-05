@@ -17,7 +17,7 @@ const {
 } = require('./util')
 const { promptQuestions } = require('./questions')
 
-const TMP_FILE_PATH = 'tmp'
+
 const CONFIG_FILE_PATH = 'inf'
 
 const readFile = util.promisify(fs.readFile)
@@ -298,7 +298,6 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   }
 
   const metaModules = await findMetaModules(packageJson)
-  await mkdir(TMP_FILE_PATH, { recursive: true })
 
   // deploy-node-app --generate-local-env
   if (opts.generateLocalEnv) {
