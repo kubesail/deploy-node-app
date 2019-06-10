@@ -2,10 +2,10 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   labels:
-    app: {{name}}
+    app: "{{name}}"
+    env: "{{env}}"
     deployedBy: deploy-node-app
-    env: prod
-  name: {{name}}-{{env}}
+  name: "{{name}}-{{env}}"
 spec:
   minReadySeconds: 5
   progressDeadlineSeconds: 600
@@ -13,8 +13,8 @@ spec:
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app: {{name}}
-      env: {{env}}
+      app: "{{name}}"
+      env: "{{env}}"
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -23,25 +23,25 @@ spec:
   template:
     metadata:
       labels:
-        app: {{name}}
-        env: {{env}}
+        app: "{{name}}"
+        env: "{{env}}"
         deployedBy: deploy-node-app
     spec:
       containers:
-      - image: {{image}}
-        imagePullPolicy: Always
-        name: {{name}}
-        command: {{command}}
-        ports:
-        - containerPort: {{port}}
-          name: http
-          protocol: TCP
-        resources:
-          limits:
-            cpu: 100m
-            memory: 64Mi
-          requests:
-            cpu: 1m
-            memory: 32Mi
+        - image: "{{image}}"
+          imagePullPolicy: Always
+          name: "{{name}}"
+          command: "{{command}}"
+          ports:
+            - containerPort: "{{port}}"
+              name: http
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 1m
+              memory: 32Mi
       restartPolicy: Always
       terminationGracePeriodSeconds: 30

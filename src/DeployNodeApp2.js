@@ -6,6 +6,7 @@ const util = require('util')
 const inquirer = require('inquirer')
 const yaml = require('js-yaml')
 const chalk = require('chalk')
+const set = require('lodash/set')
 
 const {
   getDeployTags,
@@ -247,9 +248,15 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     if (templatePath) {
       template = (await readFile(fullTemplatePath)).toString()
       if (vars) {
-        Object.keys(vars).forEach(key => {
-          template = template.replace(new RegExp(`{{${key}}}`, 'g'), vars[key])
-        })
+        if (templatePath.endsWith('.yaml')) {
+          template = yaml.safeLoad(template)
+          Object.keys(vars).forEach(key => set(template, key, vars[key]))
+          template = yaml.safeDump(template)
+        } else {
+          Object.keys(vars).forEach(
+            key => (template = template.replace(new RegExp(`{{${key}}}`, 'g'), vars[key]))
+          )
+        }
       }
     }
 
@@ -360,31 +367,90 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
   await mkdir(CONFIG_FILE_PATH, { recursive: true })
   if (opts.format === 'k8s') {
-    const nodeConfigFilename = 'node-deployment.yaml'
-    const wwwConfigFilename = 'www-deployment.yaml'
-    // Write deployment config for UI
-    const resources = ['./' + nodeConfigFilename]
-    await confirmWriteFile(`${CONFIG_FILE_PATH}/${nodeConfigFilename}`, {
+    const nodeDeployment = 'node-deployment.yaml'
+    const nodeService = 'node-service.yaml'
+    const wwwDeployment = 'www-deployment.yaml'
+    const wwwService = 'www-service.yaml'
+
+    const resources = []
+    // Write deployment config for Node app
+    resources.push('./' + nodeDeployment)
+    await confirmWriteFile(`${CONFIG_FILE_PATH}/${nodeDeployment}`, {
       templatePath: 'defaults/deployment.yaml',
       vars: {
-        name: packageJson.name,
-        image: tags.hash,
-        env,
-        port: answers.port,
-        command: `['node', '${answers.entrypoint}']`
+        'metadata.name': `${packageJson.name}-${env}`,
+        'metadata.labels.app': packageJson.name,
+        'metadata.labels.env': env,
+        'spec.selector.matchLabels.app': packageJson.name,
+        'spec.selector.matchLabels.env': env,
+        'spec.template.metadata.labels.app': packageJson.name,
+        'spec.template.metadata.labels.env': env,
+        'spec.template.spec.containers[0].image': tags.hash,
+        'spec.template.spec.containers[0].name': packageJson.name,
+        'spec.template.spec.containers[0].command': ['node', answers.entrypoint],
+        'spec.template.spec.containers[0].ports[0].containerPort': answers.port
       }
     })
-    // Write deployment config for UI
+    // Write service config for Node app
+    resources.push('./' + nodeService)
+    await confirmWriteFile(`${CONFIG_FILE_PATH}/${nodeService}`, {
+      templatePath: 'defaults/service.yaml',
+      vars: {
+        'metadata.name': `${packageJson.name}-${env}`,
+        'spec.selector.app': packageJson.name,
+        'spec.selector.env': env,
+        'spec.ports[0].port': answers.port,
+        'spec.ports[0].targetPort': answers.port
+      }
+    })
+
+    // Write deployment config for WWW
     if (handleUi) {
-      resources.push('./' + wwwConfigFilename)
-      await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwConfigFilename}`, {
+      resources.push('./' + wwwDeployment)
+      await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwDeployment}`, {
         templatePath: 'defaults/deployment.yaml',
         vars: {
-          name: `${packageJson.name}-static`,
-          image: tags.hash,
-          env,
-          port: 80,
-          command: '[\'nginx\']'
+          'metadata.name': `${packageJson.name}-www-${env}`,
+          'metadata.labels.app': packageJson.name,
+          'metadata.labels.env': env,
+          'metadata.labels.tier': 'www',
+          'spec.selector.matchLabels.app': packageJson.name,
+          'spec.selector.matchLabels.env': env,
+          'spec.selector.matchLabels.tier': 'www',
+          'spec.template.metadata.labels.app': packageJson.name,
+          'spec.template.metadata.labels.env': env,
+          'spec.template.metadata.labels.tier': 'www',
+          'spec.template.spec.containers[0].image': tags.hash,
+          'spec.template.spec.containers[0].name': packageJson.name,
+          'spec.template.spec.containers[0].command': ['nginx'],
+          'spec.template.spec.containers[0].ports[0].containerPort': 80
+        }
+      })
+      // Write service config for WWW
+      resources.push('./' + wwwService)
+      await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwService}`, {
+        templatePath: 'defaults/service.yaml',
+        vars: {
+          'metadata.name': `${packageJson.name}-www-${env}`,
+          'spec.selector.app': packageJson.name,
+          'spec.selector.env': env,
+          'spec.ports[0].port': 80,
+          'spec.ports[0].targetPort': 80,
+          'metadata.annotations': //TODO:
+          // exposeExternally
+          //   ? {
+          //     'getambassador.io/config': JSON.stringify({
+          //       apiVersion: 'ambassador/v1',
+          //       kind: 'Mapping',
+          //       name: `${name}.${namespace}`,
+          //       prefix: '/',
+          //       service: `http://${name}.${namespace}:${answers.port}`,
+          //       host: `${appName}--${namespace}.kubesail.io`, // TODO allow custom domains
+          //       timeout_ms: 10000,
+          //       use_websocket: true
+          //     })
+          //   }
+          //   : null
         }
       })
     }
@@ -419,14 +485,19 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   if (opts.deploy) {
     log(`Now deploying "${tags.hash}"`)
     execSyncWithEnv(`docker push ${tags.hash}`, execOpts)
+    let svcMsg = ''
 
     if (opts.format === 'k8s') {
       const cmd = `kubectl --context=${answers.context} apply -k ${CONFIG_FILE_PATH}`
       log(`Running: \`${cmd}\``)
       execSyncWithEnv(cmd)
+
+      // Deploy service
     } else {
       execSyncWithEnv('docker-compose up --remove-orphans --quiet-pull -d')
     }
+
+    process.stdout.write(`\n\n✨  Your application has been deployed! ✨\n\n${svcMsg}`)
   }
 }
 
