@@ -6,7 +6,7 @@ const util = require('util')
 const inquirer = require('inquirer')
 const yaml = require('js-yaml')
 const chalk = require('chalk')
-const set = require('lodash/set')
+const merge = require('lodash/merge')
 
 const {
   getDeployTags,
@@ -233,12 +233,12 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       content,
       templatePath,
       output,
-      vars
+      properties
     } /*: {
       content: string,
       templatePath: string,
       output: string,
-      vars: Object|void
+      properties: Object|void
     } */
   ) {
     const fullPath = `${cwd}/${path}`
@@ -247,16 +247,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     let template
     if (templatePath) {
       template = (await readFile(fullTemplatePath)).toString()
-      if (vars) {
-        if (templatePath.endsWith('.yaml')) {
-          template = yaml.safeLoad(template)
-          Object.keys(vars).forEach(key => set(template, key, vars[key]))
-          template = yaml.safeDump(template)
-        } else {
-          Object.keys(vars).forEach(
-            key => (template = template.replace(new RegExp(`{{${key}}}`, 'g'), vars[key]))
-          )
-        }
+      if (properties && templatePath.endsWith('.yaml')) {
+        template = yaml.safeLoad(template)
+        merge(template, properties)
+        template = yaml.safeDump(template)
       }
     }
 
@@ -294,7 +288,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         if (confirmOverwrite === YES_TEXT) doWrite = true
         else if (confirmOverwrite === SHOWDIFF_TEXT) {
           tryDiff(content || template, fullPath)
-          await confirmWriteFile(path, { templatePath, vars })
+          await confirmWriteFile(path, { templatePath, properties })
         }
       } else if (existingContent && !prompts) {
         log(
@@ -367,122 +361,129 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
   await mkdir(CONFIG_FILE_PATH, { recursive: true })
   if (opts.format === 'k8s') {
-    const nodeDeployment = 'node-deployment.yaml'
-    const nodeService = 'node-service.yaml'
-    const wwwDeployment = 'www-deployment.yaml'
-    const wwwService = 'www-service.yaml'
-    const wwwConfigMap = 'www-configmap.yaml'
+    const nodeDeployment = 'api-deployment.yaml'
+    const nodeService = 'api-service.yaml'
+    const wwwDeployment = 'nginx-deployment.yaml'
+    const wwwService = 'nginx-service.yaml'
+    const wwwConfigMap = 'nginx-configmap.yaml'
 
     const resources = []
     // Write deployment config for Node app
     resources.push('./' + nodeDeployment)
     await confirmWriteFile(`${CONFIG_FILE_PATH}/${nodeDeployment}`, {
-      templatePath: 'defaults/Deployment.yaml',
-      vars: {
-        'metadata.name': `${packageJson.name}-${env}`,
-        'metadata.labels.app': packageJson.name,
-        'metadata.labels.env': env,
-        'spec.selector.matchLabels.app': packageJson.name,
-        'spec.selector.matchLabels.env': env,
-        'spec.template.metadata.labels.app': packageJson.name,
-        'spec.template.metadata.labels.env': env,
-        'spec.template.spec.containers[0].image': tags.hash,
-        'spec.template.spec.containers[0].name': packageJson.name,
-        'spec.template.spec.containers[0].command': ['node', answers.entrypoint],
-        'spec.template.spec.containers[0].ports[0].containerPort': answers.port
+      templatePath: 'defaults/api-deployment.yaml',
+      properties: {
+        metadata: {
+          name: packageJson.name,
+          labels: { app: packageJson.name }
+        },
+        spec: {
+          selector: { matchLabels: { app: packageJson.name } },
+          template: {
+            metadata: {
+              labels: { app: packageJson.name }
+            },
+            spec: {
+              containers: [
+                {
+                  image: tags.hash,
+                  name: packageJson.name,
+                  command: ['node', answers.entrypoint],
+                  ports: [{ containerPort: answers.port }]
+                }
+              ]
+            }
+          }
+        }
       }
     })
     // Write service config for Node app
     resources.push('./' + nodeService)
     await confirmWriteFile(`${CONFIG_FILE_PATH}/${nodeService}`, {
-      templatePath: 'defaults/Service.yaml',
-      vars: {
-        'metadata.name': `${packageJson.name}-${env}`,
-        'spec.selector.app': packageJson.name,
-        'spec.selector.env': env,
-        'spec.ports[0].port': answers.port,
-        'spec.ports[0].targetPort': answers.port
+      templatePath: 'defaults/api-service.yaml',
+      properties: {
+        metadata: { name: packageJson.name },
+        spec: {
+          selector: { app: packageJson.name },
+          ports: [{ port: answers.port, targetPort: answers.port }]
+        }
       }
     })
 
     // Write deployment config for WWW
     if (handleUi) {
       // Write Nginx ConfigMap
-      const nginxConfigMapName = `${packageJson.name}-www-${env}`
+      const nginxConfigMapName = `${packageJson.name}-www`
       resources.push('./' + wwwConfigMap)
       await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwConfigMap}`, {
-        templatePath: 'defaults/ConfigMap.yaml',
-        vars: {
-          'metadata.name': nginxConfigMapName,
-          'data.default': `
-            server {
-              listen 80;
-              root /app/build;
+        templatePath: 'defaults/nginx-configmap.yaml',
+        properties: {
+          metadata: {
+            name: nginxConfigMapName,
+            data: {
+              default: `
+                server {
+                  listen 80;
+                  root /app/build;
 
-              location /api {
-                proxy_pass http://${packageJson.name};
-              }
-            }`
+                  location /api {
+                    proxy_pass http://${packageJson.name};
+                  }
+                }`
+            }
+          }
         }
       })
       // Write Nginx Deployment
       resources.push('./' + wwwDeployment)
       await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwDeployment}`, {
-        templatePath: 'defaults/Deployment.yaml',
-        vars: {
-          'metadata.name': `${packageJson.name}-www-${env}`,
-          'metadata.labels.app': packageJson.name,
-          'metadata.labels.env': env,
-          'metadata.labels.tier': 'www',
-          'spec.selector.matchLabels.app': packageJson.name,
-          'spec.selector.matchLabels.env': env,
-          'spec.selector.matchLabels.tier': 'www',
-          'spec.template.metadata.labels.app': packageJson.name,
-          'spec.template.metadata.labels.env': env,
-          'spec.template.metadata.labels.tier': 'www',
-          'spec.template.spec.containers[0]': {
-            image: tags.hash,
-            name: packageJson.name,
-            command: ['nginx'],
-            containerPort: 80,
-            volumeMounts: {
-              name: 'nginx-config',
-              mountPath: '/etc/nginx/sites-enabled'
-            }
+        templatePath: 'defaults/nginx-deployment.yaml',
+        properties: {
+          metadata: {
+            name: `${packageJson.name}-www`,
+            labels: { app: packageJson.name }
           },
-          'spec.template.spec.volumes[0]': {
-            name: 'nginx-config',
-            configMap: {
-              name: nginxConfigMapName
+          spec: {
+            selector: { matchLabels: { app: packageJson.name } },
+            template: {
+              metadata: { labels: { app: packageJson.name } },
+              spec: {
+                containers: [
+                  {
+                    image: tags.hash,
+                    name: packageJson.name
+                  }
+                ]
+              }
             }
           }
         }
       })
       // Write Nginx Service Config
+      const exposeExternally = true // TODO for kubesail only
+      const namespace = 'pastudan' // TODO get from kubesail context
       resources.push('./' + wwwService)
       await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwService}`, {
-        templatePath: 'defaults/Service.yaml',
-        vars: {
-          'metadata.name': `${packageJson.name}-www-${env}`,
-          'spec.selector.app': packageJson.name,
-          'spec.selector.env': env,
-          'spec.ports[0].port': 80,
-          'spec.ports[0].targetPort': 80,
-          'metadata.annotations': {} // TODO:
-          // exposeExternally
-          //   ? {
-          //     'getambassador.io/config': JSON.stringify({
-          //       apiVersion: 'ambassador/v1',
-          //       kind: 'Mapping',
-          //       name: `${name}.${namespace}`,
-          //       prefix: '/',
-          //       service: `http://${name}.${namespace}:${answers.port}`,
-          //       host: `${appName}--${namespace}.kubesail.io`, // TODO allow custom domains
-          //       timeout_ms: 10000,
-          //       use_websocket: true
-          //     })
-          //   }
-          //   : null
+        templatePath: 'defaults/nginx-service.yaml',
+        properties: {
+          metadata: {
+            name: `${packageJson.name}-www`,
+            annotations: exposeExternally
+              ? {
+                'getambassador.io/config': yaml.safeDump({
+                  apiVersion: 'ambassador/v1',
+                  kind: 'Mapping',
+                  name: `${packageJson.name}-www.${namespace}`,
+                  prefix: '/',
+                  service: `http://${packageJson.name}-www.${namespace}:80`,
+                  host: `${packageJson.name}-www--${namespace}.kubesail.io`, // TODO allow custom domains
+                  timeout_ms: 10000,
+                  use_websocket: true
+                })
+              }
+              : null
+          },
+          spec: { selector: { app: packageJson.name } }
         }
       })
     }
