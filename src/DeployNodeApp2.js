@@ -2,7 +2,6 @@
 
 const fs = require('fs')
 const util = require('util')
-const path = require('path')
 
 const inquirer = require('inquirer')
 const yaml = require('js-yaml')
@@ -16,7 +15,6 @@ const {
   ensureBinaries
 } = require('./util')
 const { promptQuestions } = require('./questions')
-
 
 const CONFIG_FILE_PATH = 'inf'
 const WWW_FILE_PATH = 'src/www'
@@ -46,6 +44,8 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     console.error(chalk.red(`>> ${msg}`))
     process.exit(1)
   }
+
+  const handleUi = await statFile(WWW_FILE_PATH)
 
   const format = ['kube', 'kubernetes', 'k8s'].includes(opts.format)
     ? 'k8s'
@@ -312,17 +312,19 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     } else throw new Error('Please provide one of content, templatePath for confirmWriteFile')
   }
 
-  async function buildKustomize (metaModules /*: Array<Object> */) {
-    let bases = [`./${CONFIG_FILE_PATH}`]
+  async function buildKustomize (
+    metaModules /*: Array<Object> */,
+    { bases = [] /*: Array<string> */, resources = [] /*: Array<string> */ }
+  ) {
     for (let i = 0; i < metaModules.length; i++) {
       const mm = metaModules[i]
       if (await statFile(`./node_modules/${mm.name}/kustomization.yaml`)) {
-        bases.push(`./node_modules/${mm.name}`)
+        bases.push(`../node_modules/${mm.name}`)
       } else {
         process.stdout.write('Warning:', mm.name, 'doesn\'t support Kustomize mode\n')
       }
     }
-    return { bases }
+    return { bases, resources }
   }
 
   //
@@ -358,17 +360,37 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
   await mkdir(CONFIG_FILE_PATH, { recursive: true })
   if (opts.format === 'k8s') {
-    await confirmWriteFile(`${CONFIG_FILE_PATH}/kustomization.yaml`, {
-      content: await buildKustomize()
-    })
-    await confirmWriteFile(`${CONFIG_FILE_PATH}/node-deployment.yaml`, {
+    const nodeConfigFilename = 'node-deployment.yaml'
+    const wwwConfigFilename = 'www-deployment.yaml'
+    // Write deployment config for UI
+    const resources = ['./' + nodeConfigFilename]
+    await confirmWriteFile(`${CONFIG_FILE_PATH}/${nodeConfigFilename}`, {
       templatePath: 'defaults/deployment.yaml',
       vars: {
         name: packageJson.name,
         image: tags.hash,
         env,
-        port: answers.port
+        port: answers.port,
+        command: `['node', '${answers.entrypoint}']`
       }
+    })
+    // Write deployment config for UI
+    if (handleUi) {
+      resources.push('./' + wwwConfigFilename)
+      await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwConfigFilename}`, {
+        templatePath: 'defaults/deployment.yaml',
+        vars: {
+          name: `${packageJson.name}-static`,
+          image: tags.hash,
+          env,
+          port: 80,
+          command: '[\'nginx\']'
+        }
+      })
+    }
+    // Write kustomization config
+    await confirmWriteFile(`${CONFIG_FILE_PATH}/kustomization.yaml`, {
+      content: yaml.safeDump(await buildKustomize(metaModules, { resources }))
     })
   } else {
     const composeFileData = buildComposeFile(metaModules)
@@ -377,6 +399,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       content: composeFileDataYAML + '\n',
       output
     })
+    // TODO: Write docker compose for static files / nginx
   }
 
   await confirmWriteFile('.dockerignore', { templatePath: 'defaults/.dockerignore' })
@@ -392,31 +415,13 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     }
   }
 
-  // Handle UI
-  if (await statFile(WWW_FILE_PATH)) {
-    if (opts.format === 'k8s') {
-      // TODO: Write kustomization data (if kube)
-      await confirmWriteFile(`${CONFIG_FILE_PATH}/static-deployment.yaml`, {
-        templatePath: 'defaults/deployment.yaml'
-        // TODO add template vars
-        // TODO update entrypoint to use NGINX
-      })
-    } else {
-      log('TODO: Write docker compose for nginx')
-    }
-  }
-
   // Deploy
   if (opts.deploy) {
     log(`Now deploying "${tags.hash}"`)
     execSyncWithEnv(`docker push ${tags.hash}`, execOpts)
 
     if (opts.format === 'k8s') {
-      // TODO: Apply kustomization
-      // TODO: Support multiple deployments per repository
-      const cmd = `kubectl --context=${answers.context} set image deployment/${packageJson.name} ${
-        packageJson.name
-      }=${tags.hash}`
+      const cmd = `kubectl --context=${answers.context} apply -k ${CONFIG_FILE_PATH}`
       log(`Running: \`${cmd}\``)
       execSyncWithEnv(cmd)
     } else {
