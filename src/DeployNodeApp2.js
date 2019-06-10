@@ -371,12 +371,13 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     const nodeService = 'node-service.yaml'
     const wwwDeployment = 'www-deployment.yaml'
     const wwwService = 'www-service.yaml'
+    const wwwConfigMap = 'www-configmap.yaml'
 
     const resources = []
     // Write deployment config for Node app
     resources.push('./' + nodeDeployment)
     await confirmWriteFile(`${CONFIG_FILE_PATH}/${nodeDeployment}`, {
-      templatePath: 'defaults/deployment.yaml',
+      templatePath: 'defaults/Deployment.yaml',
       vars: {
         'metadata.name': `${packageJson.name}-${env}`,
         'metadata.labels.app': packageJson.name,
@@ -394,7 +395,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     // Write service config for Node app
     resources.push('./' + nodeService)
     await confirmWriteFile(`${CONFIG_FILE_PATH}/${nodeService}`, {
-      templatePath: 'defaults/service.yaml',
+      templatePath: 'defaults/Service.yaml',
       vars: {
         'metadata.name': `${packageJson.name}-${env}`,
         'spec.selector.app': packageJson.name,
@@ -406,9 +407,28 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
     // Write deployment config for WWW
     if (handleUi) {
+      // Write Nginx ConfigMap
+      const nginxConfigMapName = `${packageJson.name}-www-${env}`
+      resources.push('./' + wwwConfigMap)
+      await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwConfigMap}`, {
+        templatePath: 'defaults/ConfigMap.yaml',
+        vars: {
+          'metadata.name': nginxConfigMapName,
+          'data.default': `
+            server {
+              listen 80;
+              root /app/build;
+
+              location /api {
+                proxy_pass http://${packageJson.name};
+              }
+            }`
+        }
+      })
+      // Write Nginx Deployment
       resources.push('./' + wwwDeployment)
       await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwDeployment}`, {
-        templatePath: 'defaults/deployment.yaml',
+        templatePath: 'defaults/Deployment.yaml',
         vars: {
           'metadata.name': `${packageJson.name}-www-${env}`,
           'metadata.labels.app': packageJson.name,
@@ -420,23 +440,39 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           'spec.template.metadata.labels.app': packageJson.name,
           'spec.template.metadata.labels.env': env,
           'spec.template.metadata.labels.tier': 'www',
-          'spec.template.spec.containers[0].image': tags.hash,
-          'spec.template.spec.containers[0].name': packageJson.name,
-          'spec.template.spec.containers[0].command': ['nginx'],
-          'spec.template.spec.containers[0].ports[0].containerPort': 80
+          'spec.template.spec.containers': [
+            {
+              image: tags.hash,
+              name: packageJson.name,
+              command: ['nginx'],
+              containerPort: 80,
+              volumeMounts: {
+                name: 'nginx-config',
+                mountPath: '/etc/nginx/sites-enabled'
+              }
+            }
+          ],
+          'spec.template.spec.volumes': [
+            {
+              name: 'nginx-config',
+              configMap: {
+                name: nginxConfigMapName
+              }
+            }
+          ]
         }
       })
-      // Write service config for WWW
+      // Write Nginx Service Config
       resources.push('./' + wwwService)
       await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwService}`, {
-        templatePath: 'defaults/service.yaml',
+        templatePath: 'defaults/Service.yaml',
         vars: {
           'metadata.name': `${packageJson.name}-www-${env}`,
           'spec.selector.app': packageJson.name,
           'spec.selector.env': env,
           'spec.ports[0].port': 80,
           'spec.ports[0].targetPort': 80,
-          'metadata.annotations': //TODO:
+          'metadata.annotations': {} // TODO:
           // exposeExternally
           //   ? {
           //     'getambassador.io/config': JSON.stringify({

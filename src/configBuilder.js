@@ -139,33 +139,15 @@ function buildAppDeployment (pkg, env, tags, answers) {
 
 function buildUiConfigMap () {
   return {
-    apiVersion: 'apps/v1',
     data: {
       default: `
-      server {
-        root /www/data;
-
-        location / {
-        }
-
-        location /images/ {
-        }
-
-        location ~ \.(mp3|mp4) {
-            root /www/media;
-        }
-    }
-
-        upstream hello {
-            server hello;
-        }
-
         server {
-            listen 80;
+          listen 80;
+          root /app/build;
 
-            location / {
-                proxy_pass http://hello;
-            }
+          location /api {
+            proxy_pass http://${packageJson.name};
+          }
         }`
     }
   }
