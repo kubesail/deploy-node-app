@@ -440,26 +440,22 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           'spec.template.metadata.labels.app': packageJson.name,
           'spec.template.metadata.labels.env': env,
           'spec.template.metadata.labels.tier': 'www',
-          'spec.template.spec.containers': [
-            {
-              image: tags.hash,
-              name: packageJson.name,
-              command: ['nginx'],
-              containerPort: 80,
-              volumeMounts: {
-                name: 'nginx-config',
-                mountPath: '/etc/nginx/sites-enabled'
-              }
-            }
-          ],
-          'spec.template.spec.volumes': [
-            {
+          'spec.template.spec.containers[0]': {
+            image: tags.hash,
+            name: packageJson.name,
+            command: ['nginx'],
+            containerPort: 80,
+            volumeMounts: {
               name: 'nginx-config',
-              configMap: {
-                name: nginxConfigMapName
-              }
+              mountPath: '/etc/nginx/sites-enabled'
             }
-          ]
+          },
+          'spec.template.spec.volumes[0]': {
+            name: 'nginx-config',
+            configMap: {
+              name: nginxConfigMapName
+            }
+          }
         }
       })
       // Write Nginx Service Config
