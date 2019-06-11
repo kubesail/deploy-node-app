@@ -3,9 +3,9 @@ kind: Deployment
 metadata:
   labels:
     app: your-app-name
-    tier: api
+    tier: frontend
     deployedBy: deploy-node-app
-  name: your-app-name
+  name: your-app-name-frontend
 spec:
   minReadySeconds: 5
   progressDeadlineSeconds: 600
@@ -14,7 +14,7 @@ spec:
   selector:
     matchLabels:
       app: your-app-name
-      tier: api
+      tier: frontend
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -24,16 +24,16 @@ spec:
     metadata:
       labels:
         app: your-app-name
-        tier: api
+        tier: frontend
         deployedBy: deploy-node-app
     spec:
       containers:
         - image: your-app-image
           imagePullPolicy: Always
           name: your-app-name
-          command: ["node", "src/index.js"]
+          command: ["nginx"]
           ports:
-            - containerPort: 4000
+            - containerPort: 80
               name: http
               protocol: TCP
           resources:
@@ -43,5 +43,12 @@ spec:
             requests:
               cpu: 1m
               memory: 32Mi
+          volumeMounts:
+            - name: config
+              mountPath: "/etc/nginx/sites-enabled"
+      volumes:
+        - name: config
+          configMap:
+            name: nginx-configmap
       restartPolicy: Always
       terminationGracePeriodSeconds: 30

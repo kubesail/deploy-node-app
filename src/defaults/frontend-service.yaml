@@ -6,9 +6,9 @@ spec:
   type: ClusterIP
   ports:
     - name: tcp
-      port: 4000
+      port: 80
       protocol: TCP
-      targetPort: 4000
+      targetPort: 80
   selector:
-    app: your-app-name
-    tier: api
+    app: your-app-name,
+    tier: frontend

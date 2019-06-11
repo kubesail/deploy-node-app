@@ -22,6 +22,6 @@ COPY . /app/
 # Run build step if necessary
 RUN if jq --exit-status ".scripts.build" package.json; then yarn build; fi
 
-USER nodejs
+# USER nodejs
 
 CMD ["node", "src/api"]

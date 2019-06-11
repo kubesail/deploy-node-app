@@ -361,17 +361,17 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
   await mkdir(CONFIG_FILE_PATH, { recursive: true })
   if (opts.format === 'k8s') {
-    const nodeDeployment = 'api-deployment.yaml'
-    const nodeService = 'api-service.yaml'
-    const wwwDeployment = 'nginx-deployment.yaml'
-    const wwwService = 'nginx-service.yaml'
-    const wwwConfigMap = 'nginx-configmap.yaml'
+    const nodeDeployment = 'backend-deployment.yaml'
+    const nodeService = 'backend-service.yaml'
+    const wwwDeployment = 'frontend-deployment.yaml'
+    const wwwService = 'frontend-service.yaml'
+    const wwwConfigMap = 'frontend-configmap.yaml'
 
     const resources = []
     // Write deployment config for Node app
     resources.push('./' + nodeDeployment)
     await confirmWriteFile(`${CONFIG_FILE_PATH}/${nodeDeployment}`, {
-      templatePath: 'defaults/api-deployment.yaml',
+      templatePath: 'defaults/backend-deployment.yaml',
       properties: {
         metadata: {
           name: packageJson.name,
@@ -400,7 +400,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     // Write service config for Node app
     resources.push('./' + nodeService)
     await confirmWriteFile(`${CONFIG_FILE_PATH}/${nodeService}`, {
-      templatePath: 'defaults/api-service.yaml',
+      templatePath: 'defaults/backend-service.yaml',
       properties: {
         metadata: { name: packageJson.name },
         spec: {
@@ -413,14 +413,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     // Write deployment config for WWW
     if (handleUi) {
       // Write Nginx ConfigMap
-      const nginxConfigMapName = `${packageJson.name}-www`
       resources.push('./' + wwwConfigMap)
       await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwConfigMap}`, {
-        templatePath: 'defaults/nginx-configmap.yaml',
+        templatePath: 'defaults/frontend-configmap.yaml',
         properties: {
-          metadata: {
-            name: nginxConfigMapName
-          },
           data: {
             default: `
               server {
@@ -437,10 +433,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       // Write Nginx Deployment
       resources.push('./' + wwwDeployment)
       await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwDeployment}`, {
-        templatePath: 'defaults/nginx-deployment.yaml',
+        templatePath: 'defaults/frontend-deployment.yaml',
         properties: {
           metadata: {
-            name: `${packageJson.name}-www`,
+            name: `${packageJson.name}-frontend`,
             labels: { app: packageJson.name }
           },
           spec: {
@@ -464,19 +460,19 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       const namespace = 'pastudan' // TODO get from kubesail context
       resources.push('./' + wwwService)
       await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwService}`, {
-        templatePath: 'defaults/nginx-service.yaml',
+        templatePath: 'defaults/frontend-service.yaml',
         properties: {
           metadata: {
-            name: `${packageJson.name}-www`,
+            name: `${packageJson.name}-frontend`,
             annotations: exposeExternally
               ? {
                 'getambassador.io/config': yaml.safeDump({
                   apiVersion: 'ambassador/v1',
                   kind: 'Mapping',
-                  name: `${packageJson.name}-www.${namespace}`,
+                  name: `${packageJson.name}-frontend.${namespace}`,
                   prefix: '/',
-                  service: `http://${packageJson.name}-www.${namespace}:80`,
-                  host: `${packageJson.name}-www--${namespace}.kubesail.io`, // TODO allow custom domains
+                  service: `http://${packageJson.name}-frontend.${namespace}:80`,
+                  host: `${packageJson.name}-frontend--${namespace}.kubesail.io`, // TODO allow custom domains
                   timeout_ms: 10000,
                   use_websocket: true
                 })
