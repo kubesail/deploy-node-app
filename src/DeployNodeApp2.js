@@ -419,18 +419,18 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         templatePath: 'defaults/nginx-configmap.yaml',
         properties: {
           metadata: {
-            name: nginxConfigMapName,
-            data: {
-              default: `
-                server {
-                  listen 80;
-                  root /app/build;
+            name: nginxConfigMapName
+          },
+          data: {
+            default: `
+              server {
+                listen 80;
+                root /app/build;
 
-                  location /api {
-                    proxy_pass http://${packageJson.name};
-                  }
-                }`
-            }
+                location /api {
+                  proxy_pass http://${packageJson.name};
+                }
+              }`
           }
         }
       })
@@ -523,7 +523,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     if (opts.format === 'k8s') {
       const cmd = `kubectl --context=${answers.context} apply -k ${CONFIG_FILE_PATH}`
       log(`Running: \`${cmd}\``)
-      execSyncWithEnv(cmd)
+      execSyncWithEnv(cmd, execOpts)
 
       // Deploy service
     } else {

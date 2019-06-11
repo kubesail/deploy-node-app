@@ -44,8 +44,8 @@ spec:
               cpu: 1m
               memory: 32Mi
           volumeMounts:
-            name: config
-            mountPath: "/etc/nginx/sites-enabled"
+            - name: config
+              mountPath: "/etc/nginx/sites-enabled"
       volumes:
         - name: config
           configMap:
