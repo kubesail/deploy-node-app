@@ -31,7 +31,7 @@ spec:
         - image: your-app-image
           imagePullPolicy: Always
           name: your-app-name
-          command: ["nginx"]
+          command: ["nginx", "-g", "daemon off;"]
           ports:
             - containerPort: 80
               name: http

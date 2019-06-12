@@ -361,20 +361,20 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
   await mkdir(CONFIG_FILE_PATH, { recursive: true })
   if (opts.format === 'k8s') {
-    const nodeDeployment = 'backend-deployment.yaml'
-    const nodeService = 'backend-service.yaml'
-    const wwwDeployment = 'frontend-deployment.yaml'
-    const wwwService = 'frontend-service.yaml'
-    const wwwConfigMap = 'frontend-configmap.yaml'
+    const backendDeployment = `${handleUi ? 'backend-' : ''}deployment.yaml`
+    const backendService = `${handleUi ? 'backend-' : ''}service.yaml`
+    const frontendDeployment = 'frontend-deployment.yaml'
+    const frontendService = 'frontend-service.yaml'
+    const frontendConfigMap = 'frontend-configmap.yaml'
 
     const resources = []
     // Write deployment config for Node app
-    resources.push('./' + nodeDeployment)
-    await confirmWriteFile(`${CONFIG_FILE_PATH}/${nodeDeployment}`, {
+    resources.push('./' + backendDeployment)
+    await confirmWriteFile(`${CONFIG_FILE_PATH}/${backendDeployment}`, {
       templatePath: 'defaults/backend-deployment.yaml',
       properties: {
         metadata: {
-          name: packageJson.name,
+          name: packageJson.name + (handleUi ? '-backend' : ''),
           labels: { app: packageJson.name }
         },
         spec: {
@@ -398,11 +398,13 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       }
     })
     // Write service config for Node app
-    resources.push('./' + nodeService)
-    await confirmWriteFile(`${CONFIG_FILE_PATH}/${nodeService}`, {
+    resources.push('./' + backendService)
+    await confirmWriteFile(`${CONFIG_FILE_PATH}/${backendService}`, {
       templatePath: 'defaults/backend-service.yaml',
       properties: {
-        metadata: { name: packageJson.name },
+        metadata: {
+          name: packageJson.name + (handleUi ? '-backend' : '')
+        },
         spec: {
           selector: { app: packageJson.name },
           ports: [{ port: answers.port, targetPort: answers.port }]
@@ -413,8 +415,8 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     // Write deployment config for WWW
     if (handleUi) {
       // Write Nginx ConfigMap
-      resources.push('./' + wwwConfigMap)
-      await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwConfigMap}`, {
+      resources.push('./' + frontendConfigMap)
+      await confirmWriteFile(`${CONFIG_FILE_PATH}/${frontendConfigMap}`, {
         templatePath: 'defaults/frontend-configmap.yaml',
         properties: {
           data: {
@@ -422,17 +424,16 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
               server {
                 listen 80;
                 root /app/build;
-
                 location /api {
-                  proxy_pass http://${packageJson.name};
+                  proxy_pass http://${packageJson.name}-backend;
                 }
               }`
           }
         }
       })
       // Write Nginx Deployment
-      resources.push('./' + wwwDeployment)
-      await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwDeployment}`, {
+      resources.push('./' + frontendDeployment)
+      await confirmWriteFile(`${CONFIG_FILE_PATH}/${frontendDeployment}`, {
         templatePath: 'defaults/frontend-deployment.yaml',
         properties: {
           metadata: {
@@ -458,8 +459,8 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       // Write Nginx Service Config
       const exposeExternally = true // TODO for kubesail only
       const namespace = 'pastudan' // TODO get from kubesail context
-      resources.push('./' + wwwService)
-      await confirmWriteFile(`${CONFIG_FILE_PATH}/${wwwService}`, {
+      resources.push('./' + frontendService)
+      await confirmWriteFile(`${CONFIG_FILE_PATH}/${frontendService}`, {
         templatePath: 'defaults/frontend-service.yaml',
         properties: {
           metadata: {
