@@ -62,7 +62,7 @@ async function promptQuestions (
         {
           name: 'context',
           type: 'list',
-          message: 'Which Kubernetes context do you want to use?',
+          message: 'Which Kubernetes context do you want to deploy to?',
           default: kubeContexts[0],
           choices: kubeContexts
         }
