@@ -34,6 +34,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   const execOpts = {
     stdio: [process.stdin, opts.output !== '-' ? process.stdout : null, process.stderr]
   }
+  let svcMsg = ''
 
   function log () {
     if (silence) return
@@ -315,7 +316,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   async function buildKustomize (
     metaModules /*: Array<Object> */,
-    { bases = [], resources = [] } /*: { bases: Array<string>, resources: Array<string>} */
+    { bases = [] /*: Array<string> */, resources = [] /*: Array<string> */ }
   ) {
     for (let i = 0; i < metaModules.length; i++) {
       const mm = metaModules[i]
@@ -421,11 +422,13 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         properties: {
           data: {
             default: `
+              error_log stderr info;
               server {
+                access_log stdout;
                 listen 80;
                 root /app/build;
                 location /api {
-                  proxy_pass http://${packageJson.name}-backend;
+                  proxy_pass http://${packageJson.name}-backend:${answers.port};
                 }
               }`
           }
@@ -459,6 +462,11 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       // Write Nginx Service Config
       const exposeExternally = true // TODO for kubesail only
       const namespace = 'pastudan' // TODO get from kubesail context
+      const host = `${packageJson.name}-frontend--${namespace}.kubesail.io`
+      svcMsg += exposeExternally
+        ? '\nYour App is available at:' + `\n\n    ${chalk.cyan(`https://${host}\n`)}\n\n`
+        : '\nYou may need to expose your deployment on kubernetes via a service.\n' +
+          'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.\n'
       resources.push('./' + frontendService)
       await confirmWriteFile(`${CONFIG_FILE_PATH}/${frontendService}`, {
         templatePath: 'defaults/frontend-service.yaml',
@@ -473,7 +481,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
                   name: `${packageJson.name}-frontend.${namespace}`,
                   prefix: '/',
                   service: `http://${packageJson.name}-frontend.${namespace}:80`,
-                  host: `${packageJson.name}-frontend--${namespace}.kubesail.io`, // TODO allow custom domains
+                  host, // TODO allow custom domains
                   timeout_ms: 10000,
                   use_websocket: true
                 })
@@ -515,13 +523,11 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   if (opts.deploy) {
     log(`Now deploying "${tags.hash}"`)
     execSyncWithEnv(`docker push ${tags.hash}`, execOpts)
-    let svcMsg = ''
 
     if (opts.format === 'k8s') {
       const cmd = `kubectl --context=${answers.context} apply -k ${CONFIG_FILE_PATH}`
       log(`Running: \`${cmd}\``)
       execSyncWithEnv(cmd, execOpts)
-
       // Deploy service
     } else {
       execSyncWithEnv('docker-compose up --remove-orphans --quiet-pull -d')
