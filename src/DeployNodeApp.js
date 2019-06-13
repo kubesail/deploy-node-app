@@ -14,6 +14,7 @@ const {
   getDeployTags,
   execSyncWithEnv,
   readLocalKubeConfig,
+  readKubeConfigNamespace,
   readLocalDockerConfig,
   ensureBinaries
 } = require('./util')
@@ -131,12 +132,12 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           }
         }
       }
-      // TODO: For now, we'll assume the local environment is docker-compose, and use localhost
-      // This should be improved to support remote docker, by checking for DOCKER_HOST
-      // If kubernetes, we can kubectl proxy && use localhost, or try to use cluster address?
-      // Or prompt?
       if (metadata.host) {
-        envVars[metadata.host] = 'localhost'
+        let host = 'localhost'
+        if (process.env.DOCKER_HOST) {
+          host = new URL(process.env.DOCKER_HOST).hostname
+        }
+        envVars[metadata.host] = host
       }
     }
     return envVars
@@ -200,22 +201,19 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     }
     for (const container of containers) {
       ports[portName] = await execSyncWithEnv(
-        `docker inspect ${container} --format='{{(index (index .NetworkSettings.Ports "${portSpec}") 0).HostPort}}'`
+        `docker inspect ${container} --format="{{(index (index .NetworkSettings.Ports \\"${portSpec}\\") 0).HostPort}}"`
       )
     }
     return ports
   }
 
   function checkForGitIgnored (pattern /*: string */) {
-    let ignored
     try {
-      ignored = execSyncWithEnv(`git grep '^${pattern}/$' .gitignore`)
-    } catch (err) {}
-    if (!ignored) {
+      execSyncWithEnv(`git grep "^${pattern}$" .gitignore`)
+    } catch (err) {
       log(`WARN: It doesn't look like you have ${pattern} ignored by your .gitignore file!`)
       log(`WARN: This is usually a bad idea! Fix with: "echo '${pattern}' >> .gitignore"`)
     }
-    return ignored
   }
 
   /**
@@ -277,7 +275,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         const confirmOverwrite = (await inquirer.prompt({
           name: 'overwrite',
           type: 'expand',
-          message: `Would you like to overwrite "${filePath}"?`,
+          message: `Would you like to update "${filePath}"?`,
           choices: [
             { key: 'Y', value: YES_TEXT },
             { key: 'N', value: NO_TEXT },
@@ -315,7 +313,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   async function buildKustomize (
     metaModules /*: Array<Object> */,
-    { bases = [] /*: Array<string> */, resources = [] /*: Array<string> */ }
+    { bases = [], resources = [] } /*: { bases: Array<string>, resources: Array<string> } */
   ) {
     for (let i = 0; i < metaModules.length; i++) {
       const mm = metaModules[i]
@@ -351,7 +349,13 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   ensureBinaries() // Ensure 'kubectl', 'docker', etc...
   const kubeContexts = readLocalKubeConfig()
   const containerRegistries = readLocalDockerConfig()
-  const answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson)
+  const answers = await promptQuestions(
+    env,
+    containerRegistries,
+    kubeContexts,
+    packageJson,
+    opts.format
+  )
   const tags = await getDeployTags(packageJson.name, answers, opts.build)
 
   if (!packageJson['deploy-node-app']) packageJson['deploy-node-app'] = {}
@@ -359,18 +363,18 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) + '\n' })
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
-  await mkdir(CONFIG_FILE_PATH, { recursive: true })
+  await mkdir(path.join(CONFIG_FILE_PATH, env), { recursive: true })
   if (opts.format === 'k8s') {
-    const backendDeployment = `${handleUi ? 'backend-' : ''}deployment.yaml`
-    const backendService = `${handleUi ? 'backend-' : ''}service.yaml`
-    const frontendDeployment = 'frontend-deployment.yaml'
-    const frontendService = 'frontend-service.yaml'
-    const frontendConfigMap = 'frontend-configmap.yaml'
+    const backendDeployment = path.join(env, `${handleUi ? 'backend-' : ''}deployment.yaml`)
+    const backendService = path.join(env, `${handleUi ? 'backend-' : ''}service.yaml`)
+    const frontendDeployment = path.join(env, 'frontend-deployment.yaml')
+    const frontendService = path.join(env, 'frontend-service.yaml')
+    const frontendConfigMap = path.join(env, 'frontend-configmap.yaml')
 
     const resources = []
     // Write deployment config for Node app
-    resources.push('./' + backendDeployment)
-    await confirmWriteFile(`${CONFIG_FILE_PATH}/${backendDeployment}`, {
+    resources.push(path.join('.', backendDeployment))
+    await confirmWriteFile(path.join(CONFIG_FILE_PATH, backendDeployment), {
       templatePath: 'defaults/backend-deployment.yaml',
       properties: {
         metadata: {
@@ -398,8 +402,8 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       }
     })
     // Write service config for Node app
-    resources.push('./' + backendService)
-    await confirmWriteFile(`${CONFIG_FILE_PATH}/${backendService}`, {
+    resources.push(path.join('.', backendService))
+    await confirmWriteFile(path.join(CONFIG_FILE_PATH, backendService), {
       templatePath: 'defaults/backend-service.yaml',
       properties: {
         metadata: {
@@ -415,27 +419,46 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     // Write deployment config for WWW
     if (handleUi) {
       // Write Nginx ConfigMap
-      resources.push('./' + frontendConfigMap)
-      await confirmWriteFile(`${CONFIG_FILE_PATH}/${frontendConfigMap}`, {
+      resources.push(path.join('.', frontendConfigMap))
+      await confirmWriteFile(path.join(CONFIG_FILE_PATH, frontendConfigMap), {
         templatePath: 'defaults/frontend-configmap.yaml',
         properties: {
           data: {
-            default: `
+            'nginx.conf': `
+              worker_processes 1;
               error_log stderr info;
-              server {
-                access_log stdout;
-                listen 80;
-                root /app/build;
-                location /api {
-                  proxy_pass http://${packageJson.name}-backend:${answers.port};
+              pid /tmp/nginx.pid;
+
+              events {
+                worker_connections  1024;
+              }
+
+              http {
+                include /etc/nginx/mime.types;
+                default_type application/octet-stream;
+                log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                                  '$status $body_bytes_sent "$http_referer" '
+                                  '"$http_user_agent" "$http_x_forwarded_for"';
+                access_log stdout main;
+                sendfile on;
+                keepalive_timeout 65;
+
+                server {
+                  access_log stdout;
+                  listen 8080;
+                  root /app/build;
+                  location /api {
+                    proxy_pass http://${packageJson.name}-backend:${answers.port};
+                  }
                 }
+
               }`
           }
         }
       })
       // Write Nginx Deployment
-      resources.push('./' + frontendDeployment)
-      await confirmWriteFile(`${CONFIG_FILE_PATH}/${frontendDeployment}`, {
+      resources.push(path.join('.', frontendDeployment))
+      await confirmWriteFile(path.join(CONFIG_FILE_PATH, frontendDeployment), {
         templatePath: 'defaults/frontend-deployment.yaml',
         properties: {
           metadata: {
@@ -458,21 +481,21 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           }
         }
       })
-      // Write Nginx Service Config
-      const exposeExternally = true // TODO for kubesail only
-      const namespace = 'pastudan' // TODO get from kubesail context
+      // TODO: This should be an option...
+      const usingKubeSail = answers.context.includes('kubesail')
+      const namespace = readKubeConfigNamespace(answers.context)
       const host = `${packageJson.name}-frontend--${namespace}.kubesail.io`
-      svcMsg += exposeExternally
+      svcMsg += usingKubeSail
         ? '\nYour App is available at:' + `\n\n    ${chalk.cyan(`https://${host}\n`)}\n\n`
         : '\nYou may need to expose your deployment on kubernetes via a service.\n' +
           'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.\n'
-      resources.push('./' + frontendService)
-      await confirmWriteFile(`${CONFIG_FILE_PATH}/${frontendService}`, {
+      resources.push(path.join('.', frontendService))
+      await confirmWriteFile(path.join(CONFIG_FILE_PATH, frontendService), {
         templatePath: 'defaults/frontend-service.yaml',
         properties: {
           metadata: {
             name: `${packageJson.name}-frontend`,
-            annotations: exposeExternally
+            annotations: usingKubeSail
               ? {
                 'getambassador.io/config': yaml.safeDump({
                   apiVersion: 'ambassador/v1',
@@ -492,7 +515,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       })
     }
     // Write kustomization config
-    await confirmWriteFile(`${CONFIG_FILE_PATH}/kustomization.yaml`, {
+    await confirmWriteFile(path.join(CONFIG_FILE_PATH, 'kustomization.yaml'), {
       content: yaml.safeDump(await buildKustomize(metaModules, { resources }))
     })
   } else {
@@ -505,7 +528,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     // TODO: Write docker compose for static files / nginx
   }
 
-  await confirmWriteFile('.dockerignore', { templatePath: 'defaults/.dockerignore' })
+  await confirmWriteFile('.dockerignore', { templatePath: path.join('defaults', '.dockerignore') })
 
   // Build
   if (opts.build) {
@@ -518,10 +541,13 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     }
   }
 
+  if (opts.push) {
+    execSyncWithEnv(`docker push ${tags.hash}`, execOpts)
+  }
+
   // Deploy
   if (opts.deploy) {
     log(`Now deploying "${tags.hash}"`)
-    execSyncWithEnv(`docker push ${tags.hash}`, execOpts)
 
     if (opts.format === 'k8s') {
       const cmd = `kubectl --context=${answers.context} apply -k ${CONFIG_FILE_PATH}`
@@ -532,7 +558,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       execSyncWithEnv('docker-compose up --remove-orphans --quiet-pull -d')
     }
 
-    process.stdout.write(`\n\n✨  Your application has been deployed! ✨\n\n${svcMsg}`)
+    if (env !== 'dev') {
+      process.stdout.write(`\n\n✨  Your application has been deployed! ✨\n\n${svcMsg}`)
+    }
   }
 }
 

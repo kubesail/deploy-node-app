@@ -13,13 +13,15 @@ RUN apt-get update && apt-get install -y build-essential python-dev jq bash curl
 COPY package.json yarn.loc[k] package-lock.jso[n] /app/
 
 RUN yarn install --no-cache && \
-  useradd -ms /bin/bash nodejs && \
-  chown -R nodejs /app /home/nodejs /etc/nginx /var/log/nginx
+  useradd -ms /bin/bash nodejs
 
 COPY . /app/
 
 # Run build step if necessary
 RUN if jq --exit-status ".scripts.build" package.json; then yarn build; fi
+
+RUN chown -R nodejs /app /home/nodejs \
+  /etc/nginx /var/log/nginx /var/lib/nginx /usr/share/nginx
 
 USER nodejs
 

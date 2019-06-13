@@ -33,7 +33,7 @@ spec:
           name: your-app-name
           command: ["nginx", "-g", "daemon off;"]
           ports:
-            - containerPort: 80
+            - containerPort: 8080
               name: http
               protocol: TCP
           resources:
@@ -45,7 +45,8 @@ spec:
               memory: 32Mi
           volumeMounts:
             - name: config
-              mountPath: "/etc/nginx/sites-enabled"
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
       volumes:
         - name: config
           configMap:

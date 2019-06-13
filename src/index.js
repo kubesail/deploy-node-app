@@ -27,6 +27,7 @@ program
   .version(dnaPackageJson.version)
   .option('--generate-local-env', 'Generates local environment variables')
   .option('-n, --no-build', 'Don\'t build and push docker container')
+  .option('-d, --no-push', 'Don\'t push to docker registry')
   .option('-d, --no-deploy', 'Don\'t deploy to kubernetes')
   .option('-O, --overwrite', 'Overwrite local files')
   .option('-s, --skip metamodule', 'name of metamodule to skip')
