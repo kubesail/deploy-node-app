@@ -30,7 +30,7 @@ program
   .option('-d, --no-deploy', 'Don\'t deploy to kubernetes')
   .option('-O, --overwrite', 'Overwrite local files')
   .option('-s, --skip metamodule', 'name of metamodule to skip')
-  .option('-f, --format [type]', 'Output config format [k8s|compose]', 'compose')
+  .option('-f, --format [type]', 'Output config format [k8s|compose]', 'k8s')
   .option(
     '-o, --output [filename]',
     'File for config output. "-" will write to stdout. Default is docker-compose.yaml or deployment.yaml depending on format'
