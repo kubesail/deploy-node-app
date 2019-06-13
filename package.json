@@ -20,14 +20,13 @@
     "deploy-to-kube": "src/index.js"
   },
   "authors": [
-    "Seandon Mooy <seandon.mooy@gmail.com>",
-    "Dan Pastusek <dan@hexial.com>"
+    "Seandon Mooy <seandon@kubesail.com>",
+    "Dan Pastusek <dan@kubesail.com>"
   ],
   "devDependencies": {
     "babel-eslint": "^10.0.1",
     "eslint": "^5.16.0",
     "eslint-config-standard": "^12.0.0",
-    "eslint-loader": "^2.1.2",
     "eslint-plugin-flowtype": "^3.9.1",
     "eslint-plugin-import": "^2.17.3",
     "eslint-plugin-node": "^9.1.0",
@@ -37,18 +36,17 @@
     "eslint-plugin-standard": "^4.0.0",
     "prettier": "^1.17.1",
     "prettier-eslint": "^8.8.2",
-    "prettier-eslint-cli": "^4.7.1",
-    "webpack": "^4.32.2"
+    "prettier-eslint-cli": "^4.7.1"
   },
   "dependencies": {
     "ansi-styles": "^3.2.1",
     "command-exists": "^1.2.8",
     "commander": "^2.20.0",
+    "diff": "^4.0.1",
     "get-kubesail-config": "^1.0.4",
     "inquirer": "^6.3.1",
     "inquirer-fuzzy-path": "^2.0.3",
-    "opn": "^6.0.0",
-    "ws": "^7.0.0"
+    "js-yaml": "^3.13.1"
   },
   "prettier": {
     "printWidth": 100

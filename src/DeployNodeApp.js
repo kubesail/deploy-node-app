@@ -2,11 +2,13 @@
 
 const fs = require('fs')
 const util = require('util')
+const path = require('path')
 
 const inquirer = require('inquirer')
 const yaml = require('js-yaml')
 const chalk = require('chalk')
 const merge = require('lodash/merge')
+const diff = require('diff')
 
 const {
   getDeployTags,
@@ -66,7 +68,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     const depNames = Object.keys(packageJson.dependencies)
     const readFiles = depNames.map(async dep => {
       try {
-        return await readFile(`node_modules/${dep}/package.json`).then(json => JSON.parse(json))
+        return await readFile(path.join('node_modules', dep, 'package.json')).then(json =>
+          JSON.parse(json)
+        )
       } catch (err) {
         console.error('Unable to load package.json:', err.message)
         return Promise.resolve(null)
@@ -95,7 +99,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       if (await statFile(`node_modules/${mm.name}/${configFile}`)) {
         try {
           // eslint-disable-next-line security/detect-non-literal-require
-          const vars = require(`${process.cwd()}/node_modules/${mm.name}/${configFile}`)
+          const vars = require(path.join(cwd, 'node_modules', mm.name, configFile))
           for (const env in vars) {
             log(
               `WARN: MetaModule "${
@@ -155,19 +159,14 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     }
   }
 
-  function tryDiff (content /*: string */, existingPath /*: string */) {
-    try {
-      // escape string for feeding into bash (echo)
-      const lines = content
-        .slice(0, -1)
-        .split('\n')
-        .map(line => line.replace(/./g, '\\$&'))
-      const cmd = `echo ${lines.join('"\n"')} | diff ${existingPath} -`
-      const diff = execSyncWithEnv(cmd)
-      process.stdout.write(`diff:\n${diff}\n`)
-    } catch (err) {
-      process.stdout.write(`diff:\n${err.output.toString('utf8')}\n`)
-    }
+  async function tryDiff (content /*: string */, existingPath /*: string */) {
+    const existing = (await readFile(existingPath)).toString()
+    const compare = diff.diffLines(existing, content)
+    compare.forEach(part =>
+      process.stdout.write(
+        part.added ? chalk.green(part.value) : part.removed ? chalk.red(part.value) : part.value
+      )
+    )
   }
 
   /**
@@ -228,7 +227,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
    * Provide only one of content or templatePath!
    */
   async function confirmWriteFile (
-    path /*: string */,
+    filePath /*: string */,
     {
       content,
       templatePath,
@@ -241,8 +240,8 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       properties: Object|void
     } */
   ) {
-    const fullPath = `${cwd}/${path}`
-    const fullTemplatePath = `${__dirname}/${templatePath}`
+    const fullPath = path.join(cwd, filePath)
+    const fullTemplatePath = templatePath ? path.join(__dirname, templatePath) : null
 
     let template
     if (templatePath) {
@@ -250,7 +249,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       if (properties && templatePath.endsWith('.yaml')) {
         template = yaml.safeLoad(template)
         merge(template, properties)
-        template = yaml.safeDump(template)
+        template = yaml.safeDump(template) + '\n'
       }
     }
 
@@ -277,7 +276,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         const confirmOverwrite = (await inquirer.prompt({
           name: 'overwrite',
           type: 'expand',
-          message: `Would you like to overwrite "${path}"?`,
+          message: `Would you like to overwrite "${filePath}"?`,
           choices: [
             { key: 'Y', value: YES_TEXT },
             { key: 'N', value: NO_TEXT },
@@ -287,12 +286,12 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         })).overwrite
         if (confirmOverwrite === YES_TEXT) doWrite = true
         else if (confirmOverwrite === SHOWDIFF_TEXT) {
-          tryDiff(content || template, fullPath)
-          await confirmWriteFile(path, { templatePath, properties })
+          await tryDiff(content || template, fullPath)
+          await confirmWriteFile(filePath, { templatePath, content, properties })
         }
       } else if (existingContent && !prompts) {
         log(
-          `Refusing to overwrite "${path}"... Continuing... (Use --overwrite to ignore this check)`
+          `Refusing to overwrite "${filePath}"... Continuing... (Use --overwrite to ignore this check)`
         )
       } else if (!existingContent) {
         doWrite = true
@@ -305,9 +304,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       try {
         if (output === '-') process.stdout.write((content || template) + '\n')
         else await writeFile(fullPath, content || template)
-        log(`Successfully ${content ? 'wrote' : 'wrote from template'} "${path}"`)
+        log(`Successfully ${content ? 'wrote' : 'wrote from template'} "${filePath}"`)
       } catch (err) {
-        fatal(`Error writing ${path}: ${err.message}`)
+        fatal(`Error writing ${filePath}: ${err.message}`)
       }
       return true
     } else throw new Error('Please provide one of content, templatePath for confirmWriteFile')
@@ -357,7 +356,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   if (!packageJson['deploy-node-app']) packageJson['deploy-node-app'] = {}
   packageJson['deploy-node-app'][env] = answers
 
-  await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) })
+  await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) + '\n' })
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
   await mkdir(CONFIG_FILE_PATH, { recursive: true })
   if (opts.format === 'k8s') {
