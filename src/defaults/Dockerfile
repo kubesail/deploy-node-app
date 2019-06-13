@@ -14,14 +14,13 @@ COPY package.json yarn.loc[k] package-lock.jso[n] /app/
 
 RUN yarn install --no-cache && \
   useradd -ms /bin/bash nodejs && \
-  chown -R nodejs /app && \
-  chown -R nodejs /home/nodejs
+  chown -R nodejs /app /home/nodejs /etc/nginx /var/log/nginx
 
 COPY . /app/
 
 # Run build step if necessary
 RUN if jq --exit-status ".scripts.build" package.json; then yarn build; fi
 
-# USER nodejs
+USER nodejs
 
 CMD ["node", "src/api"]
