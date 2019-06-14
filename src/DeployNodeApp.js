@@ -486,9 +486,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       const namespace = readKubeConfigNamespace(answers.context)
       const host = `${packageJson.name}-frontend--${namespace}.kubesail.io`
       svcMsg += usingKubeSail
-        ? '\nYour App is available at:' + `\n\n    ${chalk.cyan(`https://${host}\n`)}\n\n`
+        ? '\nYour App is available at:' + `\n\n    ${chalk.cyan(`https://${host}\n`)}\n`
         : '\nYou may need to expose your deployment on kubernetes via a service.\n' +
-          'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.\n'
+          'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.'
       resources.push(path.join('.', frontendService))
       await confirmWriteFile(path.join(CONFIG_FILE_PATH, frontendService), {
         templatePath: 'defaults/frontend-service.yaml',
@@ -542,7 +542,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   // Deploy
   if (opts.deploy) {
-    log(`Now deploying "${tags.hash}"`)
+    if (env !== 'dev') log(`Now deploying "${tags.hash}"`)
 
     if (opts.format === 'k8s') {
       const cmd = `kubectl --context=${answers.context} apply -k ${CONFIG_FILE_PATH}`
@@ -552,10 +552,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     } else {
       execSyncWithEnv('docker-compose up --remove-orphans --quiet-pull -d')
     }
-
-    if (env !== 'dev') {
-      process.stdout.write(`\n\n✨  Your application has been deployed! ✨\n\n${svcMsg}`)
-    }
+    if (env !== 'dev') log(`\n\n✨  Your application has been deployed! ✨\n\n${svcMsg}`)
   }
 }
 
