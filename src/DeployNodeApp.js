@@ -9,6 +9,7 @@ const yaml = require('js-yaml')
 const chalk = require('chalk')
 const merge = require('lodash/merge')
 const diff = require('diff')
+require('dotenv').config()
 
 const {
   getDeployTags,
@@ -103,11 +104,13 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           // eslint-disable-next-line security/detect-non-literal-require
           const vars = require(path.join(cwd, 'node_modules', mm.name, configFile))
           for (const env in vars) {
-            log(
-              `WARN: MetaModule "${
-                mm.name
-              }" overwrites an already existing environment variable, "${env}"!`
-            )
+            if (envVars[env]) {
+              log(
+                `WARN: MetaModule "${
+                  mm.name
+                }" overwrites an already existing environment variable, "${env}"! Conflicting metamodules?`
+              )
+            }
             envVars[env] = vars[env]
           }
         } catch (err) {
@@ -156,9 +159,24 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     })
 
     return {
-      version: '2',
+      version: '3',
       services
     }
+  }
+
+  async function buildKustomize (
+    metaModules /*: Array<Object> */,
+    { bases = [], resources = [] } /*: { bases: Array<string>, resources: Array<string> } */
+  ) {
+    for (let i = 0; i < metaModules.length; i++) {
+      const mm = metaModules[i]
+      if (await statFile(`./node_modules/${mm.name}/kustomization.yaml`)) {
+        bases.push(`../node_modules/${mm.name}`)
+      } else {
+        process.stdout.write('Warning:', mm.name, 'doesn\'t support Kustomize mode\n')
+      }
+    }
+    return { bases, resources }
   }
 
   async function tryDiff (content /*: string */, existingPath /*: string */) {
@@ -311,25 +329,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     } else throw new Error('Please provide one of content, templatePath for confirmWriteFile')
   }
 
-  async function buildKustomize (
-    metaModules /*: Array<Object> */,
-    { bases = [], resources = [] } /*: { bases: Array<string>, resources: Array<string> } */
-  ) {
-    for (let i = 0; i < metaModules.length; i++) {
-      const mm = metaModules[i]
-      if (await statFile(`./node_modules/${mm.name}/kustomization.yaml`)) {
-        bases.push(`../node_modules/${mm.name}`)
-      } else {
-        process.stdout.write('Warning:', mm.name, 'doesn\'t support Kustomize mode\n')
-      }
-    }
-    return { bases, resources }
-  }
-
   //
   // Begin deploy-node-app
   //
-
   const metaModules = await findMetaModules(packageJson)
 
   // deploy-node-app --generate-local-env
