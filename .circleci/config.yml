@@ -7,6 +7,11 @@ jobs:
     steps:
       - checkout
 
+      - setup_remote_docker:
+          reusable: true
+          exclusive: false
+          version: 17.06.1-ce
+
       - restore_cache:
           keys:
             - v1-dependencies-{{ arch }}-{{ checksum "yarn.lock" }}
@@ -17,7 +22,11 @@ jobs:
 
       - run:
           name: Linting
-          command: ./node_modules/.bin/eslint .
+          command: ./bin/lint.sh
+
+      - run:
+          name: Testing
+          command: ./bin/test.sh
 
 workflows:
   version: 2
