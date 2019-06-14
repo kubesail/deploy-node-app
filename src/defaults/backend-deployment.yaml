@@ -32,6 +32,9 @@ spec:
           imagePullPolicy: Always
           name: your-app-name
           command: ["node", "src/index.js"]
+          env:
+            - name: GET_HOSTS_FROM
+              value: dns
           ports:
             - containerPort: 4000
               name: http

@@ -22,14 +22,22 @@ function fatal (message /*: string */) {
   process.exit(1)
 }
 
-const execSyncWithEnv = (cmd, args, options = {}) => {
-  const output = execSync(
-    cmd,
-    args,
-    Object.assign({}, options, {
-      env: Object.assign({}, process.env, options.env)
-    })
-  )
+const execSyncWithEnv = (cmd, options = {}) => {
+  const mergedOpts = Object.assign({}, options, {
+    catchErr: true,
+    env: Object.assign({}, process.env, options.env)
+  })
+  let output
+  try {
+    output = execSync(cmd, mergedOpts)
+  } catch (err) {
+    if (mergedOpts.catchErr) {
+      fatal(`Command "${cmd}" failed to run`)
+      process.exit(1)
+    } else {
+      throw err
+    }
+  }
   if (output) return output.toString().trim()
 }
 

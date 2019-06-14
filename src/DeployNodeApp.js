@@ -209,7 +209,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   function checkForGitIgnored (pattern /*: string */) {
     try {
-      execSyncWithEnv(`git grep "^${pattern}$" .gitignore`)
+      execSyncWithEnv(`git grep "^${pattern}$" .gitignore`, { catchErr: false })
     } catch (err) {
       log(`WARN: It doesn't look like you have ${pattern} ignored by your .gitignore file!`)
       log(`WARN: This is usually a bad idea! Fix with: "echo '${pattern}' >> .gitignore"`)
@@ -533,12 +533,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   // Build
   if (opts.build) {
     log(`Now building "${tags.hash}"`)
-    try {
-      execSyncWithEnv(`docker build . -t ${tags.hash}`, execOpts)
-    } catch (err) {
-      console.error('Docker build failed!', err.message, err.stack)
-      process.exit(1)
-    }
+    execSyncWithEnv(`docker build . -t ${tags.hash}`, execOpts)
   }
 
   if (opts.push) {
