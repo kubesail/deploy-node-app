@@ -1,8 +1,6 @@
-# deploy-node-app
+# Deploy Node App ![CircleCI](https://img.shields.io/circleci/build/github/kubesail/deploy-node-app.svg) [![npm version](https://img.shields.io/npm/v/deploy-node-app.svg)](https://www.npmjs.com/package/deploy-node-app)
 
-[![npm version](https://img.shields.io/npm/v/deploy-node-app.svg?style=flat-square)](https://www.npmjs.com/package/deploy-node-app)
-
-Deploy your node.js app to Kubernetes with a single command. No config required.
+Deploy your Node.js app and its dependencies to Kubernetes with a single command. No config required.
 
 Supports any Kubernetes cluster, including the following:
 
@@ -33,6 +31,9 @@ After answering a few questions about your app, this tool can:
 1. Create a Kubernetes deployment file
 1. Deploy your app on a Kubernetes cluster
    - Configure a free namespace on KubeSail (if desired)
+1. Deploy any depdencies ([meta-modules](https://github.com/nodeapp-meta-modules/documentation)) your app relies on
+
+Deploy Node App is also able to generate a local development configuration for docker-compose, by passing `--format compose`
 
 ---
 
