@@ -3,6 +3,7 @@
 const fs = require('fs')
 const util = require('util')
 const yaml = require('js-yaml')
+const { fatal } = require('./util')
 
 const readFile = util.promisify(fs.readFile)
 
@@ -133,40 +134,6 @@ function buildAppDeployment (pkg, env, tags, answers) {
           ]
         }
       }
-    }
-  }
-}
-
-function buildUiConfigMap () {
-  return {
-    apiVersion: 'apps/v1',
-    data: {
-      default: `
-      server {
-        root /www/data;
-
-        location / {
-        }
-
-        location /images/ {
-        }
-
-        location ~ \.(mp3|mp4) {
-            root /www/media;
-        }
-    }
-
-        upstream hello {
-            server hello;
-        }
-
-        server {
-            listen 80;
-
-            location / {
-                proxy_pass http://hello;
-            }
-        }`
     }
   }
 }

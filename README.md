@@ -1,6 +1,8 @@
-# Deploy Node App ![CircleCI](https://img.shields.io/circleci/build/github/kubesail/deploy-node-app.svg) [![npm version](https://img.shields.io/npm/v/deploy-node-app.svg)](https://www.npmjs.com/package/deploy-node-app)
+# deploy-node-app
 
-Deploy your Node.js app and its dependencies to Kubernetes with a single command. No config required.
+[![npm version](https://img.shields.io/npm/v/deploy-node-app.svg?style=flat-square)](https://www.npmjs.com/package/deploy-node-app)
+
+Deploy your node.js app to Kubernetes or Docker with a single command. No config required.
 
 Supports any Kubernetes cluster, including the following:
 
@@ -31,9 +33,51 @@ After answering a few questions about your app, this tool can:
 1. Create a Kubernetes deployment file
 1. Deploy your app on a Kubernetes cluster
    - Configure a free namespace on KubeSail (if desired)
-1. Deploy any depdencies ([meta-modules](https://github.com/metamodules/documentation)) your app relies on
 
-Deploy Node App is also able to generate a local development configuration for docker-compose, by passing `--format compose`
+
+### Usage and examples
+
+```
+Usage: deploy-node-app [env]
+
+Options:
+  -V, --version            output the version number
+  --generate-local-env     Generates local environment variables
+  -n, --no-build           Don't build and push docker container
+  -d, --no-deploy          Don't deploy to kubernetes
+  -O, --overwrite          Overwrite local files
+  -s, --skip metamodule    name of metamodule to skip
+  -f, --format [type]      Output config format [k8s|compose] (default: "compose")
+  -o, --output [filename]  File for config output. "-" will write to stdout. Default is docker-compose.yaml or deployment.yaml depending on format
+  -h, --help               output usage information
+  ```
+
+By default, `deploy-node-app` will write a few files to your directory, depending on the chosen output. You will be prompted if any files need to be updated or overwritten (use --overwrite to ignore prompts).
+
+Deploying to local docker-compose:
+
+`deploy-node-app local -f compose`
+
+  - Writes a local Dockerfile
+  - Scans depdencies for meta-modules, adding services automatically
+  - Writes a local **docker-compose.yaml** based on your needs
+  - Builds container image
+  - Pushes container image to chosen repository
+  - Calls `docker-compose up`
+
+`deploy-node-app local -f k8s`
+
+  - Writes a local Dockerfile
+  - Scans depdencies for meta-modules, adding services automatically
+  - Writes a local **kustomization.yaml** file based on your needs
+  - Builds container image
+  - Pushes container image to chosen repository
+  - Calls `kubectl apply -k ...`
+
+# Meta-Modules
+Read more about meta-modules [here](https://github.com/create-node/create-node-app#meta-modules)
+
+Deploy-node-app will automatically write Kubernetes or Compose configuration based on installed metamodules. Try `npm install @nodeapp/redis` and then re-run `deploy-node-app`! A local redis container will be started for you with a preconfigured driver!
 
 ---
 

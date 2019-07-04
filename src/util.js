@@ -22,14 +22,23 @@ function fatal (message /*: string */) {
   process.exit(1)
 }
 
-const execSyncWithEnv = (cmd, args, options = {}) => {
-  return execSync(
-    cmd,
-    args,
-    Object.assign({}, options, {
-      env: Object.assign({}, process.env, options.env)
-    })
-  )
+const execSyncWithEnv = (cmd, options = {}) => {
+  const mergedOpts = Object.assign({}, options, {
+    catchErr: true,
+    env: Object.assign({}, process.env, options.env)
+  })
+  let output
+  try {
+    output = execSync(cmd, mergedOpts)
+  } catch (err) {
+    if (mergedOpts.catchErr) {
+      fatal(`Command "${cmd}" failed to run`)
+      process.exit(1)
+    } else {
+      throw err
+    }
+  }
+  if (output) return output.toString().trim()
 }
 
 function ensureBinaries () {
@@ -58,19 +67,19 @@ function ensureBinaries () {
         case 'darwin':
           cmd = `${style.cyan.open}brew upgrade kubernetes-cli${style.reset.open}`
           process.stdout.write(
-            `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-macos`
+            `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-macos\n`
           )
           break
         case 'linux':
           cmd = `${style.cyan.open}sudo apt-get install kubectl${style.reset.open}`
           process.stdout.write(
-            `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-linux`
+            `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-linux\n`
           )
           break
         case 'win32':
           cmd = `${style.cyan.open}choco install kubernetes-cli${style.reset.open}`
           process.stdout.write(
-            `by running \n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-windows`
+            `by running \n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-windows\n`
           )
           break
         default:
@@ -85,7 +94,7 @@ function ensureBinaries () {
   }
 }
 
-async function getDeployTags (name, env, answers, shouldBuild) {
+async function getDeployTags (name, answers, shouldBuild) {
   const tags = {}
   const shortHash = execSyncWithEnv('git rev-parse HEAD')
     .toString()
@@ -107,10 +116,7 @@ async function getDeployTags (name, env, answers, shouldBuild) {
     prefix = `${answers.registryUsername}/`
   }
 
-  tags.env = `${prefix}${name}:${env}`
   tags.hash = `${prefix}${name}:${shortHash}`
-  tags.uienv = `${prefix}${name}-ui:${env}`
-  tags.uihash = `${prefix}${name}-ui:${shortHash}`
   return tags
 }
 

@@ -14,7 +14,8 @@ async function promptQuestions (
   env /*: string */,
   containerRegistries /*: Array<string> */,
   kubeContexts /*: Array<string> */,
-  packageJson /*: Object */
+  packageJson /*: Object */,
+  format /*: string */
 ) {
   let saved = packageJson['deploy-node-app'] && packageJson['deploy-node-app'][env]
 
@@ -35,49 +36,51 @@ async function promptQuestions (
 
   let answers = {}
   let quickConfig = false
-  if (!saved.context || !kubeContexts.includes(saved.context)) {
-    if (kubeContexts.length === 1 && kubeContexts[0] === NEW_KUBESAIL_CONTEXT) {
-      const kubesailAnswer = await inquirer.prompt([
-        {
-          name: 'quickConfig',
-          type: 'confirm',
-          message:
-            'You don\'t appear to have a Kubernetes config.\n' +
-            '  This tool can configure a free kubernetes namespace on \n' +
-            '  KubeSail in order to help you deploy your application easily.\n' +
-            '  You will be redirected to the Kubesail website.\n' +
-            '\n' +
-            '  Would you like to continue?'
-        }
-      ])
+  if (format === 'k8s') {
+    if (!saved.context || !kubeContexts.includes(saved.context)) {
+      if (kubeContexts.length === 1 && kubeContexts[0] === NEW_KUBESAIL_CONTEXT) {
+        const kubesailAnswer = await inquirer.prompt([
+          {
+            name: 'quickConfig',
+            type: 'confirm',
+            message:
+              'You don\'t appear to have a Kubernetes config.\n' +
+              '  This tool can configure a free kubernetes namespace on \n' +
+              '  KubeSail in order to help you deploy your application easily.\n' +
+              '  You will be redirected to the Kubesail website.\n' +
+              '\n' +
+              '  Would you like to continue?'
+          }
+        ])
 
-      if (!kubesailAnswer.quickConfig) {
-        fatal('You can add a Kubernetes config and re-run this script.')
-        process.exit(1)
+        if (!kubesailAnswer.quickConfig) {
+          fatal('You can add a Kubernetes config and re-run this script.')
+          process.exit(1)
+        }
+
+        quickConfig = kubesailAnswer.quickConfig
+      } else if (kubeContexts.length > 1) {
+        const { context } = await inquirer.prompt([
+          {
+            name: 'context',
+            type: 'list',
+            message: 'Which Kubernetes context do you want to deploy to?',
+            default: kubeContexts[0],
+            choices: kubeContexts
+          }
+        ])
+        answers.context = context
+        if (context === NEW_KUBESAIL_CONTEXT) {
+          quickConfig = true
+        }
+      } else {
+        answers.context = kubeContexts[0]
       }
 
-      quickConfig = kubesailAnswer.quickConfig
-    } else if (kubeContexts.length > 1) {
-      const { context } = await inquirer.prompt([
-        {
-          name: 'context',
-          type: 'list',
-          message: 'Which Kubernetes context do you want to use?',
-          default: kubeContexts[0],
-          choices: kubeContexts
-        }
-      ])
-      answers.context = context
-      if (context === NEW_KUBESAIL_CONTEXT) {
-        quickConfig = true
+      if (quickConfig) {
+        const kubesailContext = await getKubesailConfig()
+        answers.context = kubesailContext
       }
-    } else {
-      answers.context = kubeContexts[0]
-    }
-
-    if (quickConfig) {
-      const kubesailContext = await getKubesailConfig()
-      answers.context = kubesailContext
     }
   }
 
@@ -88,29 +91,33 @@ async function promptQuestions (
   const onlyDockerHub =
     containerRegistries.length === 1 && containerRegistries[0].includes(DOCKER_HUB_DOMAIN)
 
-  if (quickConfig) {
-    answers.registry = 'https://index.docker.io/v1/' // TODO set up the kubesail registry and use that here instead
+  if (env === 'dev') {
+    answers.registry = ''
   } else {
-    if (onlyDockerHub) {
-      answers.registry = containerRegistries[0]
-    } else if (!saved.registry && !onlyDockerHub) {
-      const registryAnswer = await inquirer.prompt([
-        {
-          name: 'registry',
-          type: 'list',
-          message: 'Which docker registry do you want to use?',
-          choices: containerRegistries
-            .sort(registry => (registry.includes(DOCKER_HUB_DOMAIN) ? -1 : 0))
-            .map(registry =>
-              registry.includes(DOCKER_HUB_DOMAIN) ? registry + DOCKER_HUB_SUFFIX : registry
-            ),
-          validate: registry =>
-            !registry.match(/^([a-z0-9]+\.)+[a-z0-9]$/i)
-              ? 'You must provide a valid hostname for a docker registry'
-              : true
-        }
-      ])
-      answers.registry = registryAnswer.registry
+    if (quickConfig) {
+      answers.registry = 'https://index.docker.io/v1/' // TODO set up the kubesail registry and use that here instead
+    } else {
+      if (onlyDockerHub) {
+        answers.registry = containerRegistries[0]
+      } else if (!saved.registry && !onlyDockerHub) {
+        const registryAnswer = await inquirer.prompt([
+          {
+            name: 'registry',
+            type: 'list',
+            message: 'Which docker registry do you want to use?',
+            choices: containerRegistries
+              .sort(registry => (registry.includes(DOCKER_HUB_DOMAIN) ? -1 : 0))
+              .map(registry =>
+                registry.includes(DOCKER_HUB_DOMAIN) ? registry + DOCKER_HUB_SUFFIX : registry
+              ),
+            validate: registry =>
+              !registry.match(/^([a-z0-9]+\.)+[a-z0-9]$/i)
+                ? 'You must provide a valid hostname for a docker registry'
+                : true
+          }
+        ])
+        answers.registry = registryAnswer.registry
+      }
     }
   }
 
@@ -179,9 +186,12 @@ async function promptQuestions (
   )
 
   answers = Object.assign({}, saved, answers, appAnswers)
-  answers.registry = answers.registry.replace(DOCKER_HUB_SUFFIX, '')
-  answers.registry = answers.registry.replace(/https?:\/\//i, '')
-  answers.registry = answers.registry.substr(-1) === '/' ? answers.registry : answers.registry + '/'
+  if (answers.registry) {
+    answers.registry = answers.registry.replace(DOCKER_HUB_SUFFIX, '')
+    answers.registry = answers.registry.replace(/https?:\/\//i, '')
+    answers.registry =
+      answers.registry.substr(-1) === '/' ? answers.registry : answers.registry + '/'
+  }
   return answers
 }
 
