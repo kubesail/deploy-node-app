@@ -31,7 +31,7 @@ After answering a few questions about your app, this tool can:
 1. Create a Kubernetes deployment file
 1. Deploy your app on a Kubernetes cluster
    - Configure a free namespace on KubeSail (if desired)
-1. Deploy any depdencies ([meta-modules](https://github.com/nodeapp-meta-modules/documentation)) your app relies on
+1. Deploy any depdencies ([meta-modules](https://github.com/metamodules/documentation)) your app relies on
 
 Deploy Node App is also able to generate a local development configuration for docker-compose, by passing `--format compose`
 
