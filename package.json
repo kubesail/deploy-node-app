@@ -1,6 +1,6 @@
 {
   "name": "deploy-node-app",
-  "version": "0.1.2",
+  "version": "1.0.0",
   "description": "Easily deploy Node.js applications to Kubernetes, with one command",
   "main": "src/index.js",
   "repository": "https://github.com/kubesail/deploy-node-app",
