@@ -90,7 +90,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
    * Concatenates all environment variables from all metamodules
    * Returns a flat object of KEYS and VALUES where KEYS are environment variables and VALUES are their data
    */
-  async function generateLocalEnv (
+  async function generateEnv (
     metaModules /*: Array<Object> */,
     detectPorts /*: void|'compose'|'k8s' */
   ) /*: Array<Object> */ {
@@ -98,6 +98,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     for (let i = 0; i < metaModules.length; i++) {
       const mm = metaModules[i]
       const metadata = mm['deploy-node-app']
+
       const configFile = metadata.config || 'lib/config.js'
       if (await statFile(`node_modules/${mm.name}/${configFile}`)) {
         try {
@@ -122,20 +123,20 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           )
         }
       }
-      if (metadata.ports) {
+
+      if (detectPorts && metadata.ports) {
         for (const portName in metadata.ports) {
           const portSpec = metadata.ports[portName]
           const name = metadata.containerName || mm.name.split('/').pop()
           if (detectPorts === 'compose') {
             envVars = Object.assign({}, envVars, await detectComposePorts(name, portName, portSpec))
           } else if (detectPorts) {
-            fatal(
-              'generateLocalEnv() detectPorts is only available via docker-compose for now, sorry!'
-            )
+            fatal('generateEnv() detectPorts is only available via docker-compose for now, sorry!')
           }
         }
       }
-      if (metadata.host) {
+
+      if (detectPorts && metadata.host) {
         let host = 'localhost'
         if (process.env.DOCKER_HOST) {
           host = new URL(process.env.DOCKER_HOST).hostname
@@ -334,9 +335,8 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   //
   const metaModules = await findMetaModules(packageJson)
 
-  // deploy-node-app --generate-local-env
-  if (opts.generateLocalEnv) {
-    const envVars = await generateLocalEnv(metaModules, opts.format)
+  if (opts.generateDefaultEnv || opts.generateLocalPortsEnv) {
+    const envVars = await generateEnv(metaModules, opts.generateLocalPortsEnv ? opts.format : null)
     const envVarLines = []
     for (const env in envVars) {
       envVarLines.push(`${env}=${envVars[env]}`)
@@ -506,7 +506,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
                   prefix: '/',
                   service: `http://${packageJson.name}-frontend.${namespace}:80`,
                   host, // TODO allow custom domains
-                  timeout_ms: 10000,
+                  timeout_ms: 30000,
                   use_websocket: true
                 })
               }

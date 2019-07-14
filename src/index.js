@@ -25,7 +25,14 @@ program
   .arguments('[env]')
   .usage(USAGE)
   .version(dnaPackageJson.version)
-  .option('--generate-local-env', 'Generates local environment variables')
+  .option(
+    '--generate-default-env',
+    'Generates default environment variables, like database passwords'
+  )
+  .option(
+    '--generate-local-ports-env',
+    'Generates environment variables for connecting to docker-compose services'
+  )
   .option('-n, --no-build', 'Don\'t build and push docker container')
   .option('-d, --no-push', 'Don\'t push to docker registry')
   .option('-d, --no-deploy', 'Don\'t deploy to kubernetes')

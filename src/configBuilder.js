@@ -228,7 +228,7 @@ function buildAppService (pkg, env, tags, answers, namespace, exposeExternally =
             prefix: '/',
             service: `http://${name}.${namespace}:${answers.port}`,
             host: `${appName}--${namespace}.kubesail.io`, // TODO allow custom domains
-            timeout_ms: 10000,
+            timeout_ms: 30000,
             use_websocket: true
           })
         }
@@ -271,7 +271,7 @@ function buildUiService (pkg, env, tags, answers, namespace) {
           prefix: '/',
           service: `http://${name}.${namespace}:80`,
           host: `${appName}-www--${namespace}.kubesail.io`, // TODO allow custom domains
-          timeout_ms: 10000,
+          timeout_ms: 30000,
           use_websocket: true
         })
       },
