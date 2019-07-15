@@ -1,6 +1,6 @@
 FROM node
 
-# Deploy-node-app v0.2.0
+# Built by deploy-node-app
 
 WORKDIR /app
 
