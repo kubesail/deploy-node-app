@@ -51,7 +51,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     process.exit(1)
   }
 
-  const handleUi = await statFile(WWW_FILE_PATH)
+  let handleUi = false
+  try {
+    handleUi = !!(await statFile(WWW_FILE_PATH))
+  } catch {}
 
   const format = ['kube', 'kubernetes', 'k8s'].includes(opts.format)
     ? 'k8s'
@@ -107,18 +110,14 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           for (const env in vars) {
             if (envVars[env]) {
               log(
-                `WARN: MetaModule "${
-                  mm.name
-                }" overwrites an already existing environment variable, "${env}"! Conflicting metamodules?`
+                `WARN: MetaModule "${mm.name}" overwrites an already existing environment variable, "${env}"! Conflicting metamodules?`
               )
             }
             envVars[env] = vars[env]
           }
         } catch (err) {
           fatal(
-            `Unable to include MetaModule "${
-              mm.name
-            }"'s configuration file!\nConfig file: "${configFile}\n"`,
+            `Unable to include MetaModule "${mm.name}"'s configuration file!\nConfig file: "${configFile}\n"`,
             err.message
           )
         }
@@ -366,6 +365,8 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) + '\n' })
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
   await mkdir(path.join(CONFIG_FILE_PATH, env), { recursive: true })
+
+  const usingKubeSail = answers.context && answers.context.includes('kubesail')
   if (opts.format === 'k8s') {
     const backendDeployment = path.join(env, `${handleUi ? 'backend-' : ''}deployment.yaml`)
     const backendService = path.join(env, `${handleUi ? 'backend-' : ''}service.yaml`)
@@ -483,14 +484,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           }
         }
       })
-      // TODO: This should be an option...
-      const usingKubeSail = answers.context.includes('kubesail')
       const namespace = readKubeConfigNamespace(answers.context)
-      const host = `${packageJson.name}-frontend--${namespace}.kubesail.io`
-      svcMsg += usingKubeSail
-        ? '\nYour App is available at:' + `\n\n    ${chalk.cyan(`https://${host}\n`)}\n`
-        : '\nYou may need to expose your deployment on kubernetes via a service.\n' +
-          'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.'
       resources.push(path.join('.', frontendService))
       await confirmWriteFile(path.join(CONFIG_FILE_PATH, frontendService), {
         templatePath: 'defaults/frontend-service.yaml',
@@ -505,7 +499,6 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
                   name: `${packageJson.name}-frontend.${namespace}`,
                   prefix: '/',
                   service: `http://${packageJson.name}-frontend.${namespace}:80`,
-                  host, // TODO allow custom domains
                   timeout_ms: 30000,
                   use_websocket: true
                 })
@@ -551,6 +544,29 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       log(`Running: \`${cmd}\``)
       execSyncWithEnv(cmd, execOpts)
       // Deploy service
+
+      const noHostMsg =
+        '\nYou may need to expose your deployment on kubernetes via a service.\n' +
+        'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.'
+      if (handleUi && usingKubeSail) {
+        const svc = execSyncWithEnv(
+          `kubectl --context=${answers.context} get svc ${packageJson.name}-frontend -o json`
+        )
+        try {
+          const configStr = JSON.parse(svc).metadata.annotations['getambassador.io/config']
+          let host
+          try {
+            host = JSON.parse(configStr).host
+          } catch {
+            host = yaml.safeLoadAll(configStr)[0].host
+          }
+          svcMsg += '\nYour App is available at:' + `\n\n    ${chalk.cyan(`https://${host}\n`)}\n`
+        } catch {
+          svcMsg += noHostMsg
+        }
+      } else {
+        svcMsg += noHostMsg
+      }
     } else {
       execSyncWithEnv('docker-compose up --remove-orphans --quiet-pull -d')
     }

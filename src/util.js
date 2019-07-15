@@ -13,9 +13,7 @@ const commandExists = require('command-exists')
 const WARNING = `${style.green.open}!!${style.green.close}`
 const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
 const KUBE_CONFIG_PATH = path.join(homedir, '.kube', 'config')
-const NEW_KUBESAIL_CONTEXT = `KubeSail${style.gray.open} | Deploy on a free Kubernetes namespace${
-  style.gray.close
-}`
+const NEW_KUBESAIL_CONTEXT = `KubeSail${style.gray.open} | Deploy on a free Kubernetes namespace${style.gray.close}`
 
 function fatal (message /*: string */) {
   process.stderr.write(`${ERR_ARROWS} ${message}\n`)
@@ -57,9 +55,7 @@ function ensureBinaries () {
 
     if (parseInt(major, 10) < 1 || parseInt(minor, 10) < 14) {
       process.stdout.write(
-        `${style.red.open}>> deploy-node-app requires kubectl v1.14 or higher.${
-          style.red.close
-        }\n\n`
+        `${style.red.open}>> deploy-node-app requires kubectl v1.14 or higher.${style.red.close}\n\n`
       )
       process.stdout.write('You can upgrade kubectl ')
       let cmd
