@@ -378,6 +378,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
 
   const usingKubeSail = answers.context && answers.context.includes('kubesail')
+  const secrets = []
   if (opts.format === 'k8s') {
     const resources = []
     for (let i = 0; i < metaModules.length; i++) {
@@ -389,6 +390,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       }
       const mmParts = metaModule.name.split('/')
       const mmName = mmParts.length > 1 ? mmParts[mmParts.length - 1] : mmParts[0]
+      secrets.push(mmName)
       const relativeFilePath = path.join('secrets', `${mmName}-secret.yaml`)
       resources.push(relativeFilePath)
       await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, relativeFilePath), {
@@ -429,7 +431,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
                   image: tags.hash,
                   name: packageJson.name,
                   command: ['node', answers.entrypoint],
-                  ports: [{ containerPort: answers.port }]
+                  ports: [{ containerPort: answers.port }],
+                  envFrom: secrets.map(name => {
+                    return { secretRef: { name } }
+                  })
                 }
               ]
             }
