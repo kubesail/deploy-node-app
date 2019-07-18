@@ -353,15 +353,17 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     }
     const content = envVarLines.join('\n') + '\n'
     checkForGitIgnored('.env')
-    checkForGitIgnored('secrets/')
+    if (opts.format === 'k8s') {
+      checkForGitIgnored('secrets/')
+    }
     if (output === '-') process.stdout.write(content)
     else await confirmWriteFile('.env', { content, output })
     return null
   }
 
-  ensureBinaries() // Ensure 'kubectl', 'docker', etc...
+  ensureBinaries(opts.format) // Ensure 'kubectl', 'docker', etc...
   const kubeContexts = readLocalKubeConfig()
-  const containerRegistries = readLocalDockerConfig()
+  const containerRegistries = opts.format === 'k8s' ? readLocalDockerConfig() : []
   const answers = await promptQuestions(
     env,
     containerRegistries,
