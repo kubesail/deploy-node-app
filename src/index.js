@@ -34,6 +34,7 @@ program
     'Generates environment variables for connecting to docker-compose services'
   )
   .option('-n, --no-build', 'Don\'t build and push docker container')
+  .option('-n, --no-confirm', 'Skip public docker hub confirmation prompt')
   .option('-d, --no-push', 'Don\'t push to docker registry')
   .option('-d, --no-deploy', 'Don\'t deploy to kubernetes')
   .option('-O, --overwrite', 'Overwrite local files')

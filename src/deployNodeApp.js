@@ -32,7 +32,6 @@ const mkdir = util.promisify(fs.mkdir)
 async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts /*: Object */) {
   const output = opts.output
   const silence = output === '-'
-  const prompts = !opts.confirm
   const overwrite = opts.overwrite
   const cwd = process.cwd()
   const execOpts = {
@@ -294,7 +293,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         }
       }
 
-      if (existingContent && prompts && !silence) {
+      if (existingContent && !silence) {
         const YES_TEXT = 'Yes (overwrite)'
         const NO_TEXT = 'No, dont touch'
         const SHOWDIFF_TEXT = 'Show diff'
@@ -314,7 +313,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           await tryDiff(content || template, fullPath)
           await confirmWriteFile(filePath, { templatePath, content, properties })
         }
-      } else if (existingContent && !prompts) {
+      } else if (existingContent && silence) {
         log(
           `Refusing to overwrite "${filePath}"... Continuing... (Use --overwrite to ignore this check)`
         )
@@ -372,6 +371,35 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     opts.format
   )
   const tags = await getDeployTags(packageJson.name, answers, opts.build)
+
+  if (opts.push) {
+    if (!answers.confirmed) {
+      if (answers.registry.includes('index.docker.io')) {
+        process.stdout.write(
+          `${chalk.yellow(
+            '!!'
+          )} You are using Docker Hub. If the docker repository does not exist,\n` +
+            `   it may be automatically created with ${chalk.yellow('PUBLIC')} access!\n` +
+            '   Make sure you have all secrets in your ".dockerignore" file,\n' +
+            '   and you may want to make sure your image repository is setup securely!\n\n'
+        )
+      }
+    }
+
+    if (!answers.confirmed && opts.confirm && opts.output !== '-') {
+      const { confirmed } = await inquirer.prompt([
+        {
+          name: 'confirmed',
+          type: 'confirm',
+          message: 'Are you sure you want to continue?'
+        }
+      ])
+      if (!confirmed) {
+        process.exit(1)
+      }
+      answers.confirmed = confirmed
+    }
+  }
 
   if (!packageJson['deploy-node-app']) packageJson['deploy-node-app'] = {}
   packageJson['deploy-node-app'][env] = answers
