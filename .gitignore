@@ -1,5 +1,6 @@
 # dependencies
 /node_modules
+test/node_modules
 yarn-error.log
 .env
 tmp

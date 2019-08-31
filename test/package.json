@@ -1,0 +1,21 @@
+{
+  "name": "testapp",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@metamodules/redis": "^2.1.1"
+  },
+  "deploy-node-app": {
+    "prod": {
+      "port": 4000,
+      "protocol": "http",
+      "entrypoint": "src/api/index.js"
+    },
+    "dev": {
+      "port": 4000,
+      "protocol": "http",
+      "entrypoint": "src/api/index.js",
+      "registry": ""
+    }
+  }
+}

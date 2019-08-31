@@ -233,6 +233,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   }
 
   function checkForGitIgnored (pattern /*: string */) {
+    if (!fs.existsSync('.gitignore')) {
+      log('WARN: you have no .gitignore file!')
+      return
+    }
     try {
       execSyncWithEnv(`git grep "^${pattern}$" .gitignore`, { catchErr: false })
     } catch (err) {
