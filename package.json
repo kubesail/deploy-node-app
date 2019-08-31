@@ -1,10 +1,11 @@
 {
   "name": "deploy-node-app",
-  "version": "1.1.0",
+  "version": "1.4.3",
   "description": "Easily deploy Node.js applications to Kubernetes or Docker, with one command",
   "main": "src/index.js",
   "repository": "https://github.com/kubesail/deploy-node-app",
   "license": "MIT",
+  "engines": { "node" : ">=10" },
   "contributors": [
     {
       "name": "Seandon Mooy",

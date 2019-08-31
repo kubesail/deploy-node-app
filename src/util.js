@@ -9,13 +9,12 @@ const inquirer = require('inquirer')
 // eslint-disable-next-line security/detect-child-process
 const execSync = require('child_process').execSync
 const commandExists = require('command-exists')
+const chalk = require('chalk')
 
 const WARNING = `${style.green.open}!!${style.green.close}`
 const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
 const KUBE_CONFIG_PATH = path.join(homedir, '.kube', 'config')
-const NEW_KUBESAIL_CONTEXT = `KubeSail${style.gray.open} | Deploy on a free Kubernetes namespace${
-  style.gray.close
-}`
+const NEW_KUBESAIL_CONTEXT = `KubeSail${style.gray.open} | Deploy on a free Kubernetes namespace${style.gray.close}`
 
 function fatal (message /*: string */) {
   process.stderr.write(`${ERR_ARROWS} ${message}\n`)
@@ -41,56 +40,60 @@ const execSyncWithEnv = (cmd, options = {}) => {
   if (output) return output.toString().trim()
 }
 
-function ensureBinaries () {
+function ensureBinaries (format) {
   if (!commandExists.sync('docker')) {
     fatal('Error - Please install docker! https://www.docker.com/get-started')
   }
 
-  if (!commandExists.sync('kubectl')) {
-    fatal('Error - Please install kubectl! https://kubernetes.io/docs/tasks/tools/install-kubectl/')
-  }
-
-  try {
-    const {
-      clientVersion: { major, minor }
-    } = JSON.parse(execSyncWithEnv('kubectl version --client=true -o json'))
-
-    if (parseInt(major, 10) < 1 || parseInt(minor, 10) < 14) {
-      process.stdout.write(
-        `${style.red.open}>> deploy-node-app requires kubectl v1.14 or higher.${
-          style.red.close
-        }\n\n`
+  if (format === 'k8s') {
+    if (!commandExists.sync('kubectl')) {
+      fatal(
+        'Error - Please install kubectl! https://kubernetes.io/docs/tasks/tools/install-kubectl/'
       )
-      process.stdout.write('You can upgrade kubectl ')
-      let cmd
-      switch (process.platform) {
-        case 'darwin':
-          cmd = `${style.cyan.open}brew upgrade kubernetes-cli${style.reset.open}`
-          process.stdout.write(
-            `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-macos\n`
-          )
-          break
-        case 'linux':
-          cmd = `${style.cyan.open}sudo apt-get install kubectl${style.reset.open}`
-          process.stdout.write(
-            `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-linux\n`
-          )
-          break
-        case 'win32':
-          cmd = `${style.cyan.open}choco install kubernetes-cli${style.reset.open}`
-          process.stdout.write(
-            `by running \n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-windows\n`
-          )
-          break
-        default:
-          process.stdout.write(
-            'by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/'
-          )
-      }
-      process.exit(1)
     }
-  } catch {
-    fatal('Could not determine kubectl version')
+
+    try {
+      const {
+        clientVersion: { major, minor }
+      } = JSON.parse(execSyncWithEnv('kubectl version --client=true -o json'))
+
+      if (parseInt(major, 10) < 1 || parseInt(minor, 10) < 14) {
+        process.stdout.write(
+          `${style.red.open}>> deploy-node-app requires kubectl v1.14 or higher.${style.red.close}\n\n`
+        )
+        process.stdout.write('You can fix this ')
+        let cmd
+        switch (process.platform) {
+          case 'darwin':
+            const install = chalk.cyan('brew install kubernetes-cli')
+            const upgrade = chalk.cyan('brew upgrade kubernetes-cli')
+            cmd = `${install}\n\nor\n\n  ${upgrade}`
+            process.stdout.write(
+              `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-macos\n`
+            )
+            break
+          case 'linux':
+            cmd = `${style.cyan.open}sudo apt-get install kubectl${style.reset.open}`
+            process.stdout.write(
+              `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-linux\n`
+            )
+            break
+          case 'win32':
+            cmd = `${style.cyan.open}choco install kubernetes-cli${style.reset.open}`
+            process.stdout.write(
+              `by running \n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-windows\n`
+            )
+            break
+          default:
+            process.stdout.write(
+              'by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/'
+            )
+        }
+        process.exit(1)
+      }
+    } catch {
+      fatal('Could not determine kubectl version')
+    }
   }
 }
 
@@ -166,6 +169,12 @@ function readLocalDockerConfig () {
   if (fs.existsSync(dockerConfigPath)) {
     try {
       const dockerConfig = JSON.parse(fs.readFileSync(dockerConfigPath))
+      if (!dockerConfig.auths) {
+        fatal(
+          `Your Docker config contains no registries. Try running ${chalk.cyan('docker login')}`
+        )
+        return
+      }
       containerRegistries = containerRegistries.concat(Object.keys(dockerConfig.auths))
     } catch (err) {
       fatal(

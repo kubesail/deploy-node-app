@@ -32,7 +32,6 @@ const mkdir = util.promisify(fs.mkdir)
 async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts /*: Object */) {
   const output = opts.output
   const silence = output === '-'
-  const prompts = !opts.confirm
   const overwrite = opts.overwrite
   const cwd = process.cwd()
   const execOpts = {
@@ -51,7 +50,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     process.exit(1)
   }
 
-  const handleUi = await statFile(WWW_FILE_PATH)
+  let handleUi = false
+  try {
+    handleUi = !!(await statFile(WWW_FILE_PATH))
+  } catch {}
 
   const format = ['kube', 'kubernetes', 'k8s'].includes(opts.format)
     ? 'k8s'
@@ -90,7 +92,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
    * Concatenates all environment variables from all metamodules
    * Returns a flat object of KEYS and VALUES where KEYS are environment variables and VALUES are their data
    */
-  async function generateLocalEnv (
+  async function generateEnv (
     metaModules /*: Array<Object> */,
     detectPorts /*: void|'compose'|'k8s' */
   ) /*: Array<Object> */ {
@@ -98,6 +100,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     for (let i = 0; i < metaModules.length; i++) {
       const mm = metaModules[i]
       const metadata = mm['deploy-node-app']
+
       const configFile = metadata.config || 'lib/config.js'
       if (await statFile(`node_modules/${mm.name}/${configFile}`)) {
         try {
@@ -106,41 +109,45 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           for (const env in vars) {
             if (envVars[env]) {
               log(
-                `WARN: MetaModule "${
-                  mm.name
-                }" overwrites an already existing environment variable, "${env}"! Conflicting metamodules?`
+                `WARN: MetaModule "${mm.name}" overwrites an already existing environment variable, "${env}"! Conflicting metamodules?`
               )
             }
             envVars[env] = vars[env]
           }
         } catch (err) {
           fatal(
-            `Unable to include MetaModule "${
-              mm.name
-            }"'s configuration file!\nConfig file: "${configFile}\n"`,
+            `Unable to include MetaModule "${mm.name}"'s configuration file!\nConfig file: "${configFile}\n"`,
             err.message
           )
         }
       }
-      if (metadata.ports) {
+
+      if (detectPorts && metadata.ports) {
         for (const portName in metadata.ports) {
           const portSpec = metadata.ports[portName]
           const name = metadata.containerName || mm.name.split('/').pop()
           if (detectPorts === 'compose') {
             envVars = Object.assign({}, envVars, await detectComposePorts(name, portName, portSpec))
           } else if (detectPorts) {
-            fatal(
-              'generateLocalEnv() detectPorts is only available via docker-compose for now, sorry!'
-            )
+            fatal('generateEnv() detectPorts is only available via docker-compose for now, sorry!')
           }
         }
+      } else {
+        if (metadata.ports) {
+          Object.keys(metadata.ports).forEach(env => delete envVars[env])
+        }
       }
-      if (metadata.host) {
+
+      if (detectPorts && metadata.host) {
         let host = 'localhost'
         if (process.env.DOCKER_HOST) {
           host = new URL(process.env.DOCKER_HOST).hostname
         }
         envVars[metadata.host] = host
+      } else {
+        if (metadata.host) {
+          delete envVars[metadata.host]
+        }
       }
     }
     return envVars
@@ -171,7 +178,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     for (let i = 0; i < metaModules.length; i++) {
       const mm = metaModules[i]
       if (await statFile(`./node_modules/${mm.name}/kustomization.yaml`)) {
-        bases.push(`../node_modules/${mm.name}`)
+        bases.push(`../../node_modules/${mm.name}`)
       } else {
         process.stdout.write('Warning:', mm.name, 'doesn\'t support Kustomize mode\n')
       }
@@ -286,7 +293,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         }
       }
 
-      if (existingContent && prompts && !silence) {
+      if (existingContent && !silence) {
         const YES_TEXT = 'Yes (overwrite)'
         const NO_TEXT = 'No, dont touch'
         const SHOWDIFF_TEXT = 'Show diff'
@@ -306,7 +313,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           await tryDiff(content || template, fullPath)
           await confirmWriteFile(filePath, { templatePath, content, properties })
         }
-      } else if (existingContent && !prompts) {
+      } else if (existingContent && silence) {
         log(
           `Refusing to overwrite "${filePath}"... Continuing... (Use --overwrite to ignore this check)`
         )
@@ -332,25 +339,30 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   //
   // Begin deploy-node-app
   //
+  if (opts.format === 'k8s') {
+    await mkdir(path.join(CONFIG_FILE_PATH, env, 'secrets'), { recursive: true })
+  }
   const metaModules = await findMetaModules(packageJson)
 
-  // deploy-node-app --generate-local-env
-  if (opts.generateLocalEnv) {
-    const envVars = await generateLocalEnv(metaModules, opts.format)
+  if (opts.generateDefaultEnv || opts.generateLocalPortsEnv) {
+    const envVars = await generateEnv(metaModules, opts.generateLocalPortsEnv ? opts.format : null)
     const envVarLines = []
     for (const env in envVars) {
       envVarLines.push(`${env}=${envVars[env]}`)
     }
     const content = envVarLines.join('\n') + '\n'
     checkForGitIgnored('.env')
+    if (opts.format === 'k8s') {
+      checkForGitIgnored('secrets/')
+    }
     if (output === '-') process.stdout.write(content)
     else await confirmWriteFile('.env', { content, output })
     return null
   }
 
-  ensureBinaries() // Ensure 'kubectl', 'docker', etc...
+  ensureBinaries(opts.format) // Ensure 'kubectl', 'docker', etc...
   const kubeContexts = readLocalKubeConfig()
-  const containerRegistries = readLocalDockerConfig()
+  const containerRegistries = opts.format === 'k8s' ? readLocalDockerConfig() : []
   const answers = await promptQuestions(
     env,
     containerRegistries,
@@ -360,23 +372,77 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   )
   const tags = await getDeployTags(packageJson.name, answers, opts.build)
 
+  if (opts.push) {
+    if (!answers.confirmed) {
+      if (answers.registry.includes('index.docker.io')) {
+        process.stdout.write(
+          `${chalk.yellow(
+            '!!'
+          )} You are using Docker Hub. If the docker repository does not exist,\n` +
+            `   it may be automatically created with ${chalk.yellow('PUBLIC')} access!\n` +
+            '   Make sure you have all secrets in your ".dockerignore" file,\n' +
+            '   and you may want to make sure your image repository is setup securely!\n\n'
+        )
+      }
+    }
+
+    if (!answers.confirmed && opts.confirm && opts.output !== '-') {
+      const { confirmed } = await inquirer.prompt([
+        {
+          name: 'confirmed',
+          type: 'confirm',
+          message: 'Are you sure you want to continue?'
+        }
+      ])
+      if (!confirmed) {
+        process.exit(1)
+      }
+      answers.confirmed = confirmed
+    }
+  }
+
   if (!packageJson['deploy-node-app']) packageJson['deploy-node-app'] = {}
   packageJson['deploy-node-app'][env] = answers
 
   await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) + '\n' })
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
-  await mkdir(path.join(CONFIG_FILE_PATH, env), { recursive: true })
-  if (opts.format === 'k8s') {
-    const backendDeployment = path.join(env, `${handleUi ? 'backend-' : ''}deployment.yaml`)
-    const backendService = path.join(env, `${handleUi ? 'backend-' : ''}service.yaml`)
-    const frontendDeployment = path.join(env, 'frontend-deployment.yaml')
-    const frontendService = path.join(env, 'frontend-service.yaml')
-    const frontendConfigMap = path.join(env, 'frontend-configmap.yaml')
 
+  const usingKubeSail = answers.context && answers.context.includes('kubesail')
+  const secrets = []
+  if (opts.format === 'k8s') {
     const resources = []
+    for (let i = 0; i < metaModules.length; i++) {
+      const metaModule = metaModules[i]
+      const envVars = await generateEnv([metaModule], null)
+      const stringData = {}
+      for (const env in envVars) {
+        stringData[env] = envVars[env]
+      }
+      const mmParts = metaModule.name.split('/')
+      const mmName = mmParts.length > 1 ? mmParts[mmParts.length - 1] : mmParts[0]
+      secrets.push(mmName)
+      const relativeFilePath = path.join('secrets', `${mmName}-secret.yaml`)
+      resources.push(relativeFilePath)
+      await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, relativeFilePath), {
+        content: yaml.safeDump({
+          apiVersion: 'v1',
+          kind: 'Secret',
+          metadata: { name: mmName },
+          stringData
+        }),
+        output: opts.output
+      })
+    }
+
+    const backendDeployment = `${handleUi ? 'backend-' : ''}deployment.yaml`
+    const backendService = `${handleUi ? 'backend-' : ''}service.yaml`
+    const frontendDeployment = 'frontend-deployment.yaml'
+    const frontendService = 'frontend-service.yaml'
+    const frontendConfigMap = 'frontend-configmap.yaml'
+
     // Write deployment config for Node app
     resources.push(path.join('.', backendDeployment))
-    await confirmWriteFile(path.join(CONFIG_FILE_PATH, backendDeployment), {
+    await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, backendDeployment), {
       templatePath: 'defaults/backend-deployment.yaml',
       properties: {
         metadata: {
@@ -395,7 +461,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
                   image: tags.hash,
                   name: packageJson.name,
                   command: ['node', answers.entrypoint],
-                  ports: [{ containerPort: answers.port }]
+                  ports: [{ containerPort: answers.port }],
+                  envFrom: secrets.map(name => {
+                    return { secretRef: { name } }
+                  })
                 }
               ]
             }
@@ -405,7 +474,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     })
     // Write service config for Node app
     resources.push(path.join('.', backendService))
-    await confirmWriteFile(path.join(CONFIG_FILE_PATH, backendService), {
+    await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, backendService), {
       templatePath: 'defaults/backend-service.yaml',
       properties: {
         metadata: {
@@ -422,7 +491,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     if (handleUi) {
       // Write Nginx ConfigMap
       resources.push(path.join('.', frontendConfigMap))
-      await confirmWriteFile(path.join(CONFIG_FILE_PATH, frontendConfigMap), {
+      await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, frontendConfigMap), {
         templatePath: 'defaults/frontend-configmap.yaml',
         properties: {
           data: {
@@ -460,7 +529,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       })
       // Write Nginx Deployment
       resources.push(path.join('.', frontendDeployment))
-      await confirmWriteFile(path.join(CONFIG_FILE_PATH, frontendDeployment), {
+      await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, frontendDeployment), {
         templatePath: 'defaults/frontend-deployment.yaml',
         properties: {
           metadata: {
@@ -483,16 +552,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           }
         }
       })
-      // TODO: This should be an option...
-      const usingKubeSail = answers.context.includes('kubesail')
       const namespace = readKubeConfigNamespace(answers.context)
-      const host = `${packageJson.name}-frontend--${namespace}.kubesail.io`
-      svcMsg += usingKubeSail
-        ? '\nYour App is available at:' + `\n\n    ${chalk.cyan(`https://${host}\n`)}\n`
-        : '\nYou may need to expose your deployment on kubernetes via a service.\n' +
-          'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.'
       resources.push(path.join('.', frontendService))
-      await confirmWriteFile(path.join(CONFIG_FILE_PATH, frontendService), {
+      await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, frontendService), {
         templatePath: 'defaults/frontend-service.yaml',
         properties: {
           metadata: {
@@ -505,8 +567,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
                   name: `${packageJson.name}-frontend.${namespace}`,
                   prefix: '/',
                   service: `http://${packageJson.name}-frontend.${namespace}:80`,
-                  host, // TODO allow custom domains
-                  timeout_ms: 10000,
+                  timeout_ms: 30000,
                   use_websocket: true
                 })
               }
@@ -517,7 +578,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
       })
     }
     // Write kustomization config
-    await confirmWriteFile(path.join(CONFIG_FILE_PATH, 'kustomization.yaml'), {
+    await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, 'kustomization.yaml'), {
       content: yaml.safeDump(await buildKustomize(metaModules, { resources }))
     })
   } else {
@@ -547,10 +608,34 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     if (env !== 'dev') log(`Now deploying "${tags.hash}"`)
 
     if (opts.format === 'k8s') {
-      const cmd = `kubectl --context=${answers.context} apply -k ${CONFIG_FILE_PATH}`
+      const kustomizationDir = path.join(CONFIG_FILE_PATH, env)
+      const cmd = `kubectl --context=${answers.context} apply -k ${kustomizationDir}`
       log(`Running: \`${cmd}\``)
       execSyncWithEnv(cmd, execOpts)
       // Deploy service
+
+      const noHostMsg =
+        '\nYou may need to expose your deployment on kubernetes via a service.\n' +
+        'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.'
+      if (handleUi && usingKubeSail) {
+        const svc = execSyncWithEnv(
+          `kubectl --context=${answers.context} get svc ${packageJson.name}-frontend -o json`
+        )
+        try {
+          const configStr = JSON.parse(svc).metadata.annotations['getambassador.io/config']
+          let host
+          try {
+            host = JSON.parse(configStr).host
+          } catch {
+            host = yaml.safeLoadAll(configStr)[0].host
+          }
+          svcMsg += '\nYour App is available at:' + `\n\n    ${chalk.cyan(`https://${host}\n`)}\n`
+        } catch {
+          svcMsg += noHostMsg
+        }
+      } else {
+        svcMsg += noHostMsg
+      }
     } else {
       execSyncWithEnv('docker-compose up --remove-orphans --quiet-pull -d')
     }
