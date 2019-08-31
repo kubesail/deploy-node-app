@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 
-git config --global user.email "ci@kubesail.com"
-git config --global user.name "KubeSail Test Bot"
-
 set -eE
 function finish {
   set +x
