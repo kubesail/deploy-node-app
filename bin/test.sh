@@ -8,18 +8,14 @@ function finish {
 trap finish ERR
 
 WORKDIR=$(pwd)
-mkdir -p tmp
-cd tmp
 
-if [ ! -d testapp ]; then
-  ../node_modules/.bin/create-node-app testapp
-fi
-
-cd testapp
+cd test
+yarn
 
 set -x
 
-${WORKDIR}/src/index.js --generate-local-env --format compose
+${WORKDIR}/src/index.js --generate-default-env --overwrite
+${WORKDIR}/src/index.js --generate-local-ports-env --format compose --overwrite
 
 fgrep "REDIS_SERVICE_PORT=6379" .env
 fgrep "REDIS_SERVICE_HOST" .env
