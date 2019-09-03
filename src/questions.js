@@ -22,10 +22,10 @@ async function promptQuestions (
   if (!saved) {
     // Gives some context to what we are about to do and why we are asking questions:
     process.stdout.write(
-      `\n${WARNING} Preparing to deploy to ${style.bold.open +
+      `${WARNING} Preparing to deploy to ${style.bold.open +
         style.green.open +
         env +
-        style.reset.open}...\n\n`
+        style.reset.open}...\n`
     )
     saved = {}
   }
@@ -74,6 +74,12 @@ async function promptQuestions (
           quickConfig = true
         }
       } else {
+        process.stdout.write(
+          `${WARNING} Using Kubernetes context ${style.bold.open +
+            style.green.open +
+            kubeContexts[0] +
+            style.reset.open}...\n`
+        )
         answers.context = kubeContexts[0]
       }
 
