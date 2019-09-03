@@ -30,33 +30,33 @@
     "Dan Pastusek <dan@kubesail.com>"
   ],
   "devDependencies": {
-    "babel-eslint": "^10.0.2",
-    "create-node-app": "^1.1.1",
-    "eslint": "5",
-    "eslint-config-standard": "^12.0.0",
-    "eslint-plugin-flowtype": "^3.11.1",
-    "eslint-plugin-import": "^2.18.0",
-    "eslint-plugin-node": "^9.1.0",
+    "babel-eslint": "^10.0.3",
+    "create-node-app": "^1.4.3",
+    "eslint": "6",
+    "eslint-config-standard": "^14.1.0",
+    "eslint-plugin-flowtype": "^4.3.0",
+    "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-node": "^9.2.0",
     "eslint-plugin-prettier": "^3.1.0",
     "eslint-plugin-promise": "^4.2.1",
     "eslint-plugin-security": "^1.4.0",
-    "eslint-plugin-standard": "^4.0.0",
+    "eslint-plugin-standard": "^4.0.1",
     "prettier": "^1.18.2",
     "prettier-eslint": "^9.0.0",
     "prettier-eslint-cli": "^5.0.0"
   },
   "dependencies": {
     "@nodeapp/redis": "^2.1.0",
-    "ansi-styles": "^4.0.0",
+    "ansi-styles": "^4.1.0",
     "command-exists": "^1.2.8",
-    "commander": "^2.20.0",
+    "commander": "^3.0.1",
     "diff": "^4.0.1",
-    "dotenv": "^8.0.0",
+    "dotenv": "^8.1.0",
     "get-kubesail-config": "^1.0.4",
-    "inquirer": "^6.4.1",
-    "inquirer-fuzzy-path": "^2.0.3",
+    "inquirer": "^7.0.0",
+    "inquirer-fuzzy-path": "^2.1.0",
     "js-yaml": "^3.13.1",
-    "lodash": "^4.17.13"
+    "lodash": "^4.17.15"
   },
   "prettier": {
     "printWidth": 100

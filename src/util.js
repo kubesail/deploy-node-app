@@ -62,11 +62,12 @@ function ensureBinaries (format) {
           `${style.red.open}>> deploy-node-app requires kubectl v1.14 or higher.${style.red.close}\n\n`
         )
         process.stdout.write('You can fix this ')
+
+        const install = chalk.cyan('brew install kubernetes-cli')
+        const upgrade = chalk.cyan('brew upgrade kubernetes-cli')
         let cmd
         switch (process.platform) {
           case 'darwin':
-            const install = chalk.cyan('brew install kubernetes-cli')
-            const upgrade = chalk.cyan('brew upgrade kubernetes-cli')
             cmd = `${install}\n\nor\n\n  ${upgrade}`
             process.stdout.write(
               `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-macos\n`
