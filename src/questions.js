@@ -34,7 +34,7 @@ async function promptQuestions (
     saved.entrypoint ||
     (packageJson.main && fs.existsSync(packageJson.main) ? packageJson.main : null)
 
-  let answers = {}
+  let answers = saved
   let quickConfig = false
   if (format === 'k8s') {
     if (!saved.context || !kubeContexts.includes(saved.context)) {
@@ -105,7 +105,7 @@ async function promptQuestions (
     } else {
       if (onlyDockerHub) {
         answers.registry = containerRegistries[0]
-      } else if (!saved.registry && !onlyDockerHub) {
+      } else if (!answers.registry && !onlyDockerHub) {
         const registryAnswer = await inquirer.prompt([
           {
             name: 'registry',
@@ -127,71 +127,79 @@ async function promptQuestions (
     }
   }
 
-  const appAnswers = await inquirer.prompt(
-    [
-      saved.port
-        ? null
-        : {
-          name: 'port',
-          type: 'input',
-          message: 'What port does your application listen on?',
-          default: '3000',
-          validate: function (input) {
-            if (isNaN(parseInt(input, 10))) return 'ports must be numbers!'
-            return true
-          },
-          filter: input => parseInt(input, 10)
+  const portQuestion = {
+    name: 'port',
+    type: 'input',
+    message:
+      'What port does your application listen on? (If not applicable, press enter to continue)',
+    default: 'None',
+    validate: function (input) {
+      if (input === 'None') return true
+      if (isNaN(parseInt(input, 10))) return 'ports must be numbers!'
+      return true
+    },
+    filter: input => (input === 'None' ? 'None' : parseInt(input, 10))
+  }
+  if (!answers.port) {
+    const portAnswers = await inquirer.prompt([portQuestion])
+    answers.port = portAnswers.port
+  }
+
+  const appQuestions = []
+  if (typeof answers.port === 'number') {
+    if (!saved.protocol) {
+      appQuestions.push({
+        name: 'protocol',
+        type: 'list',
+        message: 'Which protocol does your application speak?',
+        default: 'http',
+        choices: ['http', 'https', 'tcp']
+      })
+    }
+    if (!saved.entrypoint) {
+      appQuestions.push({
+        name: 'entrypoint',
+        type: 'fuzzypath',
+        message: 'What is your application\'s entrypoint?',
+        // TODO for default, provide a callback with an array of common entry points.
+        // the 'inquirer-fuzzy-path' plugin currently does not respect default at all
+        default: 'index.js',
+        excludePath: filepath => {
+          const invalidPaths = [
+            '.DS_Store',
+            '.git',
+            'LICENSE',
+            'README',
+            'package-lock.json',
+            'node_modules',
+            'yarn.lock',
+            'yarn-error.log',
+            'package.json',
+            '.dockerignore',
+            'Dockerfile',
+            '.editorconfig',
+            '.eslintrc.json',
+            '.flowconfig'
+          ]
+
+          for (let i = 0; i < invalidPaths.length; i++) {
+            if (filepath.startsWith(invalidPaths[i])) return true
+          }
+
+          return false
         },
-      saved.protocol
-        ? null
-        : {
-          name: 'protocol',
-          type: 'list',
-          message: 'Which protocol does your application speak?',
-          default: 'http',
-          choices: ['http', 'https', 'tcp']
-        },
-      saved.entrypoint
-        ? null
-        : {
-          name: 'entrypoint',
-          type: 'fuzzypath',
-          message: 'What is your application\'s entrypoint?',
-          // TODO for default, provide a callback with an array of common entry points.
-          // the 'inquirer-fuzzy-path' plugin currently does not respect default at all
-          default: 'index.js',
-          excludePath: filepath => {
-            const invalidPaths = [
-              '.DS_Store',
-              '.git',
-              'LICENSE',
-              'README',
-              'package-lock.json',
-              'node_modules',
-              'yarn.lock',
-              'yarn-error.log',
-              'package.json',
-              '.dockerignore',
-              'Dockerfile',
-              '.editorconfig',
-              '.eslintrc.json',
-              '.flowconfig'
-            ]
+        itemType: 'file',
+        rootPath: '.',
+        suggestOnly: false
+      })
+    }
+  }
 
-            for (let i = 0; i < invalidPaths.length; i++) {
-              if (filepath.startsWith(invalidPaths[i])) return true
-            }
+  if (appQuestions.length > 0) {
+    const appAnswers = await inquirer.prompt(appQuestions)
+    answers = Object.assign({}, saved, answers, appAnswers)
+  }
 
-            return false
-          },
-          itemType: 'file',
-          rootPath: '.',
-          suggestOnly: false
-        }
-    ].filter(q => q)
-  )
-
-  answers = Object.assign({}, saved, answers, appAnswers)
   if (answers.registry) {
     answers.registry = answers.registry.replace(DOCKER_HUB_SUFFIX, '')
     answers.registry = answers.registry.replace(/https?:\/\//i, '')
