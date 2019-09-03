@@ -70,7 +70,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
    * Returns an array of package.json blobs from deps marked with a special key
    */
   async function findMetaModules (packageJson /*: Object */) /*: Array<Object> */ {
-    const depNames = Object.keys(packageJson.dependencies)
+    const depNames = packageJson.dependencies && typeof packageJson.dependencies === 'object' ? Object.keys(packageJson.dependencies) : []
     const readFiles = depNames.map(async dep => {
       try {
         return await readFile(path.join('node_modules', dep, 'package.json')).then(json =>
