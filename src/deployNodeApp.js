@@ -70,7 +70,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
    * Returns an array of package.json blobs from deps marked with a special key
    */
   async function findMetaModules (packageJson /*: Object */) /*: Array<Object> */ {
-    const depNames = packageJson.dependencies && typeof packageJson.dependencies === 'object' ? Object.keys(packageJson.dependencies) : []
+    const depNames =
+      packageJson.dependencies && typeof packageJson.dependencies === 'object'
+        ? Object.keys(packageJson.dependencies)
+        : []
     const readFiles = depNames.map(async dep => {
       try {
         return await readFile(path.join('node_modules', dep, 'package.json')).then(json =>
@@ -380,28 +383,30 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     if (!answers.confirmed) {
       if (answers.registry.includes('index.docker.io')) {
         process.stdout.write(
-          `${chalk.yellow(
-            '!!'
-          )} You are using Docker Hub. If the docker repository does not exist,\n` +
-            `   it may be automatically created with ${chalk.yellow('PUBLIC')} access!\n` +
-            '   Make sure you have all secrets in your ".dockerignore" file,\n' +
-            '   and you may want to make sure your image repository is setup securely!\n\n'
+          `\n${chalk.yellow('!!')} You are using Docker Hub. If the repository "${
+            tags.image
+          }" does not exist, it may be automatically created with ${chalk.yellow('PUBLIC')} access!
+${chalk.yellow(
+    '!!'
+  )} You can visit https://cloud.docker.com/repository/create to create a ${chalk.yellow(
+  'private repository'
+)} instead.
+${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dockerignore" file.\n\n`
         )
       }
     }
 
     if (!answers.confirmed && opts.confirm && opts.output !== '-') {
-      const { confirmed } = await inquirer.prompt([
+      const { isPublic } = await inquirer.prompt([
         {
-          name: 'confirmed',
-          type: 'confirm',
-          message: 'Are you sure you want to continue?'
+          name: 'isPublic',
+          type: 'list',
+          message: 'Is this a public or private repository?',
+          choices: [{ key: 'P', value: 'Private (recommended)' }, { key: 'U', value: 'Public' }],
+          default: 0
         }
       ])
-      if (!confirmed) {
-        process.exit(1)
-      }
-      answers.confirmed = confirmed
+      answers.public = isPublic
     }
   }
 
