@@ -159,36 +159,58 @@ async function promptQuestions (
   }
 
   if (!saved.entrypoint) {
+    const invalidPaths = [
+      '.DS_Store',
+      '.git',
+      'LICENSE',
+      'README',
+      'package-lock.json',
+      'node_modules',
+      'yarn.lock',
+      'yarn-error.log',
+      'package.json',
+      '.dockerignore',
+      'Dockerfile',
+      '.editorconfig',
+      '.eslintrc.json',
+      '.flowconfig'
+    ]
+    const invalidExtensions = [
+      '.log',
+      '.json',
+      '.lock',
+      '.css',
+      '.svg',
+      '.md',
+      '.html',
+      '.png',
+      '.disabled',
+      '.ico',
+      '.txt'
+    ]
+
+    let defaultPath
+    const suggestedDefaultPaths = ['index.js', 'src/index.js']
+    for (let i = 0; i < suggestedDefaultPaths.length; i++) {
+      if (fs.existsSync(suggestedDefaultPaths[i])) defaultPath = suggestedDefaultPaths[i]
+    }
+
     appQuestions.push({
       name: 'entrypoint',
       type: 'fuzzypath',
       message: 'What is your application\'s entrypoint?',
       // TODO for default, provide a callback with an array of common entry points.
       // the 'inquirer-fuzzy-path' plugin currently does not respect default at all
-      default: 'index.js',
+      default: defaultPath,
       excludePath: filepath => {
-        const invalidPaths = [
-          '.DS_Store',
-          '.git',
-          'LICENSE',
-          'README',
-          'package-lock.json',
-          'node_modules',
-          'yarn.lock',
-          'yarn-error.log',
-          'package.json',
-          '.dockerignore',
-          'Dockerfile',
-          '.editorconfig',
-          '.eslintrc.json',
-          '.flowconfig'
-        ]
-
         for (let i = 0; i < invalidPaths.length; i++) {
           if (filepath.startsWith(invalidPaths[i])) return true
         }
-
-        return false
+        for (let i = 0; i < invalidExtensions.length; i++) {
+          if (filepath.substr(-1 * invalidExtensions[i].length) === invalidExtensions[i]) {
+            return true
+          }
+        }
       },
       itemType: 'file',
       rootPath: '.',
