@@ -6,7 +6,7 @@
   "repository": "https://github.com/kubesail/deploy-node-app",
   "license": "MIT",
   "engines": {
-    "node": ">=10"
+    "node": ">8"
   },
   "contributors": [
     {
