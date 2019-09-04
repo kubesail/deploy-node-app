@@ -55,6 +55,7 @@
     "get-kubesail-config": "^1.0.4",
     "inquirer": "^7.0.0",
     "inquirer-fuzzy-path": "^2.1.0",
+    "is-valid-domain": "^0.0.11",
     "js-yaml": "^3.13.1",
     "lodash": "^4.17.15"
   },

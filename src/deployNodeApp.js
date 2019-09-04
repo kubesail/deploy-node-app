@@ -9,6 +9,7 @@ const yaml = require('js-yaml')
 const chalk = require('chalk')
 const merge = require('lodash/merge')
 const diff = require('diff')
+const isValidDomain = require('is-valid-domain')
 require('dotenv').config()
 
 const {
@@ -449,10 +450,6 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
     }
   }
 
-  if (!packageJson['deploy-node-app']) packageJson['deploy-node-app'] = {}
-  packageJson['deploy-node-app'][env] = answers
-
-  await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) + '\n' })
   await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
 
   const usingKubeSail = answers.context && answers.context.includes('kubesail')
@@ -642,20 +639,36 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
         }
       })
 
+      let defaultDomain = packageJson.name
+      if (!isValidDomain(defaultDomain)) defaultDomain = ''
+      if (!answers.domains) {
+        const { domain } = await inquirer.prompt({
+          name: 'domain',
+          type: 'input',
+          message: 'What\'s the domain name to access this project? (leave blank for automatic)',
+          default: defaultDomain,
+          validate: function (domain) {
+            if (!isValidDomain(domain)) return 'Invalid domain'
+            return true
+          }
+        })
+        answers.domains = [domain]
+      }
+
+      const rule = {
+        http: {
+          paths: [{ backend: { serviceName: `${appName}-frontend`, servicePort: 8080 } }]
+        }
+      }
+      // TODO: Support multiple ingress domains
+      rule.host = answers.domains[0]
+
       const ingressFile = path.join(CONFIG_FILE_PATH, env, 'frontend-ingress.yaml')
       await confirmWriteFile(ingressFile, {
         templatePath: 'defaults/ingress.yaml',
         properties: {
           metadata: { name: `${appName}-frontend` },
-          spec: {
-            rules: [
-              {
-                http: {
-                  paths: [{ backend: { serviceName: `${appName}-frontend`, servicePort: 8080 } }]
-                }
-              }
-            ]
-          }
+          spec: { rules: [rule] }
         }
       })
       resources.push('frontend-ingress.yaml')
@@ -675,6 +688,10 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
     // TODO: Write docker compose for static files / nginx
   }
 
+  if (!packageJson['deploy-node-app']) packageJson['deploy-node-app'] = {}
+  packageJson['deploy-node-app'][env] = answers
+
+  await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) + '\n' })
   await confirmWriteFile('.dockerignore', { templatePath: path.join('defaults', '.dockerignore') })
 
   // Build
