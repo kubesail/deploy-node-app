@@ -33,12 +33,28 @@ async function promptQuestions (
   let answers = saved
   let quickConfig = false
 
+  const validNameRegex = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/i
   if (!answers.name) {
-    if (packageJson.name.match(/[a-z0-9]([-a-z0-9]*[a-z0-9])?/i)) {
+    if (validNameRegex.test(packageJson.name)) {
       process.stdout.write(
-        `${WARNING} Using project nane ${chalk.green.bold(kubeContexts[0])}...\n`
+        `${WARNING} Using project name ${chalk.green.bold(packageJson.name)}...\n`
       )
     } else {
+      const { name } = await inquirer.prompt([
+        {
+          name: 'name',
+          type: 'input',
+          message: 'We will need a valid name for the project without spaces, dots or dashes',
+          default: packageJson.name.replace(/[^a-z0-9]/gi, ''),
+          validate: function (input) {
+            if (validNameRegex.test(packageJson.name)) {
+              return true
+            } else {
+              return 'Invalid name!'
+            }
+          }
+        }
+      ])
     }
   }
 
