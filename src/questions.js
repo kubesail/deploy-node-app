@@ -153,17 +153,12 @@ async function promptQuestions (
   }
 
   if (!answers.type) {
-    let defaultType = 'server'
-    if (packageJson.dependencies && packageJson.dependencies['react-scripts']) {
-      defaultType = 'spa'
-    }
-
     const { typeAnswer } = await inquirer.prompt([
       {
         name: 'typeAnswer',
         type: 'list',
         message: 'What sort of application is this?',
-        default: defaultType,
+        default: 'combo',
         choices: [
           {
             name: 'Server (An app that listens for network requests)',

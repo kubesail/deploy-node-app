@@ -383,7 +383,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   }
 
   if (opts.push) {
-    if (answers.registry.includes('index.docker.io') && !packageJson['deploy-node-app']) {
+    if (answers.registry.includes('index.docker.io')) {
       process.stdout.write(
         `\n${chalk.yellow('!!')} You are using Docker Hub. If the repository "${
           tags.image
