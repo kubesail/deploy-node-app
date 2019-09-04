@@ -414,11 +414,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
   packageJson['deploy-node-app'][env] = answers
 
   await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) + '\n' })
-
-  let dockerfileTemplate = 'defaults/service/Dockerfile'
-  if (answers.type === 'spa') dockerfileTemplate = 'defaults/spa/Dockerfile'
-
-  await confirmWriteFile('Dockerfile', { templatePath: dockerfileTemplate })
+  await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
 
   const usingKubeSail = answers.context && answers.context.includes('kubesail')
   const secrets = []
