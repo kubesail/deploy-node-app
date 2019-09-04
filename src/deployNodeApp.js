@@ -371,13 +371,17 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   const containerRegistries = opts.format === 'k8s' ? readLocalDockerConfig() : []
   const answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson, opts)
   const tags = await getDeployTags(packageJson.name, answers, opts.build)
+  const appName = answers.name || packageJson.name
 
   const existingImage = execSyncWithEnv(`docker images ${tags.hash} -q`)
   if (existingImage !== '') {
-    let newTag = `${tags.shortHash}-${Math.floor(Date.now() / 1000)}`
+    const newTag = `${tags.shortHash}-${Math.floor(Date.now() / 1000)}`
     if (!silence) {
       process.stdout.write(
-        `\n${chalk.yellow('!!')} The image ${tags.hash} is already in use - setting tag to ${newTag}\n\n`)
+        `\n${chalk.yellow('!!')} The image ${
+          tags.hash
+        } is already in use - setting tag to ${newTag}\n\n`
+      )
     }
     tags.hash = `${tags.image}:${newTag}`
   }
@@ -412,6 +416,30 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
       }
     ])
     answers.isPublic = isPublic
+  }
+
+  if (answers.isPublic === false) {
+    const regcred = await execSyncWithEnv(
+      `kubectl --context=${answers.context} get secret ${appName}-regcred || echo "no"`
+    )
+    if (regcred === 'no') {
+      const { password } = await inquirer.prompt({
+        name: 'password',
+        type: 'password',
+        message: 'What is your docker hub password?',
+        validate: function (password) {
+          if (password.length <= 1) return 'Invalid password'
+          return true
+        }
+      })
+      await execSyncWithEnv(
+        `kubectl --context=${answers.context} \
+          create secret docker-registry ${appName}-regcred \
+          --docker-server=https://${answers.registry} \
+          --docker-username=${answers.registryUsername} \
+          --docker-password=${password}`
+      )
+    }
   }
 
   if (!packageJson['deploy-node-app']) packageJson['deploy-node-app'] = {}
@@ -455,7 +483,6 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
       handleUi = true
     }
 
-    const appName = answers.name || packageJson.name
     const backendDeployment = `${handleUi ? 'backend-' : ''}deployment.yaml`
     const backendService = `${handleUi ? 'backend-' : ''}service.yaml`
     const frontendDeployment = 'frontend-deployment.yaml'
@@ -467,6 +494,24 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
       containerCommand = ['node', answers.entrypoint]
       // Write deployment config for Node app
       resources.push(path.join('.', backendDeployment))
+
+      const spec = {
+        containers: [
+          {
+            image: tags.hash,
+            name: appName,
+            command: containerCommand,
+            ports: [{ containerPort: answers.port }],
+            envFrom: secrets.map(name => {
+              return { secretRef: { name } }
+            })
+          }
+        ]
+      }
+      if (answers.isPublic === false) {
+        spec.imagePullSecrets = [{ name: `${appName}-regcred` }]
+      }
+
       await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, backendDeployment), {
         templatePath: 'defaults/backend-deployment.yaml',
         properties: {
@@ -480,19 +525,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
               metadata: {
                 labels: { app: appName }
               },
-              spec: {
-                containers: [
-                  {
-                    image: tags.hash,
-                    name: appName,
-                    command: containerCommand,
-                    ports: [{ containerPort: answers.port }],
-                    envFrom: secrets.map(name => {
-                      return { secretRef: { name } }
-                    })
-                  }
-                ]
-              }
+              spec
             }
           }
         }
@@ -560,6 +593,19 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
       })
       // Write Nginx Deployment
       resources.push(path.join('.', frontendDeployment))
+
+      const spec = {
+        containers: [
+          {
+            image: tags.hash,
+            name: appName
+          }
+        ]
+      }
+      if (answers.isPublic === false) {
+        spec.imagePullSecrets = [{ name: `${appName}-regcred` }]
+      }
+
       await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, frontendDeployment), {
         templatePath: 'defaults/frontend-deployment.yaml',
         properties: {
@@ -571,14 +617,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
             selector: { matchLabels: { app: appName } },
             template: {
               metadata: { labels: { app: appName } },
-              spec: {
-                containers: [
-                  {
-                    image: tags.hash,
-                    name: appName
-                  }
-                ]
-              }
+              spec
             }
           }
         }
