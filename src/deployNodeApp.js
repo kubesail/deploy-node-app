@@ -380,34 +380,35 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   const tags = await getDeployTags(packageJson.name, answers, opts.build)
 
   if (opts.push) {
-    if (!answers.confirmed) {
-      if (answers.registry.includes('index.docker.io')) {
-        process.stdout.write(
-          `\n${chalk.yellow('!!')} You are using Docker Hub. If the repository "${
-            tags.image
-          }" does not exist, it may be automatically created with ${chalk.yellow('PUBLIC')} access!
+    if (answers.registry.includes('index.docker.io')) {
+      process.stdout.write(
+        `\n${chalk.yellow('!!')} You are using Docker Hub. If the repository "${
+          tags.image
+        }" does not exist, it may be automatically created with ${chalk.yellow('PUBLIC')} access!
 ${chalk.yellow(
     '!!'
   )} You can visit https://cloud.docker.com/repository/create to create a ${chalk.yellow(
   'private repository'
 )} instead.
 ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dockerignore" file.\n\n`
-        )
-      }
+      )
     }
+  }
 
-    if (!answers.confirmed && opts.confirm && opts.output !== '-') {
-      const { isPublic } = await inquirer.prompt([
-        {
-          name: 'isPublic',
-          type: 'list',
-          message: 'Is this a public or private repository?',
-          choices: [{ key: 'P', value: 'Private (recommended)' }, { key: 'U', value: 'Public' }],
-          default: 0
-        }
-      ])
-      answers.public = isPublic
-    }
+  if (typeof answers.public !== 'boolean' || (opts.confirm && opts.output !== '-')) {
+    const { isPublic } = await inquirer.prompt([
+      {
+        name: 'isPublic',
+        type: 'list',
+        message: 'Is this a public or private repository?',
+        choices: [
+          { key: 'P', name: 'Private (recommended)', value: false },
+          { key: 'U', name: 'Public', value: true }
+        ],
+        default: 0
+      }
+    ])
+    answers.public = isPublic
   }
 
   if (!packageJson['deploy-node-app']) packageJson['deploy-node-app'] = {}

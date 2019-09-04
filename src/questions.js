@@ -17,6 +17,7 @@ async function promptQuestions (
   packageJson /*: Object */,
   format /*: string */
 ) {
+  const appQuestions = []
   let saved = packageJson['deploy-node-app'] && packageJson['deploy-node-app'][env]
 
   if (!saved) {
@@ -30,9 +31,9 @@ async function promptQuestions (
     saved = {}
   }
 
-  saved.entrypoint =
-    saved.entrypoint ||
-    (packageJson.main && fs.existsSync(packageJson.main) ? packageJson.main : null)
+  if (!saved.entrypoint && packageJson.main && fs.existsSync(packageJson.main)) {
+    saved.entrypoint = packageJson.main
+  }
 
   let answers = saved
   let quickConfig = false
@@ -127,38 +128,65 @@ async function promptQuestions (
     }
   }
 
-  const portQuestion = {
-    name: 'port',
-    type: 'input',
-    message:
-      'What port does your application listen on? (If not applicable, press enter to continue)',
-    default: 'None',
-    validate: function (input) {
-      if (input === '' || input === 'None') return true
-      if (isNaN(parseInt(input, 10))) return 'ports must be numbers!'
-      return true
-    },
-    filter: input => (input === 'None' || !input ? 'None' : parseInt(input, 10))
-  }
-  if (!answers.port) {
-    const portAnswers = await inquirer.prompt([portQuestion])
-    answers.port = portAnswers.port
+  if (!answers.type) {
+    const { typeAnswer } = await inquirer.prompt([
+      {
+        name: 'typeAnswer',
+        type: 'list',
+        message: 'What sort of application is this?',
+        default: 0,
+        choices: [
+          {
+            name: 'Server (An app that listens for network requests)',
+            value: 'server'
+          },
+          {
+            name: 'Worker (A daemon that does not listen for network requests)',
+            value: 'worker'
+          },
+          {
+            name: 'Static App (An SPA, like the product of "create-react-app", with no backend)',
+            value: 'spa'
+          }
+        ]
+      }
+    ])
+    answers.type = typeAnswer
   }
 
-  const appQuestions = []
-  if (typeof answers.port === 'number') {
-    if (!saved.protocol) {
-      appQuestions.push({
-        name: 'protocol',
-        type: 'list',
-        message: 'Which protocol does your application speak?',
-        default: 'http',
-        choices: ['http', 'https', 'tcp']
-      })
+  if (answers.type === 'server') {
+    const portQuestion = {
+      name: 'port',
+      type: 'input',
+      message:
+        'What port does your application listen on? (If not applicable, press enter to continue)',
+      default: 'None',
+      validate: function (input) {
+        if (input === '' || input === 'None') return true
+        if (isNaN(parseInt(input, 10))) return 'ports must be numbers!'
+        return true
+      },
+      filter: input => (input === 'None' || !input ? 'None' : parseInt(input, 10))
+    }
+    if (!answers.port) {
+      const portAnswers = await inquirer.prompt([portQuestion])
+      answers.port = portAnswers.port
+    }
+
+    if (typeof answers.port === 'number') {
+      if (!saved.protocol) {
+        appQuestions.push({
+          name: 'protocol',
+          type: 'list',
+          message: 'Which protocol does your application speak?',
+          default: 'http',
+          choices: ['http', 'https', 'tcp']
+        })
+      }
     }
   }
 
-  if (!saved.entrypoint) {
+  if (!answers.entrypoint && answers.type !== 'spa') {
     const invalidPaths = [
       '.DS_Store',
       '.git',
@@ -199,8 +227,6 @@ async function promptQuestions (
       name: 'entrypoint',
       type: 'fuzzypath',
       message: 'What is your application\'s entrypoint?',
-      // TODO for default, provide a callback with an array of common entry points.
-      // the 'inquirer-fuzzy-path' plugin currently does not respect default at all
       default: defaultPath,
       excludePath: filepath => {
         for (let i = 0; i < invalidPaths.length; i++) {
