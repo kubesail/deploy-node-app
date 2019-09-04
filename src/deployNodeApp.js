@@ -444,6 +444,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
       })
     }
 
+    const appName = answers.name || packageJson.name
     const backendDeployment = `${handleUi ? 'backend-' : ''}deployment.yaml`
     const backendService = `${handleUi ? 'backend-' : ''}service.yaml`
     const frontendDeployment = 'frontend-deployment.yaml'
@@ -456,20 +457,20 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
       templatePath: 'defaults/backend-deployment.yaml',
       properties: {
         metadata: {
-          name: packageJson.name + (handleUi ? '-backend' : ''),
-          labels: { app: packageJson.name }
+          name: appName + (handleUi ? '-backend' : ''),
+          labels: { app: appName }
         },
         spec: {
-          selector: { matchLabels: { app: packageJson.name } },
+          selector: { matchLabels: { app: appName } },
           template: {
             metadata: {
-              labels: { app: packageJson.name }
+              labels: { app: appName }
             },
             spec: {
               containers: [
                 {
                   image: tags.hash,
-                  name: packageJson.name,
+                  name: appName,
                   command: ['node', answers.entrypoint],
                   ports: [{ containerPort: answers.port }],
                   envFrom: secrets.map(name => {
@@ -488,10 +489,10 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
       templatePath: 'defaults/backend-service.yaml',
       properties: {
         metadata: {
-          name: packageJson.name + (handleUi ? '-backend' : '')
+          name: appName + (handleUi ? '-backend' : '')
         },
         spec: {
-          selector: { app: packageJson.name },
+          selector: { app: appName },
           ports: [{ port: answers.port, targetPort: answers.port }]
         }
       }
@@ -529,7 +530,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
                   listen 8080;
                   root /app/build;
                   location /api {
-                    proxy_pass http://${packageJson.name}-backend:${answers.port};
+                    proxy_pass http://${appName}-backend:${answers.port};
                   }
                 }
 
@@ -543,18 +544,18 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
         templatePath: 'defaults/frontend-deployment.yaml',
         properties: {
           metadata: {
-            name: `${packageJson.name}-frontend`,
-            labels: { app: packageJson.name }
+            name: `${appName}-frontend`,
+            labels: { app: appName }
           },
           spec: {
-            selector: { matchLabels: { app: packageJson.name } },
+            selector: { matchLabels: { app: appName } },
             template: {
-              metadata: { labels: { app: packageJson.name } },
+              metadata: { labels: { app: appName } },
               spec: {
                 containers: [
                   {
                     image: tags.hash,
-                    name: packageJson.name
+                    name: appName
                   }
                 ]
               }
@@ -568,22 +569,22 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
         templatePath: 'defaults/frontend-service.yaml',
         properties: {
           metadata: {
-            name: `${packageJson.name}-frontend`,
+            name: `${appName}-frontend`,
             annotations: usingKubeSail
               ? {
                 'getambassador.io/config': yaml.safeDump({
                   apiVersion: 'ambassador/v1',
                   kind: 'Mapping',
-                  name: `${packageJson.name}-frontend.${namespace}`,
+                  name: `${appName}-frontend.${namespace}`,
                   prefix: '/',
-                  service: `http://${packageJson.name}-frontend.${namespace}:80`,
+                  service: `http://${appName}-frontend.${namespace}:80`,
                   timeout_ms: 30000,
                   use_websocket: true
                 })
               }
               : null
           },
-          spec: { selector: { app: packageJson.name } }
+          spec: { selector: { app: appName } }
         }
       })
     }
@@ -624,12 +625,13 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
       execSyncWithEnv(cmd, execOpts)
       // Deploy service
 
+      const appName = answers.name || packageJson.name
       const noHostMsg =
         '\nYou may need to expose your deployment on kubernetes via a service.\n' +
         'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.'
       if (handleUi && usingKubeSail) {
         const svc = execSyncWithEnv(
-          `kubectl --context=${answers.context} get svc ${packageJson.name}-frontend -o json`
+          `kubectl --context=${answers.context} get svc ${appName}-frontend -o json`
         )
         try {
           const configStr = JSON.parse(svc).metadata.annotations['getambassador.io/config']

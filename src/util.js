@@ -99,6 +99,7 @@ function ensureBinaries (format) {
 }
 
 async function getDeployTags (name, answers, shouldBuild) {
+  if (answers.name) name = answers.name
   const tags = { name }
   const shortHash = execSyncWithEnv('git rev-parse HEAD')
     .toString()

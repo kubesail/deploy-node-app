@@ -44,7 +44,7 @@ async function promptQuestions (
         {
           name: 'name',
           type: 'input',
-          message: 'We will need a valid name for the project without spaces, dots or dashes',
+          message: `The name "${packageJson.name}" is not valid as a project name - it must not contain dots or spaces. What should we name this project?`,
           default: packageJson.name.replace(/[^a-z0-9]/gi, ''),
           validate: function (input) {
             if (validNameRegex.test(input)) {
