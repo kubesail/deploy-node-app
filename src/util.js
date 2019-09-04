@@ -92,7 +92,7 @@ function ensureBinaries (format) {
         }
         process.exit(1)
       }
-    } catch {
+    } catch (_err) {
       fatal('Could not determine kubectl version')
     }
   }

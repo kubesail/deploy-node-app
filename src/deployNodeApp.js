@@ -53,7 +53,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   let handleUi = false
   try {
     handleUi = !!(await statFile(WWW_FILE_PATH))
-  } catch {}
+  } catch (_err) {}
 
   const format = ['kube', 'kubernetes', 'k8s'].includes(opts.format)
     ? 'k8s'
@@ -221,7 +221,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     let composeFileFound
     try {
       composeFileFound = await statFile(`${cwd}/docker-compose.yaml`)
-    } catch {}
+    } catch (_err) {}
     if (!composeFileFound) {
       log(
         'WARN: It doesn\'t look like docker-compose is used here, so I can\'t automatically detect ports for you - using default values!'
@@ -296,7 +296,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     let existingContent
     try {
       existingContent = (await readFile(fullPath)).toString()
-    } catch {}
+    } catch (_err) {}
     if (overwrite) {
       doWrite = true
     } else {
@@ -720,13 +720,13 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
         '\nYou may need to expose your deployment on kubernetes via a service.\n' +
         'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.'
       if (handleUi && usingKubeSail) {
-        const svc = execSyncWithEnv(
+        const ingress = execSyncWithEnv(
           `kubectl --context="${answers.context}" get ingress "${appName}-frontend" -o json`
         )
         try {
-          const host = JSON.parse(svc).spec.rules[0].host
+          const host = JSON.parse(ingress).spec.rules[0].host
           svcMsg += 'Your App is available at: ' + `${chalk.cyan(`https://${host}\n`)}\n`
-        } catch {
+        } catch (_err) {
           svcMsg += noHostMsg
         }
       } else {
