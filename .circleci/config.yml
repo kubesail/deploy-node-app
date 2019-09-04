@@ -2,19 +2,10 @@ version: 2
 jobs:
   build:
     docker:
-      - image: erulabs/circleci-builder:11
+      - image: node:12
     working_directory: ~/repo
     steps:
       - checkout
-
-      - setup_remote_docker:
-          reusable: true
-          exclusive: false
-          version: 17.06.1-ce
-
-      - restore_cache:
-          keys:
-            - v1-dependencies-{{ arch }}-{{ checksum "yarn.lock" }}
 
       - run:
           name: Installing
