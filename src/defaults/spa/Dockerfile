@@ -4,6 +4,6 @@ FROM kubesail/node:12
 
 WORKDIR /app
 
-COPY . /build/
+COPY . /app/
 
 CMD ["nginx", "-g", "daemon off;"]

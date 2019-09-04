@@ -171,6 +171,10 @@ async function promptQuestions (
           {
             name: 'Static App (An SPA, like the product of "create-react-app", with no backend)',
             value: 'spa'
+          },
+          {
+            name: 'Combo (Contains a frontend and a backend)',
+            value: 'combo'
           }
         ]
       }
@@ -178,7 +182,7 @@ async function promptQuestions (
     answers.type = typeAnswer
   }
 
-  if (answers.type === 'server') {
+  if (answers.type === 'server' || answers.type === 'combo') {
     const portQuestion = {
       name: 'port',
       type: 'input',

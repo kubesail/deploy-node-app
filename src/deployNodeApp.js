@@ -15,7 +15,6 @@ const {
   getDeployTags,
   execSyncWithEnv,
   readLocalKubeConfig,
-  readKubeConfigNamespace,
   readLocalDockerConfig,
   ensureBinaries
 } = require('./util')
@@ -448,7 +447,11 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
       })
     }
 
-    if (answers.type === 'spa') handleUi = true
+    if (answers.type === 'spa' || answers.type === 'combo') {
+      process.stdout.write('Running "yarn build"...\n')
+      execSyncWithEnv('yarn build')
+      handleUi = true
+    }
 
     const appName = answers.name || packageJson.name
     const backendDeployment = `${handleUi ? 'backend-' : ''}deployment.yaml`
@@ -458,54 +461,55 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
     const frontendConfigMap = 'frontend-configmap.yaml'
 
     let containerCommand = []
-    if (answers.type !== 'spa') containerCommand = ['node', answers.entrypoint]
-
-    // Write deployment config for Node app
-    resources.push(path.join('.', backendDeployment))
-    await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, backendDeployment), {
-      templatePath: 'defaults/backend-deployment.yaml',
-      properties: {
-        metadata: {
-          name: appName + (handleUi ? '-backend' : ''),
-          labels: { app: appName }
-        },
-        spec: {
-          selector: { matchLabels: { app: appName } },
-          template: {
-            metadata: {
-              labels: { app: appName }
-            },
-            spec: {
-              containers: [
-                {
-                  image: tags.hash,
-                  name: appName,
-                  command: containerCommand,
-                  ports: [{ containerPort: answers.port }],
-                  envFrom: secrets.map(name => {
-                    return { secretRef: { name } }
-                  })
-                }
-              ]
+    if (answers.type !== 'spa') {
+      containerCommand = ['node', answers.entrypoint]
+      // Write deployment config for Node app
+      resources.push(path.join('.', backendDeployment))
+      await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, backendDeployment), {
+        templatePath: 'defaults/backend-deployment.yaml',
+        properties: {
+          metadata: {
+            name: appName + (handleUi ? '-backend' : ''),
+            labels: { app: appName }
+          },
+          spec: {
+            selector: { matchLabels: { app: appName } },
+            template: {
+              metadata: {
+                labels: { app: appName }
+              },
+              spec: {
+                containers: [
+                  {
+                    image: tags.hash,
+                    name: appName,
+                    command: containerCommand,
+                    ports: [{ containerPort: answers.port }],
+                    envFrom: secrets.map(name => {
+                      return { secretRef: { name } }
+                    })
+                  }
+                ]
+              }
             }
           }
         }
-      }
-    })
-    // Write service config for Node app
-    resources.push(path.join('.', backendService))
-    await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, backendService), {
-      templatePath: 'defaults/backend-service.yaml',
-      properties: {
-        metadata: {
-          name: appName + (handleUi ? '-backend' : '')
-        },
-        spec: {
-          selector: { app: appName },
-          ports: [{ port: answers.port, targetPort: answers.port }]
+      })
+      // Write service config for Node app
+      resources.push(path.join('.', backendService))
+      await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, backendService), {
+        templatePath: 'defaults/backend-service.yaml',
+        properties: {
+          metadata: {
+            name: appName + (handleUi ? '-backend' : '')
+          },
+          spec: {
+            selector: { app: appName },
+            ports: [{ port: answers.port, targetPort: answers.port }]
+          }
         }
-      }
-    })
+      })
+    }
 
     // Write deployment config for WWW
     if (handleUi) {
@@ -538,9 +542,14 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
                   access_log stdout;
                   listen 8080;
                   root /app/build;
-                  location /api {
+
+                  ${
+  answers.port
+    ? `location /api {
                     proxy_pass http://${appName}-backend:${answers.port};
-                  }
+                  }`
+    : ''
+}
                 }
 
               }`
@@ -572,50 +581,32 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
           }
         }
       })
-      const namespace = readKubeConfigNamespace(answers.context)
       resources.push(path.join('.', frontendService))
       await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, frontendService), {
         templatePath: 'defaults/frontend-service.yaml',
         properties: {
-          metadata: {
-            name: `${appName}-frontend`,
-            annotations: usingKubeSail
-              ? {
-                'getambassador.io/config': yaml.safeDump({
-                  apiVersion: 'ambassador/v1',
-                  kind: 'Mapping',
-                  name: `${appName}-frontend.${namespace}`,
-                  prefix: '/',
-                  service: `http://${appName}-frontend.${namespace}:80`,
-                  timeout_ms: 30000,
-                  use_websocket: true
-                })
-              }
-              : null
-          },
+          metadata: { name: `${appName}-frontend` },
           spec: { selector: { app: appName } }
         }
       })
-    }
 
-    if (answers.type !== 'worker') {
-      const ingressFile = path.join(CONFIG_FILE_PATH, env, 'ingress.yaml')
+      const ingressFile = path.join(CONFIG_FILE_PATH, env, 'frontend-ingress.yaml')
       await confirmWriteFile(ingressFile, {
         templatePath: 'defaults/ingress.yaml',
         properties: {
-          metadata: { name: `${appName}` },
+          metadata: { name: `${appName}-frontend` },
           spec: {
             rules: [
               {
                 http: {
-                  paths: [{ backend: { serviceName: appName, servicePort: 5000 } }]
+                  paths: [{ backend: { serviceName: `${appName}-frontend`, servicePort: 8080 } }]
                 }
               }
             ]
           }
         }
       })
-      resources.push('ingress.yaml')
+      resources.push('frontend-ingress.yaml')
     }
 
     // Write kustomization config

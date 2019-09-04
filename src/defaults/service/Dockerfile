@@ -13,11 +13,8 @@ RUN chown -R nodejs /app /home/nodejs \
 
 USER nodejs
 
-RUN yarn install
+RUN yarn install --production
 
 COPY . /app/
 
-# Run build step if necessary
-RUN if jq --exit-status ".scripts.build" package.json; then yarn build; fi
-
-CMD ["node", "src/api"]
+CMD ["node", "src/index.js"]
