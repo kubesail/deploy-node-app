@@ -96,7 +96,8 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
    */
   async function generateEnv (
     metaModules /*: Array<Object> */,
-    detectPorts /*: void|'compose'|'k8s' */
+    detectPorts /*: void|'compose'|'k8s' */,
+    loadedEnv /*: object|void */ = {}
   ) /*: Array<Object> */ {
     let envVars = {}
     for (let i = 0; i < metaModules.length; i++) {
@@ -105,6 +106,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
       const configFile = metadata.config || 'lib/config.js'
       if (await statFile(`node_modules/${mm.name}/${configFile}`)) {
+        for (const key in loadedEnv) {
+          process.env[key] = loadedEnv[key]
+        }
         try {
           // eslint-disable-next-line security/detect-non-literal-require
           const vars = require(path.join(cwd, 'node_modules', mm.name, configFile))
@@ -121,6 +125,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
             `Unable to include MetaModule "${mm.name}"'s configuration file!\nConfig file: "${configFile}\n"`,
             err.message
           )
+        }
+        for (const key in loadedEnv) {
+          delete process.env[key]
         }
       }
 
@@ -454,17 +461,26 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
     const resources = []
     for (let i = 0; i < metaModules.length; i++) {
       const metaModule = metaModules[i]
-      const envVars = await generateEnv([metaModule], null)
+
+      const mmParts = metaModule.name.split('/')
+      const mmName = mmParts.length > 1 ? mmParts[mmParts.length - 1] : mmParts[0]
+      const relativeFilePath = path.join('secrets', `${mmName}-secret.yaml`)
+      const fullSecretPath = path.join(CONFIG_FILE_PATH, env, relativeFilePath)
+
+      let loadedEnvVars = {}
+      if (fs.existsSync(fullSecretPath)) {
+        loadedEnvVars = yaml.safeLoad(fs.readFileSync(fullSecretPath)).stringData
+      }
+
+      const envVars = await generateEnv([metaModule], null, loadedEnvVars)
       const stringData = {}
       for (const env in envVars) {
         stringData[env] = envVars[env]
       }
-      const mmParts = metaModule.name.split('/')
-      const mmName = mmParts.length > 1 ? mmParts[mmParts.length - 1] : mmParts[0]
+
       secrets.push(mmName)
-      const relativeFilePath = path.join('secrets', `${mmName}-secret.yaml`)
       resources.push(relativeFilePath)
-      await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, relativeFilePath), {
+      await confirmWriteFile(fullSecretPath, {
         content: yaml.safeDump({
           apiVersion: 'v1',
           kind: 'Secret',
@@ -595,12 +611,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
       resources.push(path.join('.', frontendDeployment))
 
       const spec = {
-        containers: [
-          {
-            image: tags.hash,
-            name: appName
-          }
-        ]
+        containers: [{ image: tags.hash, name: appName }]
       }
       if (answers.isPublic === false) {
         spec.imagePullSecrets = [{ name: `${appName}-regcred` }]
