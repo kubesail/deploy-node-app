@@ -445,7 +445,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
 
     if (answers.type === 'spa' || answers.type === 'combo') {
       process.stdout.write('Running "yarn build"...\n')
-      execSyncWithEnv('yarn build')
+      if (!fs.existsSync('build')) execSyncWithEnv('yarn build')
       handleUi = true
     }
 
@@ -648,17 +648,11 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
         'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.'
       if (handleUi && usingKubeSail) {
         const svc = execSyncWithEnv(
-          `kubectl --context=${answers.context} get svc ${appName}-frontend -o json`
+          `kubectl --context=${answers.context} get ingress ${appName}-frontend -o json`
         )
         try {
-          const configStr = JSON.parse(svc).metadata.annotations['getambassador.io/config']
-          let host
-          try {
-            host = JSON.parse(configStr).host
-          } catch {
-            host = yaml.safeLoadAll(configStr)[0].host
-          }
-          svcMsg += '\nYour App is available at:' + `\n\n    ${chalk.cyan(`https://${host}\n`)}\n`
+          const host = JSON.parse(svc).spec.rules[0].host
+          svcMsg += 'Your App is available at: ' + `${chalk.cyan(`https://${host}\n`)}\n`
         } catch {
           svcMsg += noHostMsg
         }
