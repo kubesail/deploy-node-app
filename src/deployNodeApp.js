@@ -395,7 +395,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
     }
   }
 
-  if (typeof answers.public !== 'boolean' || (opts.confirm && opts.output !== '-')) {
+  if (typeof answers.isPublic !== 'boolean' && (opts.confirm && opts.output !== '-')) {
     const { isPublic } = await inquirer.prompt([
       {
         name: 'isPublic',
@@ -408,7 +408,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
         default: 0
       }
     ])
-    answers.public = isPublic
+    answers.isPublic = isPublic
   }
 
   if (!packageJson['deploy-node-app']) packageJson['deploy-node-app'] = {}

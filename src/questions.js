@@ -1,14 +1,14 @@
 // @flow
 
-const style = require('ansi-styles')
 const fs = require('fs')
 const getKubesailConfig = require('get-kubesail-config')
 const { fatal, NEW_KUBESAIL_CONTEXT, WARNING } = require('./util')
 const inquirer = require('inquirer')
+const chalk = require('chalk')
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
 
 const DOCKER_HUB_DOMAIN = 'index.docker.io'
-const DOCKER_HUB_SUFFIX = ` ${style.gray.open}(Docker Hub)${style.gray.close}`
+const DOCKER_HUB_SUFFIX = ` ${chalk.gray('(Docker Hub)')}`
 
 async function promptQuestions (
   env /*: string */,
@@ -22,12 +22,7 @@ async function promptQuestions (
 
   if (!saved) {
     // Gives some context to what we are about to do and why we are asking questions:
-    process.stdout.write(
-      `${WARNING} Preparing to deploy to ${style.bold.open +
-        style.green.open +
-        env +
-        style.reset.open}...\n`
-    )
+    process.stdout.write(`${WARNING} Preparing to deploy to ${chalk.green.bold(env)}...\n`)
     saved = {}
   }
 
@@ -37,6 +32,16 @@ async function promptQuestions (
 
   let answers = saved
   let quickConfig = false
+
+  if (!answers.name) {
+    if (packageJson.name.match(/[a-z0-9]([-a-z0-9]*[a-z0-9])?/i)) {
+      process.stdout.write(
+        `${WARNING} Using project nane ${chalk.green.bold(kubeContexts[0])}...\n`
+      )
+    } else {
+    }
+  }
+
   if (format === 'k8s') {
     if (!saved.context || !kubeContexts.includes(saved.context)) {
       if (kubeContexts.length === 1 && kubeContexts[0] === NEW_KUBESAIL_CONTEXT) {
@@ -76,10 +81,7 @@ async function promptQuestions (
         }
       } else {
         process.stdout.write(
-          `${WARNING} Using Kubernetes context ${style.bold.open +
-            style.green.open +
-            kubeContexts[0] +
-            style.reset.open}...\n`
+          `${WARNING} Using Kubernetes context ${chalk.green.bold(kubeContexts[0])}...\n`
         )
         answers.context = kubeContexts[0]
       }
@@ -129,12 +131,17 @@ async function promptQuestions (
   }
 
   if (!answers.type) {
+    let defaultType = 'server'
+    if (packageJson.dependencies && packageJson.dependencies['react-scripts']) {
+      defaultType = 'spa'
+    }
+
     const { typeAnswer } = await inquirer.prompt([
       {
         name: 'typeAnswer',
         type: 'list',
         message: 'What sort of application is this?',
-        default: 0,
+        default: defaultType,
         choices: [
           {
             name: 'Server (An app that listens for network requests)',
