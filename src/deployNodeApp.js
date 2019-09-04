@@ -369,32 +369,21 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   ensureBinaries(opts.format) // Ensure 'kubectl', 'docker', etc...
   const kubeContexts = readLocalKubeConfig()
   const containerRegistries = opts.format === 'k8s' ? readLocalDockerConfig() : []
-  const answers = await promptQuestions(
-    env,
-    containerRegistries,
-    kubeContexts,
-    packageJson,
-    opts.format
-  )
+  const answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson, opts)
   const tags = await getDeployTags(packageJson.name, answers, opts.build)
 
   const existingImage = execSyncWithEnv(`docker images ${tags.hash} -q`)
   if (existingImage !== '') {
     let newTag = `${tags.shortHash}-${Math.floor(Date.now() / 1000)}`
-    if (!silence && !opts.confirm) {
-      const { newImage } = await inquirer.prompt({
-        name: 'newImage',
-        type: 'input',
-        message: `The image "${tags.hash}" already exists - would you like to continue with a new tag?`,
-        default: newTag
-      })
-      newTag = newImage
+    if (!silence) {
+      process.stdout.write(
+        `\n${chalk.yellow('!!')} The image ${tags.hash} is already in use - setting tag to ${newTag}\n\n`)
     }
     tags.hash = `${tags.image}:${newTag}`
   }
 
   if (opts.push) {
-    if (answers.registry.includes('index.docker.io') && !packageJson['deploy-node-app'][env]) {
+    if (answers.registry.includes('index.docker.io') && !packageJson['deploy-node-app']) {
       process.stdout.write(
         `\n${chalk.yellow('!!')} You are using Docker Hub. If the repository "${
           tags.image

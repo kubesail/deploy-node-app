@@ -15,7 +15,7 @@ async function promptQuestions (
   containerRegistries /*: Array<string> */,
   kubeContexts /*: Array<string> */,
   packageJson /*: Object */,
-  format /*: string */
+  { format, output, overwrite }
 ) {
   const appQuestions = []
   let saved = packageJson['deploy-node-app'] && packageJson['deploy-node-app'][env]
@@ -40,22 +40,27 @@ async function promptQuestions (
         `${WARNING} Using project name ${chalk.green.bold(packageJson.name)}...\n`
       )
     } else {
-      const { name } = await inquirer.prompt([
-        {
-          name: 'name',
-          type: 'input',
-          message: `The name "${packageJson.name}" is not valid as a project name - it must not contain dots or spaces. What should we name this project?`,
-          default: packageJson.name.replace(/[^a-z0-9]/gi, ''),
-          validate: function (input) {
-            if (validNameRegex.test(input)) {
-              return true
-            } else {
-              return 'Invalid name!'
+      const newName = packageJson.name.replace(/[^a-z0-9]/gi, '')
+      if (output === '-' || overwrite) {
+        answers.name = newName
+      } else {
+        const { name } = await inquirer.prompt([
+          {
+            name: 'name',
+            type: 'input',
+            message: `The name "${packageJson.name}" is not valid as a project name - it must not contain dots or spaces. What should we name this project?`,
+            default: newName,
+            validate: function (input) {
+              if (validNameRegex.test(input)) {
+                return true
+              } else {
+                return 'Invalid name!'
+              }
             }
           }
-        }
-      ])
-      answers.name = name
+        ])
+        answers.name = name
+      }
     }
   }
 
