@@ -415,7 +415,11 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
   packageJson['deploy-node-app'][env] = answers
 
   await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) + '\n' })
-  await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
+
+  let dockerfileTemplate = 'defaults/service/Dockerfile'
+  if (answers.type === 'spa') dockerfileTemplate = 'defaults/spa/Dockerfile'
+
+  await confirmWriteFile('Dockerfile', { templatePath: dockerfileTemplate })
 
   const usingKubeSail = answers.context && answers.context.includes('kubesail')
   const secrets = []
@@ -444,12 +448,17 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
       })
     }
 
+    if (answers.type === 'spa') handleUi = true
+
     const appName = answers.name || packageJson.name
     const backendDeployment = `${handleUi ? 'backend-' : ''}deployment.yaml`
     const backendService = `${handleUi ? 'backend-' : ''}service.yaml`
     const frontendDeployment = 'frontend-deployment.yaml'
     const frontendService = 'frontend-service.yaml'
     const frontendConfigMap = 'frontend-configmap.yaml'
+
+    let containerCommand = []
+    if (answers.type !== 'spa') containerCommand = ['node', answers.entrypoint]
 
     // Write deployment config for Node app
     resources.push(path.join('.', backendDeployment))
@@ -471,7 +480,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
                 {
                   image: tags.hash,
                   name: appName,
-                  command: ['node', answers.entrypoint],
+                  command: containerCommand,
                   ports: [{ containerPort: answers.port }],
                   envFrom: secrets.map(name => {
                     return { secretRef: { name } }
@@ -588,6 +597,27 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
         }
       })
     }
+
+    if (answers.type !== 'worker') {
+      const ingressFile = path.join(CONFIG_FILE_PATH, env, 'ingress.yaml')
+      await confirmWriteFile(ingressFile, {
+        templatePath: 'defaults/ingress.yaml',
+        properties: {
+          metadata: { name: `${appName}` },
+          spec: {
+            rules: [
+              {
+                http: {
+                  paths: [{ backend: { serviceName: appName, servicePort: 5000 } }]
+                }
+              }
+            ]
+          }
+        }
+      })
+      resources.push('ingress.yaml')
+    }
+
     // Write kustomization config
     await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, 'kustomization.yaml'), {
       content: yaml.safeDump(await buildKustomize(metaModules, { resources }))
