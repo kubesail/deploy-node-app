@@ -378,8 +378,19 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   )
   const tags = await getDeployTags(packageJson.name, answers, opts.build)
 
+  const existingImage = execSyncWithEnv(`docker images ${tags.hash} -q`)
+  if (existingImage !== '') {
+    const { newImage } = await inquirer.prompt({
+      name: 'newImage',
+      type: 'input',
+      message: `The image "${tags.hash}" already exists - would you like to continue with a new tag?`,
+      default: `${tags.shortHash}-${Math.floor(Date.now() / 1000)}`
+    })
+    tags.hash = `${tags.image}:${newImage}`
+  }
+
   if (opts.push) {
-    if (answers.registry.includes('index.docker.io')) {
+    if (answers.registry.includes('index.docker.io') && !packageJson['deploy-node-app'][env]) {
       process.stdout.write(
         `\n${chalk.yellow('!!')} You are using Docker Hub. If the repository "${
           tags.image
@@ -444,8 +455,10 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
     }
 
     if (answers.type === 'spa' || answers.type === 'combo') {
-      process.stdout.write('Running "yarn build"...\n')
-      if (!fs.existsSync('build')) execSyncWithEnv('yarn build')
+      if (!fs.existsSync('build')) {
+        process.stdout.write('Running "yarn build"...\n')
+        execSyncWithEnv('yarn build')
+      }
       handleUi = true
     }
 

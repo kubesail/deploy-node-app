@@ -101,7 +101,7 @@ function ensureBinaries (format) {
 async function getDeployTags (name, answers, shouldBuild) {
   if (answers.name) name = answers.name
   const tags = { name }
-  const shortHash = execSyncWithEnv('git rev-parse HEAD')
+  tags.shortHash = execSyncWithEnv('git rev-parse HEAD')
     .toString()
     .substr(0, 7)
 
@@ -123,7 +123,7 @@ async function getDeployTags (name, answers, shouldBuild) {
   }
 
   tags.image = `${tags.prefix}${name}`
-  tags.hash = `${tags.image}:${shortHash}`
+  tags.hash = `${tags.image}:${tags.shortHash}`
   return tags
 }
 
