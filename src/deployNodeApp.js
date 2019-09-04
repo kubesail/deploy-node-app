@@ -380,13 +380,17 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   const existingImage = execSyncWithEnv(`docker images ${tags.hash} -q`)
   if (existingImage !== '') {
-    const { newImage } = await inquirer.prompt({
-      name: 'newImage',
-      type: 'input',
-      message: `The image "${tags.hash}" already exists - would you like to continue with a new tag?`,
-      default: `${tags.shortHash}-${Math.floor(Date.now() / 1000)}`
-    })
-    tags.hash = `${tags.image}:${newImage}`
+    let newTag = `${tags.shortHash}-${Math.floor(Date.now() / 1000)}`
+    if (!silence && !opts.confirm) {
+      const { newImage } = await inquirer.prompt({
+        name: 'newImage',
+        type: 'input',
+        message: `The image "${tags.hash}" already exists - would you like to continue with a new tag?`,
+        default: newTag
+      })
+      newTag = newImage
+    }
+    tags.hash = `${tags.image}:${newTag}`
   }
 
   if (opts.push) {
