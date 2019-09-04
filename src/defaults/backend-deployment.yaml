@@ -40,10 +40,10 @@ spec:
               protocol: TCP
           resources:
             limits:
-              cpu: 250m
+              cpu: 150m
               memory: 128Mi
             requests:
-              cpu: 5m
+              cpu: 3m
               memory: 64Mi
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
