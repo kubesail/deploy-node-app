@@ -428,7 +428,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
 
   if (answers.isPublic === false) {
     const regcred = await execSyncWithEnv(
-      `kubectl --context=${answers.context} get secret ${appName}-regcred || echo "no"`
+      `kubectl --context="${answers.context}" get secret "${appName}-regcred" || echo "no"`
     )
     if (regcred === 'no') {
       const { password } = await inquirer.prompt({
@@ -441,11 +441,11 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
         }
       })
       await execSyncWithEnv(
-        `kubectl --context=${answers.context} \
-          create secret docker-registry ${appName}-regcred \
-          --docker-server=https://${answers.registry} \
-          --docker-username=${answers.registryUsername} \
-          --docker-password=${password}`
+        `kubectl --context="${answers.context}" \
+          create secret docker-registry "${appName}-regcred" \
+          --docker-server="https://${answers.registry}" \
+          --docker-username="${answers.registryUsername}" \
+          --docker-password="${password}"`
       )
     }
   }
@@ -710,7 +710,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
 
     if (opts.format === 'k8s') {
       const kustomizationDir = path.join(CONFIG_FILE_PATH, env)
-      const cmd = `kubectl --context=${answers.context} apply -k ${kustomizationDir}`
+      const cmd = `kubectl --context="${answers.context}" apply -k ${kustomizationDir}`
       log(`Running: \`${cmd}\``)
       execSyncWithEnv(cmd, execOpts)
       // Deploy service
@@ -721,7 +721,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
         'Learn more: https://kubernetes.io/docs/tutorials/kubernetes-basics/expose/expose-intro/.'
       if (handleUi && usingKubeSail) {
         const svc = execSyncWithEnv(
-          `kubectl --context=${answers.context} get ingress ${appName}-frontend -o json`
+          `kubectl --context="${answers.context}" get ingress "${appName}-frontend" -o json`
         )
         try {
           const host = JSON.parse(svc).spec.rules[0].host
