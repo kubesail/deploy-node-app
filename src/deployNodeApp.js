@@ -18,7 +18,8 @@ const {
   execSyncWithEnv,
   readLocalKubeConfig,
   readLocalDockerConfig,
-  ensureBinaries
+  ensureBinaries,
+  shouldUseYarn
 } = require('./util')
 const { promptQuestions } = require('./questions')
 
