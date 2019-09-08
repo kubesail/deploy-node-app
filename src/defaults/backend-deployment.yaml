@@ -31,7 +31,6 @@ spec:
         - image: your-app-image
           imagePullPolicy: Always
           name: your-app-name
-          command: ["node", "src/index.js"]
           env:
             - name: GET_HOSTS_FROM
               value: dns
@@ -41,10 +40,10 @@ spec:
               protocol: TCP
           resources:
             limits:
-              cpu: 250m
+              cpu: 150m
               memory: 128Mi
             requests:
-              cpu: 5m
+              cpu: 3m
               memory: 64Mi
       restartPolicy: Always
       terminationGracePeriodSeconds: 30

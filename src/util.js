@@ -62,11 +62,12 @@ function ensureBinaries (format) {
           `${style.red.open}>> deploy-node-app requires kubectl v1.14 or higher.${style.red.close}\n\n`
         )
         process.stdout.write('You can fix this ')
+
+        const install = chalk.cyan('brew install kubernetes-cli')
+        const upgrade = chalk.cyan('brew upgrade kubernetes-cli')
         let cmd
         switch (process.platform) {
           case 'darwin':
-            const install = chalk.cyan('brew install kubernetes-cli')
-            const upgrade = chalk.cyan('brew upgrade kubernetes-cli')
             cmd = `${install}\n\nor\n\n  ${upgrade}`
             process.stdout.write(
               `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-macos\n`
@@ -91,35 +92,38 @@ function ensureBinaries (format) {
         }
         process.exit(1)
       }
-    } catch {
+    } catch (_err) {
       fatal('Could not determine kubectl version')
     }
   }
 }
 
 async function getDeployTags (name, answers, shouldBuild) {
-  const tags = {}
-  const shortHash = execSyncWithEnv('git rev-parse HEAD')
+  if (answers.name) name = answers.name
+  const tags = { name }
+  tags.shortHash = execSyncWithEnv('git rev-parse HEAD')
     .toString()
     .substr(0, 7)
-  let prefix = answers.registry
+
+  tags.prefix = answers.registry
   if (!answers.registryUsername && answers.registry.includes('docker.io') && shouldBuild) {
     const { username } = await inquirer.prompt({
       name: 'username',
       type: 'input',
       message: 'What is your docker hub username?',
       validate: function (username) {
-        if (username.length < 4) return 'Invalid username'
+        if (username.length <= 1) return 'Invalid username'
         return true
       }
     })
     answers.registryUsername = username
   }
   if (answers.registry.includes('docker.io') && answers.registryUsername) {
-    prefix = `${answers.registryUsername}/`
+    tags.prefix = `${answers.registryUsername}/`
   }
 
-  tags.hash = `${prefix}${name}:${shortHash}`
+  tags.image = `${tags.prefix}${name}`
+  tags.hash = `${tags.image}:${tags.shortHash}`
   return tags
 }
 

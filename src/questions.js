@@ -1,41 +1,69 @@
 // @flow
 
-const style = require('ansi-styles')
 const fs = require('fs')
 const getKubesailConfig = require('get-kubesail-config')
 const { fatal, NEW_KUBESAIL_CONTEXT, WARNING } = require('./util')
 const inquirer = require('inquirer')
+const chalk = require('chalk')
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
 
 const DOCKER_HUB_DOMAIN = 'index.docker.io'
-const DOCKER_HUB_SUFFIX = ` ${style.gray.open}(Docker Hub)${style.gray.close}`
+const DOCKER_HUB_SUFFIX = ` ${chalk.gray('(Docker Hub)')}`
 
 async function promptQuestions (
   env /*: string */,
   containerRegistries /*: Array<string> */,
   kubeContexts /*: Array<string> */,
   packageJson /*: Object */,
-  format /*: string */
+  { format, output, overwrite }
 ) {
+  const appQuestions = []
   let saved = packageJson['deploy-node-app'] && packageJson['deploy-node-app'][env]
 
   if (!saved) {
     // Gives some context to what we are about to do and why we are asking questions:
-    process.stdout.write(
-      `\n${WARNING} Preparing to deploy to ${style.bold.open +
-        style.green.open +
-        env +
-        style.reset.open}...\n\n`
-    )
+    process.stdout.write(`${WARNING} Preparing to deploy to ${chalk.green.bold(env)}...\n`)
     saved = {}
   }
 
-  saved.entrypoint =
-    saved.entrypoint ||
-    (packageJson.main && fs.existsSync(packageJson.main) ? packageJson.main : null)
+  if (!saved.entrypoint && packageJson.main && fs.existsSync(packageJson.main)) {
+    saved.entrypoint = packageJson.main
+  }
 
-  let answers = {}
+  let answers = saved
   let quickConfig = false
+
+  const validNameRegex = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/i
+  if (!answers.name) {
+    if (validNameRegex.test(packageJson.name)) {
+      process.stdout.write(
+        `${WARNING} Using project name ${chalk.green.bold(packageJson.name)}...\n`
+      )
+    } else {
+      const newName = packageJson.name.replace(/[^a-z0-9]/gi, '')
+      if (output === '-' || overwrite) {
+        answers.name = newName
+      } else {
+        const { name } = await inquirer.prompt([
+          {
+            name: 'name',
+            type: 'input',
+            message: `The name "${packageJson.name}" is not valid as a project name - it must not contain dots or spaces. What should we name this project?`,
+            default: newName,
+            validate: function (input) {
+              if (validNameRegex.test(input)) {
+                return true
+              } else {
+                return 'Invalid name!'
+              }
+            }
+          }
+        ])
+        answers.name = name
+      }
+    }
+  }
+
   if (format === 'k8s') {
     if (!saved.context || !kubeContexts.includes(saved.context)) {
       if (kubeContexts.length === 1 && kubeContexts[0] === NEW_KUBESAIL_CONTEXT) {
@@ -74,6 +102,9 @@ async function promptQuestions (
           quickConfig = true
         }
       } else {
+        process.stdout.write(
+          `${WARNING} Using Kubernetes context ${chalk.green.bold(kubeContexts[0])}...\n`
+        )
         answers.context = kubeContexts[0]
       }
 
@@ -99,7 +130,7 @@ async function promptQuestions (
     } else {
       if (onlyDockerHub) {
         answers.registry = containerRegistries[0]
-      } else if (!saved.registry && !onlyDockerHub) {
+      } else if (!answers.registry && !onlyDockerHub) {
         const registryAnswer = await inquirer.prompt([
           {
             name: 'registry',
@@ -121,71 +152,131 @@ async function promptQuestions (
     }
   }
 
-  const appAnswers = await inquirer.prompt(
-    [
-      saved.port
-        ? null
-        : {
-          name: 'port',
-          type: 'input',
-          message: 'What port does your application listen on?',
-          default: '3000',
-          validate: function (input) {
-            if (isNaN(parseInt(input, 10))) return 'ports must be numbers!'
-            return true
+  if (!answers.type) {
+    const { typeAnswer } = await inquirer.prompt([
+      {
+        name: 'typeAnswer',
+        type: 'list',
+        message: 'What sort of application is this?',
+        default: 'combo',
+        choices: [
+          {
+            name: 'Server (An app that listens for network requests)',
+            value: 'server'
           },
-          filter: input => parseInt(input, 10)
-        },
-      saved.protocol
-        ? null
-        : {
+          {
+            name: 'Worker (A daemon that does not listen for network requests)',
+            value: 'worker'
+          },
+          {
+            name: 'Static App (An SPA, like the product of "create-react-app", with no backend)',
+            value: 'spa'
+          },
+          {
+            name: 'Combo (Contains a frontend and a backend)',
+            value: 'combo'
+          }
+        ]
+      }
+    ])
+    answers.type = typeAnswer
+  }
+
+  if (answers.type === 'server' || answers.type === 'combo') {
+    const portQuestion = {
+      name: 'port',
+      type: 'input',
+      message:
+        'What port does your application listen on? (If not applicable, press enter to continue)',
+      default: 'None',
+      validate: function (input) {
+        if (input === '' || input === 'None') return true
+        if (isNaN(parseInt(input, 10))) return 'ports must be numbers!'
+        return true
+      },
+      filter: input => (input === 'None' || !input ? 'None' : parseInt(input, 10))
+    }
+    if (!answers.port) {
+      const portAnswers = await inquirer.prompt([portQuestion])
+      answers.port = portAnswers.port
+    }
+
+    if (typeof answers.port === 'number') {
+      if (!saved.protocol) {
+        appQuestions.push({
           name: 'protocol',
           type: 'list',
           message: 'Which protocol does your application speak?',
           default: 'http',
           choices: ['http', 'https', 'tcp']
-        },
-      saved.entrypoint
-        ? null
-        : {
-          name: 'entrypoint',
-          type: 'fuzzypath',
-          message: 'What is your application\'s entrypoint?',
-          // TODO for default, provide a callback with an array of common entry points.
-          // the 'inquirer-fuzzy-path' plugin currently does not respect default at all
-          default: 'index.js',
-          excludePath: filepath => {
-            const invalidPaths = [
-              '.DS_Store',
-              '.git',
-              'LICENSE',
-              'README',
-              'package-lock.json',
-              'node_modules',
-              'yarn.lock',
-              'yarn-error.log',
-              'package.json',
-              '.dockerignore',
-              'Dockerfile',
-              '.editorconfig',
-              '.eslintrc.json',
-              '.flowconfig'
-            ]
+        })
+      }
+    }
+  }
 
-            for (let i = 0; i < invalidPaths.length; i++) {
-              if (filepath.startsWith(invalidPaths[i])) return true
-            }
+  if (!answers.entrypoint && answers.type !== 'spa') {
+    const invalidPaths = [
+      '.DS_Store',
+      '.git',
+      'LICENSE',
+      'README',
+      'package-lock.json',
+      'node_modules',
+      'yarn.lock',
+      'yarn-error.log',
+      'package.json',
+      '.dockerignore',
+      'Dockerfile',
+      '.editorconfig',
+      '.eslintrc.json',
+      '.flowconfig'
+    ]
+    const invalidExtensions = [
+      '.log',
+      '.json',
+      '.lock',
+      '.css',
+      '.svg',
+      '.md',
+      '.html',
+      '.png',
+      '.disabled',
+      '.ico',
+      '.txt'
+    ]
 
-            return false
-          },
-          itemType: 'file',
-          rootPath: '.',
-          suggestOnly: false
+    let defaultPath
+    const suggestedDefaultPaths = ['index.js', 'src/index.js']
+    for (let i = 0; i < suggestedDefaultPaths.length; i++) {
+      if (fs.existsSync(suggestedDefaultPaths[i])) defaultPath = suggestedDefaultPaths[i]
+    }
+
+    appQuestions.push({
+      name: 'entrypoint',
+      type: 'fuzzypath',
+      message: 'What is your application\'s entrypoint?',
+      default: defaultPath,
+      excludePath: filepath => {
+        for (let i = 0; i < invalidPaths.length; i++) {
+          if (filepath.startsWith(invalidPaths[i])) return true
         }
-    ].filter(q => q)
-  )
+        for (let i = 0; i < invalidExtensions.length; i++) {
+          if (filepath.substr(-1 * invalidExtensions[i].length) === invalidExtensions[i]) {
+            return true
+          }
+        }
+      },
+      itemType: 'file',
+      rootPath: '.',
+      suggestOnly: false
+    })
+  }
 
-  answers = Object.assign({}, saved, answers, appAnswers)
+  if (appQuestions.length > 0) {
+    const appAnswers = await inquirer.prompt(appQuestions)
+    answers = Object.assign({}, saved, answers, appAnswers)
+  }
+
   if (answers.registry) {
     answers.registry = answers.registry.replace(DOCKER_HUB_SUFFIX, '')
     answers.registry = answers.registry.replace(/https?:\/\//i, '')
