@@ -10,6 +10,7 @@ const chalk = require('chalk')
 const merge = require('lodash/merge')
 const diff = require('diff')
 const isValidDomain = require('is-valid-domain')
+const mkdirpCallback = require('mkdirp')
 require('dotenv').config()
 
 const {
@@ -27,7 +28,7 @@ const WWW_FILE_PATH = 'src/www'
 const readFile = util.promisify(fs.readFile)
 const statFile = util.promisify(fs.stat)
 const writeFile = util.promisify(fs.writeFile)
-const mkdir = util.promisify(fs.mkdir)
+const mkdirp = util.promisify(mkdirpCallback)
 
 async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts /*: Object */) {
   const output = opts.output
@@ -311,10 +312,12 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
         const YES_TEXT = 'Yes (overwrite)'
         const NO_TEXT = 'No, dont touch'
         const SHOWDIFF_TEXT = 'Show diff'
+        const context =
+          filePath === 'package.json' ? ', to save your answers to these questions' : ''
         const confirmOverwrite = (await inquirer.prompt({
           name: 'overwrite',
           type: 'expand',
-          message: `Would you like to update "${filePath}"?`,
+          message: `Would you like to update "${filePath}"${context}?`,
           choices: [
             { key: 'Y', value: YES_TEXT },
             { key: 'N', value: NO_TEXT },
@@ -354,7 +357,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   // Begin deploy-node-app
   //
   if (opts.format === 'k8s') {
-    await mkdir(path.join(CONFIG_FILE_PATH, env, 'secrets'), { recursive: true })
+    await mkdirp(path.join(CONFIG_FILE_PATH, env, 'secrets'))
   }
   const metaModules = await findMetaModules(packageJson)
 
@@ -428,7 +431,8 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
 
   if (answers.isPublic === false) {
     const regcred = await execSyncWithEnv(
-      `kubectl --context="${answers.context}" get secret "${appName}-regcred" || echo "no"`
+      `kubectl --context="${answers.context}" get secret "${appName}-regcred" || echo "no"`,
+      { stdio: [null, null, null] }
     )
     if (regcred === 'no') {
       const { password } = await inquirer.prompt({
@@ -489,9 +493,9 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
     }
 
     if (answers.type === 'spa' || answers.type === 'combo') {
-      if (!fs.existsSync('build')) {
-        process.stdout.write('Running "yarn build"...\n')
-        execSyncWithEnv('yarn build')
+      if (packageJson.scripts.build) {
+        process.stdout.write('Running build script...\n')
+        execSyncWithEnv(`${shouldUseYarn ? 'yarn' : 'npm run'} build`)
       }
       handleUi = true
     }
