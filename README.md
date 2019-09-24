@@ -44,7 +44,7 @@ Options:
   -n, --no-build             Don't build and push docker container
   -d, --no-deploy            Don't deploy to kubernetes
   -O, --overwrite            Overwrite local files
-  -s, --skip meta-module     name of meta-module to skip
+  -s, --skip [metamodule]   name of metamodule to skip
   -f, --format [type]        Output config format [k8s|compose] (default: "compose")
   -o, --output [filename]    File for config output. "-" will write to stdout. Default is docker-compose.yaml or deployment.yaml depending on format
   --generate-default-env     Generates default environment variables, like database passwords
@@ -58,7 +58,7 @@ By default, `deploy-node-app` will write a few files to your directory, dependin
 
 Simply run `npx deploy-node-app` in your Node.js repository. The tool will attempt to prompt you when it needs answers to questions, but should happily support almost all Node.js applications, including static front-end's created by `create-react-app`.
 
-# Local Devlopment
+# Local Development
 
 `deploy-node-app` can deploy to either a Docker or Kubernetes installation locally:
 
@@ -67,7 +67,7 @@ Deploying to local docker-compose:
 `deploy-node-app local -f compose`
 
 - Writes a local Dockerfile
-- Scans dependencies for [meta-modules](https://github.com/create-node/create-node-app#meta-modules), adding services automatically
+- Scans dependencies for [metamodules](https://github.com/create-node/create-node-app#metamodules), adding services automatically
 - Writes a local **docker-compose.yaml** based on your needs
 - Builds container image
 - Pushes container image to chosen repository
@@ -76,19 +76,19 @@ Deploying to local docker-compose:
 `deploy-node-app local -f k8s`
 
 - Writes a local Dockerfile
-- Scans dependencies for [meta-modules](https://github.com/create-node/create-node-app#meta-modules), adding services automatically
+- Scans dependencies for [metamodules](https://github.com/create-node/create-node-app#metamodules), adding services automatically
 - Writes a local **kustomization.yaml** file based on your needs
 - Builds container image
 - Pushes container image to chosen repository
 - Calls `kubectl apply -k ...`
 
-# Meta-Modules
+# Meta Modules
 
-Meta-modules are NPM modules with a bit of metadata which allows `deploy-node-app` to properly provision backend services. For example, installing `@metamodules/postgres` [github](https://github.com/metamodules/postgres) installs both the Node.js `pg` driver and a Docker/Kubernetes powered Postgres instance! It also helps bind and auto-generate environment variables - for example, the Postgres meta-module automatically generates and saves a random database password on installation! We consider meta-modules the next logical step for npm modules - they do not define just the _drivers_ your app needs, but also the _services_ that those drivers connect to.
+Metamodules are NPM modules with a bit of metadata which allows `deploy-node-app` to properly provision backend services. For example, installing `@metamodules/postgres` [github](https://github.com/metamodules/postgres) installs both the Node.js `pg` driver and a Docker/Kubernetes powered Postgres instance! It also helps bind and auto-generate environment variables - for example, the Postgres metamodule automatically generates and saves a random database password on installation! We consider metamodules the next logical step for npm modules - they do not define just the _drivers_ your app needs, but also the _services_ that those drivers connect to.
 
-Deploy-node-app will automatically write Kubernetes or Compose configuration based on installed meta-modules. Try `npm install @nodeapp/redis` and then re-run `deploy-node-app`! A local redis container will be started for you with a pre-configured driver!
+Deploy-node-app will automatically write Kubernetes or Compose configuration based on installed metamodules. Try `npm install @nodeapp/redis` and then re-run `deploy-node-app`! A local redis container will be started for you with a pre-configured driver!
 
-Read more about meta-modules [here](https://github.com/create-node/create-node-app#meta-modules)
+Read more about metamodules [here](https://github.com/create-node/create-node-app#metamodules)
 
 # Create Node App
 
@@ -106,4 +106,4 @@ KubeSail - as easy as Heroku, as powerful as Kubernetes](https://kubesail.com)
 
 ### Contributing
 
-If you feel that this tool can be improved in any way, feel free to open an issue or pull request! We'd absolutely love to add additional meta-modules as well - so let us know what services you use with Node.js and we'll build you a meta-module!
+If you feel that this tool can be improved in any way, feel free to open an issue or pull request! We'd absolutely love to add additional metamodules as well - so let us know what services you use with Node.js and we'll build you a metamodule!
