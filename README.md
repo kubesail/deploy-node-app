@@ -44,7 +44,7 @@ Options:
   -n, --no-build             Don't build and push docker container
   -d, --no-deploy            Don't deploy to kubernetes
   -O, --overwrite            Overwrite local files
-  -s, --skip metamodule      name of metamodule to skip
+  -s, --skip meta-module     name of meta-module to skip
   -f, --format [type]        Output config format [k8s|compose] (default: "compose")
   -o, --output [filename]    File for config output. "-" will write to stdout. Default is docker-compose.yaml or deployment.yaml depending on format
   --generate-default-env     Generates default environment variables, like database passwords
@@ -60,14 +60,14 @@ Simply run `npx deploy-node-app` in your Node.js repository. The tool will attem
 
 # Local Devlopment
 
-`deploy-node-app` can deploy to either a Docker or Kubernetes intallation locally:
+`deploy-node-app` can deploy to either a Docker or Kubernetes installation locally:
 
 Deploying to local docker-compose:
 
 `deploy-node-app local -f compose`
 
 - Writes a local Dockerfile
-- Scans depdencies for [meta-modules](https://github.com/create-node/create-node-app#meta-modules), adding services automatically
+- Scans dependencies for [meta-modules](https://github.com/create-node/create-node-app#meta-modules), adding services automatically
 - Writes a local **docker-compose.yaml** based on your needs
 - Builds container image
 - Pushes container image to chosen repository
@@ -86,13 +86,13 @@ Deploying to local docker-compose:
 
 Meta-modules are NPM modules with a bit of metadata which allows `deploy-node-app` to properly provision backend services. For example, installing `@metamodules/postgres` [github](https://github.com/metamodules/postgres) installs both the Node.js `pg` driver and a Docker/Kubernetes powered Postgres instance! It also helps bind and auto-generate environment variables - for example, the Postgres meta-module automatically generates and saves a random database password on installation! We consider meta-modules the next logical step for npm modules - they do not define just the _drivers_ your app needs, but also the _services_ that those drivers connect to.
 
-Deploy-node-app will automatically write Kubernetes or Compose configuration based on installed meta-modules. Try `npm install @nodeapp/redis` and then re-run `deploy-node-app`! A local redis container will be started for you with a preconfigured driver!
+Deploy-node-app will automatically write Kubernetes or Compose configuration based on installed meta-modules. Try `npm install @nodeapp/redis` and then re-run `deploy-node-app`! A local redis container will be started for you with a pre-configured driver!
 
 Read more about meta-modules [here](https://github.com/create-node/create-node-app#meta-modules)
 
 # Create Node App
 
-`deploy-node-app` aims to be able to deploy almost anything written in JavaScript, including backends, static-sites (like those created by `create-react-app`), and codebases that do both. However, in order to get started _even faster_, we've also created [create-node-app](https://github.com/kubesail/create-node-app) - which we consider a first-class citizen of DNA. `create-node-app` combines `create-react-app` and a solid Node.js backend boiler plate, along with everything required for `deploy-node-app` to _just work_. This tool is in beta, and we would greatly appreciate any feedback!
+`deploy-node-app` aims to be able to deploy almost anything written in JavaScript, including back-ends, static-sites (like those created by `create-react-app`), and code-bases that do both. However, in order to get started _even faster_, we've also created [create-node-app](https://github.com/kubesail/create-node-app) - which we consider a first-class citizen of DNA. `create-node-app` combines `create-react-app` and a solid Node.js backend boiler plate, along with everything required for `deploy-node-app` to _just work_. This tool is in beta, and we would greatly appreciate any feedback!
 
 ---
 
@@ -100,7 +100,7 @@ deploy-node-app is maintained by
 
 [<img src="docs/kubesail-logo.png" alt="Kubesail" width="160">
 <br/>
-Kubesail - as easy as Heroku, as powerful as Kubernetes](https://kubesail.com)
+KubeSail - as easy as Heroku, as powerful as Kubernetes](https://kubesail.com)
 
 ---
 
