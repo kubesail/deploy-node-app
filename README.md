@@ -32,7 +32,7 @@ After answering a few questions about your app, this tool can:
 1. Build a Docker image
 1. Create a Kubernetes deployment file
 1. Deploy your app on a Kubernetes cluster
-   - Configure a free namespace on KubeSail (if desired)
+   - Configure a free namespace on [KubeSail](https://kubesail.com) (if desired)
 
 ### Usage and examples
 
@@ -54,21 +54,29 @@ Options:
 
 By default, `deploy-node-app` will write a few files to your directory, depending on the chosen output. You will be prompted if any files need to be updated or overwritten (use --overwrite to ignore prompts).
 
+# Simplest Usage
+
+Simply run `npx deploy-node-app` in your Node.js repository. The tool will attempt to prompt you when it needs answers to questions, but should happily support almost all Node.js applications, including static front-end's created by `create-react-app`.
+
+# Local Devlopment
+
+`deploy-node-app` can deploy to either a Docker or Kubernetes intallation locally:
+
 Deploying to local docker-compose:
 
 `deploy-node-app local -f compose`
 
 - Writes a local Dockerfile
-- Scans depdencies for meta-modules, adding services automatically
+- Scans depdencies for [meta-modules](https://github.com/create-node/create-node-app#meta-modules), adding services automatically
 - Writes a local **docker-compose.yaml** based on your needs
 - Builds container image
 - Pushes container image to chosen repository
-- Calls `docker-compose up`
+- Calls `docker-compose up ...`
 
 `deploy-node-app local -f k8s`
 
 - Writes a local Dockerfile
-- Scans depdencies for meta-modules, adding services automatically
+- Scans dependencies for [meta-modules](https://github.com/create-node/create-node-app#meta-modules), adding services automatically
 - Writes a local **kustomization.yaml** file based on your needs
 - Builds container image
 - Pushes container image to chosen repository
@@ -76,9 +84,15 @@ Deploying to local docker-compose:
 
 # Meta-Modules
 
+Meta-modules are NPM modules with a bit of metadata which allows `deploy-node-app` to properly provision backend services. For example, installing `@metamodules/postgres` [github](https://github.com/metamodules/postgres) installs both the Node.js `pg` driver and a Docker/Kubernetes powered Postgres instance! It also helps bind and auto-generate environment variables - for example, the Postgres meta-module automatically generates and saves a random database password on installation! We consider meta-modules the next logical step for npm modules - they do not define just the _drivers_ your app needs, but also the _services_ that those drivers connect to.
+
+Deploy-node-app will automatically write Kubernetes or Compose configuration based on installed meta-modules. Try `npm install @nodeapp/redis` and then re-run `deploy-node-app`! A local redis container will be started for you with a preconfigured driver!
+
 Read more about meta-modules [here](https://github.com/create-node/create-node-app#meta-modules)
 
-Deploy-node-app will automatically write Kubernetes or Compose configuration based on installed metamodules. Try `npm install @nodeapp/redis` and then re-run `deploy-node-app`! A local redis container will be started for you with a preconfigured driver!
+# Create Node App
+
+`deploy-node-app` aims to be able to deploy almost anything written in JavaScript, including backends, static-sites (like those created by `create-react-app`), and codebases that do both. However, in order to get started _even faster_, we've also created [create-node-app](https://github.com/kubesail/create-node-app) - which we consider a first-class citizen of DNA. `create-node-app` combines `create-react-app` and a solid Node.js backend boiler plate, along with everything required for `deploy-node-app` to _just work_. This tool is in beta, and we would greatly appreciate any feedback!
 
 ---
 
@@ -86,10 +100,10 @@ deploy-node-app is maintained by
 
 [<img src="docs/kubesail-logo.png" alt="Kubesail" width="160">
 <br/>
-Kubesail - an easy, free way to try kubernetes](https://kubesail.com)
+Kubesail - as easy as Heroku, as powerful as Kubernetes](https://kubesail.com)
 
 ---
 
 ### Contributing
 
-If you feel that this tool can be improved in any way, feel free to open an issue or pull request!
+If you feel that this tool can be improved in any way, feel free to open an issue or pull request! We'd absolutely love to add additional meta-modules as well - so let us know what services you use with Node.js and we'll build you a meta-module!
