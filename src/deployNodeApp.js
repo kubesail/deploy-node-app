@@ -702,7 +702,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
   // Build
   if (opts.build) {
     log(`Now building "${tags.hash}"`)
-    execSyncWithEnv(`docker build --compress --squash --force-rm . -t ${tags.hash}`, execOpts)
+    execSyncWithEnv(`docker build --compress --force-rm . -t ${tags.hash}`, execOpts)
   }
 
   if (opts.push) {
