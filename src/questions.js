@@ -115,6 +115,17 @@ async function promptQuestions (
     }
   }
 
+  if (answers.context && typeof answers.context !== 'string') {
+    fatal(
+      `Unable to determine Kubernetes context! Please report this issue to https://github.com/kubesail/deploy-node-app/issues - Exiting! Debug info: ${JSON.stringify(
+        {
+          quickConfig,
+          contexts: kubeContexts.length
+        }
+      )}`
+    )
+  }
+
   // TODO default docker installation has 0 container registries -- in this case prompt to use dockerhub? allow login?
   if (containerRegistries.length === 0) {
     containerRegistries.push('https://index.docker.io/v1/')
