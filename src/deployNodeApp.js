@@ -357,20 +357,20 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   //
   // Begin deploy-node-app
   //
-  if (opts.format === 'k8s') {
+  if (format === 'k8s') {
     await mkdirp(path.join(CONFIG_FILE_PATH, env, 'secrets'))
   }
   const metaModules = await findMetaModules(packageJson)
 
   if (opts.generateDefaultEnv || opts.generateLocalPortsEnv) {
-    const envVars = await generateEnv(metaModules, opts.generateLocalPortsEnv ? opts.format : null)
+    const envVars = await generateEnv(metaModules, opts.generateLocalPortsEnv ? format : null)
     const envVarLines = []
     for (const env in envVars) {
       envVarLines.push(`${env}=${envVars[env]}`)
     }
     const content = envVarLines.join('\n') + '\n'
     checkForGitIgnored('.env')
-    if (opts.format === 'k8s') {
+    if (format === 'k8s') {
       checkForGitIgnored('secrets/')
     }
     if (output === '-') process.stdout.write(content)
@@ -378,9 +378,9 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
     return null
   }
 
-  ensureBinaries(opts.format) // Ensure 'kubectl', 'docker', etc...
+  ensureBinaries(format) // Ensure 'kubectl', 'docker', etc...
   const kubeContexts = readLocalKubeConfig()
-  const containerRegistries = opts.format === 'k8s' ? readLocalDockerConfig() : []
+  const containerRegistries = format === 'k8s' ? readLocalDockerConfig() : []
   const answers = await promptQuestions(env, containerRegistries, kubeContexts, packageJson, opts)
   const tags = await getDeployTags(packageJson.name, answers, opts.build)
   const appName = answers.name || packageJson.name
@@ -405,10 +405,10 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
           tags.image
         }" does not exist, it may be automatically created with ${chalk.yellow('PUBLIC')} access!
 ${chalk.yellow(
-    '!!'
-  )} You can visit https://cloud.docker.com/repository/create to create a ${chalk.yellow(
-  'private repository'
-)} instead.
+  '!!'
+)} You can visit https://cloud.docker.com/repository/create to create a ${chalk.yellow(
+          'private repository'
+        )} instead.
 ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dockerignore" file.\n\n`
       )
     }
@@ -430,7 +430,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
     answers.isPublic = isPublic
   }
 
-  if (answers.isPublic === false) {
+  if (answers.isPublic === false && format === 'k8s') {
     const regcred = await execSyncWithEnv(
       `kubectl --context="${answers.context}" get secret "${appName}-regcred" || echo "no"`,
       { stdio: [null, null, null] }
@@ -459,7 +459,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
 
   const usingKubeSail = answers.context && answers.context.includes('kubesail')
   const secrets = []
-  if (opts.format === 'k8s') {
+  if (format === 'k8s') {
     const resources = []
     for (let i = 0; i < metaModules.length; i++) {
       const metaModule = metaModules[i]
@@ -597,12 +597,12 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
                   root /app/build;
 
                   ${
-  answers.port
-    ? `location /api {
+                    answers.port
+                      ? `location /api {
                     proxy_pass http://${appName}-backend:${answers.port};
                   }`
-    : ''
-}
+                      : ''
+                  }
                 }
 
               }`
@@ -713,7 +713,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
   if (opts.deploy) {
     if (env !== 'dev') log(`Now deploying "${tags.hash}"`)
 
-    if (opts.format === 'k8s') {
+    if (format === 'k8s') {
       const kustomizationDir = path.join(CONFIG_FILE_PATH, env)
       const cmd = `kubectl --context="${answers.context}" apply -k ${kustomizationDir}`
       log(`Running: \`${cmd}\``)
