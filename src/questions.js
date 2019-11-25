@@ -169,7 +169,7 @@ async function promptQuestions (
             value: 'worker'
           },
           {
-            name: 'Static App (An SPA, like the product of "create-react-app", with no backend)',
+            name: 'Static App (A SPA, like the product of "create-react-app", with no backend)',
             value: 'spa'
           },
           {
