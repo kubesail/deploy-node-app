@@ -650,7 +650,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
         const { domain } = await inquirer.prompt({
           name: 'domain',
           type: 'input',
-          message: 'What\'s the domain name to access this project? (leave blank for automatic)',
+          message: 'What\'s the domain name to access this project?',
           default: defaultDomain,
           validate: function (domain) {
             if (!isValidDomain(domain)) return 'Invalid domain'
