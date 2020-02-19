@@ -35,6 +35,7 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
   const output = opts.output
   const silence = output === '-'
   const overwrite = opts.overwrite
+  const images = opts.images
   const cwd = process.cwd()
   const execOpts = {
     stdio: [process.stdin, opts.output !== '-' ? process.stdout : null, process.stderr]
@@ -455,7 +456,9 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
     }
   }
 
-  await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
+  if (!opts.images) {
+    await confirmWriteFile('Dockerfile', { templatePath: 'defaults/Dockerfile' })
+  }
 
   const usingKubeSail = answers.context && answers.context.includes('kubesail')
   const secrets = []
@@ -509,50 +512,52 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
 
     let containerCommand = []
     if (answers.type !== 'spa') {
-      containerCommand = ['node', answers.entrypoint]
+      containerCommand = ['node', answers.entrypoint.replace(/\\/g, '/')]
       // Write deployment config for Node app
       resources.push(path.join('.', backendDeployment))
 
-      const spec = {
-        containers: [
-          {
-            image: tags.hash,
-            name: appName,
-            command: containerCommand,
-            ports: [{ containerPort: answers.port }],
-            envFrom: secrets.map(name => {
-              return { secretRef: { name } }
-            })
-          }
-        ]
+      const backendPath = path.join(CONFIG_FILE_PATH, env, backendDeployment)
+      let loadedBackendSpec = {
+        metadata: {
+          name: appName + (handleUi ? '-backend' : ''),
+          labels: { app: appName }
+        },
+        spec: { template: { spec: { containers: [] } } }
       }
-      if (answers.isPublic === false) {
-        spec.imagePullSecrets = [{ name: `${appName}-regcred` }]
+      if (fs.existsSync(backendPath)) {
+        loadedBackendSpec = Object.assign({}, loadedBackendSpec, yaml.safeLoad(fs.readFileSync(backendPath)))
       }
 
-      await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, backendDeployment), {
-        templatePath: 'defaults/backend-deployment.yaml',
-        properties: {
-          metadata: {
-            name: appName + (handleUi ? '-backend' : ''),
-            labels: { app: appName }
-          },
-          spec: {
-            selector: { matchLabels: { app: appName } },
-            template: {
-              metadata: {
-                labels: { app: appName }
-              },
-              spec
-            }
-          }
-        }
+      let container = {}
+      if (loadedBackendSpec.spec.template.spec.containers[0]) container = loadedBackendSpec.spec.template.spec.containers[0]
+
+      container.image = tags.hash
+      container.name = appName
+      container.command = containerCommand
+      container.ports = [{ containerPort: answers.port }]
+      container.envFrom = secrets.map(name => {
+        return { secretRef: { name } }
       })
+
+      if (answers.isPublic === false) {
+        loadedBackendSpec.spec.imagePullSecrets = [{ name: `${appName}-regcred` }]
+      }
+
+      await confirmWriteFile(backendPath, {
+        templatePath: 'defaults/backend-deployment.yaml',
+        properties: loadedBackendSpec
+      })
+
       // Write service config for Node app
+      const backendServicePath = path.join(CONFIG_FILE_PATH, env, backendService)
+      let loadedBackendService = {}
+      if (fs.existsSync(backendServicePath)) {
+        loadedBackendService = yaml.safeLoad(fs.readFileSync(backendServicePath))
+      }
       resources.push(path.join('.', backendService))
-      await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, backendService), {
+      await confirmWriteFile(backendServicePath, {
         templatePath: 'defaults/backend-service.yaml',
-        properties: {
+        properties: Object.assign({}, loadedBackendService, {
           metadata: {
             name: appName + (handleUi ? '-backend' : '')
           },
@@ -560,7 +565,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
             selector: { app: appName },
             ports: [{ port: answers.port, targetPort: answers.port }]
           }
-        }
+        })
       })
     }
 
@@ -597,7 +602,7 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
                   root /app/build;
 
                   ${
-                    answers.port
+                    answers.port && answers.type !== 'spa'
                       ? `location /api {
                     proxy_pass http://${appName}-backend:${answers.port};
                   }`
@@ -612,6 +617,12 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
       // Write Nginx Deployment
       resources.push(path.join('.', frontendDeployment))
 
+      const frontendDeploymentPath = path.join(CONFIG_FILE_PATH, env, frontendDeployment)
+      let loadedFrontend = {}
+      if (fs.existsSync(frontendDeploymentPath)) {
+        loadedFrontend = yaml.safeLoad(fs.readFileSync(frontendDeploymentPath))
+      }
+
       const spec = {
         containers: [{ image: tags.hash, name: appName }]
       }
@@ -619,9 +630,9 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
         spec.imagePullSecrets = [{ name: `${appName}-regcred` }]
       }
 
-      await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, frontendDeployment), {
+      await confirmWriteFile(frontendDeploymentPath, {
         templatePath: 'defaults/frontend-deployment.yaml',
-        properties: {
+        properties: Object.assign({}, loadedFrontend, {
           metadata: {
             name: `${appName}-frontend`,
             labels: { app: appName }
@@ -633,15 +644,22 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
               spec
             }
           }
-        }
+        })
       })
+
+      const frontendServicePath = path.join(CONFIG_FILE_PATH, env, frontendService)
+      let loadedFrontendService = {}
+      if (fs.existsSync(frontendServicePath)) {
+        loadedFrontendService = yaml.safeLoad(fs.readFileSync(frontendServicePath))
+      }
+
       resources.push(path.join('.', frontendService))
-      await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, frontendService), {
+      await confirmWriteFile(frontendServicePath, {
         templatePath: 'defaults/frontend-service.yaml',
-        properties: {
+        properties: Object.assign({}, loadedFrontendService, {
           metadata: { name: `${appName}-frontend` },
           spec: { selector: { app: appName } }
-        }
+        })
       })
 
       let defaultDomain = packageJson.name
@@ -680,9 +698,11 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
     }
 
     // Write kustomization config
-    await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, 'kustomization.yaml'), {
-      content: yaml.safeDump(await buildKustomize(metaModules, { resources }))
-    })
+    if (!opts.images) {
+      await confirmWriteFile(path.join(CONFIG_FILE_PATH, env, 'kustomization.yaml'), {
+        content: yaml.safeDump(await buildKustomize(metaModules, { resources }))
+      })
+    }
   } else {
     const composeFileData = buildComposeFile(metaModules)
     const composeFileDataYAML = yaml.safeDump(composeFileData)
@@ -696,8 +716,10 @@ ${chalk.yellow('!!')} In any case, make sure you have all secrets in your ".dock
   if (!packageJson['deploy-node-app']) packageJson['deploy-node-app'] = {}
   packageJson['deploy-node-app'][env] = answers
 
-  await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) + '\n' })
-  await confirmWriteFile('.dockerignore', { templatePath: path.join('defaults', '.dockerignore') })
+  if (!opts.images) {
+    await confirmWriteFile('package.json', { content: JSON.stringify(packageJson, null, 2) + '\n' })
+    await confirmWriteFile('.dockerignore', { templatePath: path.join('defaults', '.dockerignore') })
+  }
 
   // Build
   if (opts.build) {
