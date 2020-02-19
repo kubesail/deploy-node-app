@@ -40,16 +40,19 @@ After answering a few questions about your app, this tool can:
 Usage: deploy-node-app [env]
 
 Options:
-  -V, --version              output the version number
-  -n, --no-build             Don't build and push docker container
-  -d, --no-deploy            Don't deploy to kubernetes
-  -O, --overwrite            Overwrite local files
-  -s, --skip [metamodule]   name of metamodule to skip
-  -f, --format [type]        Output config format [k8s|compose] (default: "compose")
-  -o, --output [filename]    File for config output. "-" will write to stdout. Default is docker-compose.yaml or deployment.yaml depending on format
-  --generate-default-env     Generates default environment variables, like database passwords
-  --generate-local-ports-env Generates environment variables for connecting to docker-compose services
-  -h, --help                 output usage information
+  -V, --version               output the version number
+  --generate-default-env      Generates default environment variables, like database passwords
+  --generate-local-ports-env  Generates environment variables for connecting to docker-compose services
+  -n, --no-build              Don't build and push docker container
+  -N, --no-confirm            Skip public docker hub confirmation prompt
+  -d, --no-push               Don't push to docker registry
+  -D, --no-deploy             Don't deploy to kubernetes
+  -O, --overwrite             Overwrite local files
+  -s, --skip metamodule       name of metamodule to skip
+  -S, --safe                  Do not overwrite local files
+  -f, --format [type]         Output config format [k8s|compose] (default: "k8s")
+  -o, --output [filename]     File for config output. "-" will write to stdout. Default is docker-compose.yaml or deployment.yaml depending on format
+  -h, --help                  output usage information
 ```
 
 By default, `deploy-node-app` will write a few files to your directory, depending on the chosen output. You will be prompted if any files need to be updated or overwritten (use --overwrite to ignore prompts).

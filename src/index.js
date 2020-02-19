@@ -34,11 +34,12 @@ program
     'Generates environment variables for connecting to docker-compose services'
   )
   .option('-n, --no-build', 'Don\'t build and push docker container')
-  .option('-n, --no-confirm', 'Skip public docker hub confirmation prompt')
+  .option('-N, --no-confirm', 'Skip public docker hub confirmation prompt')
   .option('-d, --no-push', 'Don\'t push to docker registry')
-  .option('-d, --no-deploy', 'Don\'t deploy to kubernetes')
+  .option('-D, --no-deploy', 'Don\'t deploy to kubernetes')
   .option('-O, --overwrite', 'Overwrite local files')
   .option('-s, --skip metamodule', 'name of metamodule to skip')
+  .option('-i, --images', 'Images only - build and push, but only change local image tags, no other local changes')
   .option('-f, --format [type]', 'Output config format [k8s|compose]', 'k8s')
   .option(
     '-o, --output [filename]',
