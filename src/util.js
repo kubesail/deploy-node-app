@@ -3,6 +3,7 @@
 const style = require('ansi-styles')
 const fs = require('fs')
 const path = require('path')
+const util = require('util')
 const homedir = require('os').homedir()
 const yaml = require('js-yaml')
 const inquirer = require('inquirer')
@@ -10,6 +11,11 @@ const inquirer = require('inquirer')
 const execSync = require('child_process').execSync
 const commandExists = require('command-exists')
 const chalk = require('chalk')
+const merge = require('lodash/merge')
+const diff = require('diff')
+
+const readFile = util.promisify(fs.readFile)
+const writeFile = util.promisify(fs.writeFile)
 
 const WARNING = `${style.green.open}!!${style.green.close}`
 const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
@@ -19,6 +25,11 @@ const NEW_KUBESAIL_CONTEXT = `KubeSail${style.gray.open} | Deploy on a free Kube
 function fatal (message /*: string */) {
   process.stderr.write(`${ERR_ARROWS} ${message}\n`)
   process.exit(1)
+}
+
+function log () {
+  // eslint-disable-next-line no-console
+  console.log(...arguments)
 }
 
 const execSyncWithEnv = (cmd, options = {}) => {
@@ -40,61 +51,15 @@ const execSyncWithEnv = (cmd, options = {}) => {
   if (output) return output.toString().trim()
 }
 
-function ensureBinaries (format) {
+function ensureBinaries () {
   if (!commandExists.sync('docker')) {
     fatal('Error - Please install docker! https://www.docker.com/get-started')
   }
-
-  if (format === 'k8s') {
-    if (!commandExists.sync('kubectl')) {
-      fatal(
-        'Error - Please install kubectl! https://kubernetes.io/docs/tasks/tools/install-kubectl/'
-      )
-    }
-
-    try {
-      const {
-        clientVersion: { major, minor }
-      } = JSON.parse(execSyncWithEnv('kubectl version --client=true -o json'))
-
-      if (parseInt(major, 10) < 1 || parseInt(minor, 10) < 14) {
-        process.stdout.write(
-          `${style.red.open}>> deploy-node-app requires kubectl v1.14 or higher.${style.red.close}\n\n`
-        )
-        process.stdout.write('You can fix this ')
-
-        const install = chalk.cyan('brew install kubernetes-cli')
-        const upgrade = chalk.cyan('brew upgrade kubernetes-cli')
-        let cmd
-        switch (process.platform) {
-          case 'darwin':
-            cmd = `${install}\n\nor\n\n  ${upgrade}`
-            process.stdout.write(
-              `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-macos\n`
-            )
-            break
-          case 'linux':
-            cmd = `${style.cyan.open}sudo apt-get install kubectl${style.reset.open}`
-            process.stdout.write(
-              `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-linux\n`
-            )
-            break
-          case 'win32':
-            cmd = `${style.cyan.open}choco install kubernetes-cli${style.reset.open}`
-            process.stdout.write(
-              `by running \n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-windows\n`
-            )
-            break
-          default:
-            process.stdout.write(
-              'by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/'
-            )
-        }
-        process.exit(1)
-      }
-    } catch (_err) {
-      fatal('Could not determine kubectl version')
-    }
+  if (!commandExists.sync('kubectl')) {
+    fatal('Error - Please install kubectl! https://kubernetes.io/docs/tasks/tools/install-kubectl/')
+  }
+  if (!commandExists.sync('skaffold')) {
+    fatal('Error - Please install skaffold! https://skaffold.dev/docs/install/')
   }
 }
 
@@ -138,7 +103,7 @@ function readLocalKubeConfig () {
         kubeConfig.contexts
           .map(
             context =>
-              context.name || ((context.context && context.context.name) || context.context.cluster)
+              context.name || (context.context && context.context.name) || context.context.cluster
           )
           .filter(context => context)
       )
@@ -198,6 +163,104 @@ function shouldUseYarn () {
   } catch (e) {
     return false
   }
+}
+
+async function tryDiff (content /*: string */, existingPath /*: string */) {
+  const existing = (await readFile(existingPath)).toString()
+  const compare = diff.diffLines(existing, content)
+  compare.forEach(part =>
+    process.stdout.write(
+      part.added ? chalk.green(part.value) : part.removed ? chalk.red(part.value) : part.value
+    )
+  )
+}
+
+/**
+ *
+ * The meat and potatoes of Deploy-Node-App, confirmWriteFile takes either a string of content or a template file
+ * and copies it to the users directory. It will prompt the user, unless:
+ *   --overwrite is set, in which case any changes will be writen without asking
+ *   -o - is set, in which case we will write our outputs to stdout, not prompting and not writing
+ * confirmWriteFile also supports diffing!
+ * Provide only one of content or templatePath!
+ */
+async function confirmWriteFile (
+  filePath,
+  { content, templatePath, output, properties, overwrite = false, silence = false }
+) {
+  const fullPath = path.join(process.cwd(), filePath)
+  const fullTemplatePath = templatePath ? path.join(__dirname, templatePath) : null
+
+  let template
+  if (templatePath) {
+    template = (await readFile(fullTemplatePath)).toString()
+    if (properties && templatePath.endsWith('.yaml')) {
+      template = yaml.safeLoad(template)
+      merge(template, properties)
+      template = yaml.safeDump(template) + '\n'
+    }
+  }
+
+  if (content && templatePath) throw new Error('Provide only one of content, templatePath')
+  let doWrite = false
+  let existingContent
+  try {
+    existingContent = (await readFile(fullPath)).toString()
+  } catch (_err) {}
+  if (overwrite) {
+    doWrite = true
+  } else {
+    if (output !== '-') {
+      // If existing file matches the content we're about to write, then bail early
+      if (existingContent === (content || template)) {
+        return false
+      }
+    }
+
+    if (existingContent && !silence) {
+      const YES_TEXT = 'Yes (overwrite)'
+      const NO_TEXT = 'No, dont touch'
+      const SHOWDIFF_TEXT = 'Show diff'
+      const context = filePath === 'package.json' ? ', to save your answers to these questions' : ''
+      const confirmOverwrite = (
+        await inquirer.prompt({
+          name: 'overwrite',
+          type: 'expand',
+          message: `Would you like to update "${filePath}"${context}?`,
+          choices: [
+            { key: 'Y', value: YES_TEXT },
+            { key: 'N', value: NO_TEXT },
+            { key: 'D', value: SHOWDIFF_TEXT }
+          ],
+          default: 0
+        })
+      ).overwrite
+      if (confirmOverwrite === YES_TEXT) doWrite = true
+      else if (confirmOverwrite === SHOWDIFF_TEXT) {
+        await tryDiff(content || template, fullPath)
+        await confirmWriteFile(filePath, { templatePath, content, properties })
+      }
+    } else if (existingContent && silence) {
+      log(
+        `Refusing to overwrite "${filePath}"... Continuing... (Use --overwrite to ignore this check)`
+      )
+    } else if (!existingContent) {
+      doWrite = true
+    }
+  }
+
+  if (!doWrite && output !== '-') {
+    return false
+  } else if (content || template) {
+    try {
+      if (output === '-') process.stdout.write((content || template) + '\n')
+      else await writeFile(fullPath, content || template)
+      log(`Successfully ${content ? 'wrote' : 'wrote from template'} "${filePath}"`)
+    } catch (err) {
+      fatal(`Error writing ${filePath}: ${err.message}`)
+    }
+    return true
+  } else throw new Error('Please provide one of content, templatePath for confirmWriteFile')
 }
 
 module.exports = {

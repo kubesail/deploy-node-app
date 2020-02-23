@@ -1,15 +1,10 @@
 {
   "parser": "babel-eslint",
-  "extends": ["standard", "plugin:flowtype/recommended", "plugin:security/recommended"],
+  "extends": ["standard", "plugin:security/recommended"],
   "parserOptions": {
-    "ecmaVersion": 7,
-    "ecmaFeatures": {
-      "jsx": true,
-      "modules": true
-    }
+    "ecmaVersion": 7
   },
   "rules": {
-    "flowtype/require-valid-file-annotation": 0,
     "no-console": ["warn", { "allow": ["warn", "error"] }],
     "no-return-assign": 0,
     "require-await": ["error"],
@@ -29,6 +24,6 @@
     "security/detect-non-literal-fs-filename": 0,
     "security/detect-unsafe-regex": 0
   },
-  "plugins": ["flowtype", "prettier", "security"],
+  "plugins": ["prettier", "security"],
   "settings": {}
 }
