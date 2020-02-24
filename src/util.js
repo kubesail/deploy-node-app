@@ -156,13 +156,13 @@ async function confirmWriteFile (filePath, content, options = { overwrite: false
   if (existingContent && existingContent === content) return false
 
   let doWrite = false
-  if (existingContent && options.overwrite && !options.force) {
+  if (existingContent && options.update && !options.force) {
     const YES_TEXT = 'Yes (overwrite)'
     const NO_TEXT = 'No, dont touch'
     const SHOWDIFF_TEXT = 'Show diff'
-    const confirmOverwrite = (
+    const confirmUpdate = (
       await inquirer.prompt({
-        name: 'overwrite',
+        name: 'update',
         type: 'expand',
         message: `Would you like to update "${filePath}"?`,
         choices: [
@@ -172,13 +172,13 @@ async function confirmWriteFile (filePath, content, options = { overwrite: false
         ],
         default: 0
       })
-    ).overwrite
+    ).update
     if (confirmOverwrite === YES_TEXT) doWrite = true
     else if (confirmOverwrite === SHOWDIFF_TEXT) {
       await tryDiff(content, fullPath)
       await confirmWriteFile(filePath, content, options)
     }
-  } else if (!existingContent || (existingContent && options.overwrite && options.force)) {
+  } else if (!existingContent || (existingContent && options.update && options.force)) {
     doWrite = true
   }
 

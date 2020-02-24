@@ -1,10 +1,82 @@
 const fs = require('fs')
+const os = require('os')
+const path = require('path')
+const util = require('util')
 const chalk = require('chalk')
 const inquirer = require('inquirer')
-const os = require('os')
-const { WARNING } = require('./util')
+const mkdirp = require('mkdirp')
+const style = require('ansi-styles')
+const diff = require('diff')
 
+const readFile = util.promisify(fs.readFile)
+const writeFile = util.promisify(fs.writeFile)
+const WARNING = `${style.green.open}!!${style.green.close}`
+const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
 const validProjectNameRegex = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/i
+
+function fatal (message /*: string */) {
+  process.stderr.write(`${ERR_ARROWS} ${message}\n`)
+  process.exit(1)
+}
+
+function log () {
+  // eslint-disable-next-line no-console
+  console.log(...arguments)
+}
+
+async function tryDiff (content /*: string */, existingPath /*: string */) {
+  const existing = (await readFile(existingPath)).toString()
+  const compare = diff.diffLines(existing, content)
+  compare.forEach(part =>
+    process.stdout.write(
+      part.added ? chalk.green(part.value) : part.removed ? chalk.red(part.value) : part.value
+    )
+  )
+}
+
+async function confirmWriteFile (filePath, content, options = { update: false, force: false }) {
+  const fullPath = path.join(process.cwd(), filePath)
+  const { update, force } = options
+
+  const exists = fs.existsSync(fullPath)
+  let doWrite = !exists
+  if (!update && exists) return false
+  else if (exists && update && !force) {
+    const YES_TEXT = 'Yes (update)'
+    const NO_TEXT = 'No, dont touch'
+    const SHOWDIFF_TEXT = 'Show diff'
+    const confirmUpdate = (
+      await inquirer.prompt({
+        name: 'update',
+        type: 'expand',
+        message: `Would you like to update "${filePath}"?`,
+        choices: [
+          { key: 'Y', value: YES_TEXT },
+          { key: 'N', value: NO_TEXT },
+          { key: 'D', value: SHOWDIFF_TEXT }
+        ],
+        default: 0
+      })
+    ).update
+    if (confirmUpdate === YES_TEXT) doWrite = true
+    else if (confirmUpdate === SHOWDIFF_TEXT) {
+      await tryDiff(content, fullPath)
+      await confirmWriteFile(filePath, content, options)
+    }
+  } else if (force) {
+    doWrite = true
+  }
+
+  if (doWrite) {
+    try {
+      await writeFile(fullPath, content)
+      log(`Successfully wrote "${filePath}"`)
+    } catch (err) {
+      fatal(`Error writing ${filePath}: ${err.message}`)
+    }
+    return true
+  }
+}
 
 // matchModules matches packageJson's dependencies against supported modules in the ./src/modules directory.
 // It returns mappings used to generate Kubernetes resources for those modules!
@@ -80,8 +152,11 @@ async function promptForStaticSite (packageJson, force) {
   return isStatic
 }
 
-async function promptForNewEnvironment () {
-  console.log('are you sure you wanna do this?')
+async function promptForNewEnvironment (env) {
+  if (typeof env !== 'string') {
+    throw new Error('promptForNewEnvironment() requires an env string argument')
+  }
+  await mkdirp(`k8s/overlays/${env}/secrets`)
 }
 
 async function writeDockerfile (path, options = { image: 'node', command: 'node' }) {
@@ -112,23 +187,27 @@ async function writeSkaffold () {
   console.log('writeSkaffold')
 }
 
-async function writeGitIgnore () {
-  console.log('writeGitIgnore')
-}
-
-async function writeDockerIgnore () {
-  console.log('writeDockerIgnore')
+async function writeTextLine (file, line, options = { update: false, force: false }) {
+  let existingContent
+  try {
+    existingContent = (await readFile(file)).toString()
+  } catch (_err) {}
+  if (existingContent.indexOf(line) === -1) {
+    await confirmWriteFile(file, existingContent + '\n' + line + '\n', options)
+  }
 }
 
 async function promptForKubeContext () {
   console.log('promptForKubeContext')
 }
 
-async function init (env = 'production', options = { overwrite: false, force: false }, packageJson) {
-  const { overwrite, force } = options
+async function init (env = 'production', options = { update: false, force: false }, packageJson) {
+  const { update, force } = options
   const config = packageJson['deploy-node-app'] ? packageJson['deploy-node-app'] : {}
 
-  if (!force && !fs.existsSync(`./k8s/overlays/${env}`)) await promptForNewEnvironment()
+  await mkdirp('k8s/base')
+  await mkdirp('k8s/dependencies')
+  if (!force && !fs.existsSync(`./k8s/overlays/${env}`)) await promptForNewEnvironment(env)
 
   // Ask some questions if we have missing info in our package.json
   const name =
@@ -141,14 +220,14 @@ async function init (env = 'production', options = { overwrite: false, force: fa
   // Base image for Dockerfile (use latest major version of the local node version)
   const imageFrom = `node:${process.versions.node.split('.')[0]}`
 
-  // If overwrite or no Dockerfile and command is nginx, prompt if nginx is okay
+  // If update or no Dockerfile and command is nginx, prompt if nginx is okay
   const command = (await promptForStaticSite(packageJson, force)) ? 'nginx' : 'node'
 
   // Find service modules we support
   const matchedModules = matchModules(packageJson)
 
   // Shorthand for helper functions
-  const commonOpts = { name, env, ports, overwrite }
+  const commonOpts = { name, env, ports, update }
 
   const secrets = {}
   const bases = ['../../base']
@@ -201,8 +280,8 @@ async function init (env = 'production', options = { overwrite: false, force: fa
   await writeKustomization(`./k8s/overlays/${env}/kustomization.yaml`, { bases, secrets })
 
   // write gitignore to include *.env files
-  await writeGitIgnore('k8s/overlays/*/secrets/*')
-  await writeDockerIgnore('k8s')
+  await writeTextLine('.gitignore', 'k8s/overlays/*/secrets/*', options)
+  await writeTextLine('.dockerignore', 'k8s', options)
 
   // Ensure that we have the context expected, and if we don't, let's ask the user to help us resolve it
   await promptForKubeContext(config.context)
