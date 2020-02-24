@@ -1,0 +1,9 @@
+{
+  "name": "dna-redis-test-app",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "redis": "^3.0.2"
+  }
+}

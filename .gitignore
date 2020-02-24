@@ -1,6 +1,9 @@
 # dependencies
-/node_modules
+node_modules
 test/node_modules
 yarn-error.log
 .env
 tmp
+test/*/*/k8s
+test/*/*/Dockerfile
+test/*/*/skaffold.yaml

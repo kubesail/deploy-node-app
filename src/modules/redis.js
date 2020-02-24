@@ -1,4 +1,7 @@
 module.exports = {
   name: 'redis',
-  npmNames: ['redis', 'ioredis']
+  languages: {
+    nodejs: ['redis', 'ioredis'],
+    python: ['redis']
+  }
 }

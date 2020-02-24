@@ -1,4 +1,7 @@
 module.exports = {
   name: 'postgres',
-  npmNames: ['pg']
+  languages: {
+    nodejs: ['pg'],
+    python: ['psycopg2']
+  }
 }

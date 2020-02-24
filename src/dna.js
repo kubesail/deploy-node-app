@@ -9,6 +9,7 @@ const style = require('ansi-styles')
 const diff = require('diff')
 const { isFQDN } = require('validator')
 const yaml = require('js-yaml')
+const merge = require('lodash/merge')
 
 const readFile = util.promisify(fs.readFile)
 const writeFile = util.promisify(fs.writeFile)
@@ -70,8 +71,6 @@ async function tryDiff (content /*: string */, existingPath /*: string */) {
 async function confirmWriteFile (filePath, content, options = { update: false, force: false }) {
   const fullPath = path.join(process.cwd(), filePath)
   const { update, force } = options
-
-  console.log('confirmWriteFile', filePath, options)
 
   const exists = fs.existsSync(fullPath)
   let doWrite = !exists
@@ -342,12 +341,8 @@ async function writeTextLine (file, line, options = { update: false, force: fals
   try {
     existingContent = (await readFile(file)).toString()
   } catch (_err) {}
-  if (existingContent.indexOf(line) === -1) {
-    if (options.append) {
-      await confirmWriteFile(file, existingContent + '\n' + line + '\n', options)
-    } else {
-      await confirmWriteFile(file, line + '\n', options)
-    }
+  if (existingContent && existingContent.indexOf(line) === -1 && options.append) {
+    await confirmWriteFile(file, line + '\n', options)
   }
 }
 
@@ -407,8 +402,19 @@ async function writeIngress (path, options = { force: false, update: false }) {
 }
 
 async function writeKustomization (path, options = { force: false, update: false }) {
-  const { resources, bases, secrets } = options
-  console.log('writeKustomization', options)
+  const { resources = [], bases = [], secrets = [] } = options
+
+  let yamlStr = ''
+  if (fs.existsSync(path)) {
+    const existing = yaml.safeLoad(path)
+    merge(existing, { resources, bases, secrets })
+    yamlStr = yaml.safeDump(existing)
+  } else {
+    console.log({ resources, bases, secrets })
+    yamlStr = yaml.safeDump({ resources, bases, secrets })
+  }
+
+  await confirmWriteFile(path, yamlStr + '\n', options)
 }
 
 async function writeSecrets (path, options = { force: false, update: false }) {
@@ -435,6 +441,9 @@ async function init (env = 'production', options = { update: false, force: false
     packageJson.name && validProjectNameRegex.test(packageJson.name)
       ? packageJson.name
       : await promptForPackageName(packageJson.name, force)
+  log(
+    `Deploying "${style.green.open}${name}${style.green.close}" to ${style.red.open}${env}${style.red.close}!`
+  )
   const image =
     !update && config.envs[env].image
       ? config.envs[env].image
