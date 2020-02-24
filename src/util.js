@@ -62,35 +62,6 @@ function ensureBinaries () {
   }
 }
 
-async function getDeployTags (name, answers, shouldBuild) {
-  if (answers.name) name = answers.name
-  const tags = { name }
-  tags.shortHash = execSyncWithEnv('git rev-parse HEAD')
-    .toString()
-    .substr(0, 7)
-
-  tags.prefix = answers.registry
-  if (!answers.registryUsername && answers.registry.includes('docker.io') && shouldBuild) {
-    const { username } = await inquirer.prompt({
-      name: 'username',
-      type: 'input',
-      message: 'What is your docker hub username?',
-      validate: function (username) {
-        if (username.length <= 1) return 'Invalid username'
-        return true
-      }
-    })
-    answers.registryUsername = username
-  }
-  if (answers.registry.includes('docker.io') && answers.registryUsername) {
-    tags.prefix = `${answers.registryUsername}/`
-  }
-
-  tags.image = `${tags.prefix}${name}`
-  tags.hash = `${tags.image}:${tags.shortHash}`
-  return tags
-}
-
 function readLocalKubeConfig () {
   // Read local .kube configuration to see if the user has an existing kube context they want to use
   let kubeContexts = []
@@ -224,7 +195,6 @@ async function confirmWriteFile (filePath, content, options = { overwrite: false
 
 module.exports = {
   confirmWriteFile,
-  getDeployTags,
   execSyncWithEnv,
   readLocalKubeConfig,
   readLocalDockerConfig,
