@@ -71,6 +71,8 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
   const fullPath = path.join(process.cwd(), filePath)
   const { update, force } = options
 
+  console.log('confirmWriteFile', filePath, options)
+
   const exists = fs.existsSync(fullPath)
   let doWrite = !exists
   if (!update && exists) return false
@@ -129,8 +131,6 @@ function matchModules (packageJson) {
     modules.push(require(path.join(__dirname, './modules', file)))
   }
 
-  console.log(modules, dependencies)
-
   for (let i = 0; i < dependencies.length; i++) {
     const dep = dependencies[i]
     const mod = modules.find(mod => {
@@ -138,8 +138,6 @@ function matchModules (packageJson) {
     })
     if (mod) matchedModules.push(mod)
   }
-
-  console.log({ matchedModules })
 
   return matchedModules
 }
@@ -249,21 +247,21 @@ async function promptForStaticSite (packageJson, force) {
   return isStatic
 }
 
-async function promptForNewEnvironment (env) {
+async function promptForNewEnvironment (env = 'production') {
   if (typeof env !== 'string') {
     throw new Error('promptForNewEnvironment() requires an env string argument')
   }
   await mkdirp(`k8s/overlays/${env}/secrets`)
 }
 
-async function promptForIngress (path, options = { force: false, update: false }) {
+async function promptForIngress (defaultDomain) {
   const { ingressUri } = await inquirer.prompt([
     {
       name: 'ingressUri',
       type: 'input',
       message:
         'Should this be exposed to the internet via HTTPS? ie: Is this a web server?\nIf so, what URI should be used to access it? (Will not be exposed to the internet if left blank)\n',
-      default: '',
+      default: isFQDN(defaultDomain) ? defaultDomain : '',
       validate: input => {
         if (input && !isFQDN(input)) {
           return 'Either leave blank, or input a valid DNS name (ie: my.example.com)'
@@ -353,11 +351,9 @@ async function writeTextLine (file, line, options = { update: false, force: fals
   }
 }
 
-async function writeDNAConfig (packageJson, config) {
-  packageJson['deploy-node-app'] = Object.assign({}, packageJson['deploy-node-app'] || {}, config)
-  await confirmWriteFile('package.json', {
-    content: JSON.stringify(packageJson, null, 2) + '\n'
-  })
+async function writeDNAConfig (packageJson, config, options = { update: false, force: false }) {
+  packageJson['deploy-node-app'] = config
+  await confirmWriteFile('package.json', JSON.stringify(packageJson, null, 2) + '\n', options)
 }
 
 async function writeDockerfile (
@@ -397,38 +393,38 @@ CMD ["${command}", "${entrypoint}"]
 
 async function writeDeployment (path, options = { force: false, update: false }) {
   const { image, envFrom } = options
-  console.log('writeDeployment')
+  console.log('writeDeployment', options)
 }
 
 async function writeService (path, options = { force: false, update: false }) {
   const { image, envFrom } = options
-  console.log('writeService')
+  console.log('writeService', options)
 }
 
 async function writeIngress (path, options = { force: false, update: false }) {
   const { image, envFrom } = options
-  console.log('writeIngress')
+  console.log('writeIngress', options)
 }
 
 async function writeKustomization (path, options = { force: false, update: false }) {
   const { resources, bases, secrets } = options
-  console.log('writeKustomization')
+  console.log('writeKustomization', options)
 }
 
 async function writeSecrets (path, options = { force: false, update: false }) {
   const { envs } = options
-  console.log('writeSecrets')
+  console.log('writeSecrets', options)
 }
 
 async function writeSkaffold (path, options = { force: false, update: false }) {
   const { image } = options
-  console.log('writeSkaffold')
+  console.log('writeSkaffold', options)
 }
 
 async function init (env = 'production', options = { update: false, force: false }, packageJson) {
   const { update, force } = options
   const config = packageJson['deploy-node-app'] ? packageJson['deploy-node-app'] : {}
-  if (!config[env]) config[env] = {}
+  if (!config.envs || !config.envs[env]) config.envs = { [env]: {} }
 
   await mkdirp('k8s/base')
   await mkdirp('k8s/dependencies')
@@ -440,12 +436,14 @@ async function init (env = 'production', options = { update: false, force: false
       ? packageJson.name
       : await promptForPackageName(packageJson.name, force)
   const image =
-    !update && config[env].image
-      ? config[env].image
-      : await promptForImageName(name, config[env].image)
+    !update && config.envs[env].image
+      ? config.envs[env].image
+      : await promptForImageName(name, config.envs[env].image)
   const ports = !update && config.ports ? config.ports : await promptForPorts(name, config.ports)
   let uri = false
-  if (ports.length > 0 && config[env].uri === undefined) uri = await promptForIngress()
+  if (ports.length > 0 && config.envs[env].uri === undefined) {
+    uri = await promptForIngress(packageJson.name)
+  }
 
   // Base image for Dockerfile (use latest major version of the local node version)
   const imageFrom = `node:${process.versions.node.split('.')[0]}`
@@ -461,7 +459,7 @@ async function init (env = 'production', options = { update: false, force: false
   const matchedModules = matchModules(packageJson)
 
   // Shorthand for helper functions
-  const commonOpts = { name, env, ports, update }
+  const commonOpts = { ...options, name, env, ports }
 
   let secrets = {}
   const bases = ['../../base']
@@ -472,7 +470,11 @@ async function init (env = 'production', options = { update: false, force: false
     command,
     ...commonOpts
   })
-  await writeDeployment('./k8s/base/deployment.yaml', { image, envFrom: name, ...commonOpts })
+  await writeDeployment('./k8s/base/deployment.yaml', {
+    image,
+    envFrom: name,
+    ...commonOpts
+  })
 
   for (let i = 0; i < matchedModules.length; i++) {
     const matched = matchedModules[i]
@@ -481,13 +483,17 @@ async function init (env = 'production', options = { update: false, force: false
     bases.push(base)
   }
 
-  await writeSkaffold('./skaffold.yaml', { image, ...commonOpts })
+  await writeSkaffold('./skaffold.yaml', { ...commonOpts, image })
 
   await writeKustomization('./k8s/base/kustomization.yaml', {
     resources: ['./deployment.yaml', './service.yaml', './ingress.yaml']
   })
 
-  await writeKustomization(`./k8s/overlays/${env}/kustomization.yaml`, { bases, secrets })
+  await writeKustomization(`./k8s/overlays/${env}/kustomization.yaml`, {
+    ...commonOpts,
+    bases,
+    secrets
+  })
 
   // write gitignore to include *.env files
   await writeTextLine('.gitignore', 'k8s/overlays/*/secrets/*', { ...options, append: true })
@@ -497,11 +503,17 @@ async function init (env = 'production', options = { update: false, force: false
   const kubeContexts = readLocalKubeConfig()
   const context = await promptForKubeContext(config.context, kubeContexts)
 
-  await writeDNAConfig(packageJson, {
-    command,
-    ports,
-    [env]: { uri, context, image }
-  })
+  await writeDNAConfig(
+    packageJson,
+    {
+      command,
+      ports,
+      envs: {
+        [env]: { uri, context, image }
+      }
+    },
+    options
+  )
 }
 
 async function deploy (env, options, packageJson) {
