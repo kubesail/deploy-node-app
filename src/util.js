@@ -11,7 +11,6 @@ const inquirer = require('inquirer')
 const execSync = require('child_process').execSync
 const commandExists = require('command-exists')
 const chalk = require('chalk')
-const merge = require('lodash/merge')
 const diff = require('diff')
 
 const readFile = util.promisify(fs.readFile)
@@ -156,15 +155,6 @@ function readLocalDockerConfig () {
   return containerRegistries
 }
 
-function shouldUseYarn () {
-  try {
-    execSync('yarnpkg --version', { stdio: 'ignore' })
-    return true
-  } catch (e) {
-    return false
-  }
-}
-
 async function tryDiff (content /*: string */, existingPath /*: string */) {
   const existing = (await readFile(existingPath)).toString()
   const compare = diff.diffLines(existing, content)
@@ -184,77 +174,46 @@ async function tryDiff (content /*: string */, existingPath /*: string */) {
  * confirmWriteFile also supports diffing!
  * Provide only one of content or templatePath!
  */
-async function confirmWriteFile (
-  filePath,
-  { content, templatePath, output, properties, overwrite = false, silence = false }
-) {
+async function confirmWriteFile (filePath, content, options = { overwrite: false, force: false }) {
   const fullPath = path.join(process.cwd(), filePath)
-  const fullTemplatePath = templatePath ? path.join(__dirname, templatePath) : null
 
-  let template
-  if (templatePath) {
-    template = (await readFile(fullTemplatePath)).toString()
-    if (properties && templatePath.endsWith('.yaml')) {
-      template = yaml.safeLoad(template)
-      merge(template, properties)
-      template = yaml.safeDump(template) + '\n'
-    }
-  }
-
-  if (content && templatePath) throw new Error('Provide only one of content, templatePath')
-  let doWrite = false
   let existingContent
   try {
     existingContent = (await readFile(fullPath)).toString()
   } catch (_err) {}
-  if (overwrite) {
-    doWrite = true
-  } else {
-    if (output !== '-') {
-      // If existing file matches the content we're about to write, then bail early
-      if (existingContent === (content || template)) {
-        return false
-      }
-    }
 
-    if (existingContent && !silence) {
-      const YES_TEXT = 'Yes (overwrite)'
-      const NO_TEXT = 'No, dont touch'
-      const SHOWDIFF_TEXT = 'Show diff'
-      const context = filePath === 'package.json' ? ', to save your answers to these questions' : ''
-      const confirmOverwrite = (
-        await inquirer.prompt({
-          name: 'overwrite',
-          type: 'expand',
-          message: `Would you like to update "${filePath}"${context}?`,
-          choices: [
-            { key: 'Y', value: YES_TEXT },
-            { key: 'N', value: NO_TEXT },
-            { key: 'D', value: SHOWDIFF_TEXT }
-          ],
-          default: 0
-        })
-      ).overwrite
-      if (confirmOverwrite === YES_TEXT) doWrite = true
-      else if (confirmOverwrite === SHOWDIFF_TEXT) {
-        await tryDiff(content || template, fullPath)
-        await confirmWriteFile(filePath, { templatePath, content, properties })
-      }
-    } else if (existingContent && silence) {
-      log(
-        `Refusing to overwrite "${filePath}"... Continuing... (Use --overwrite to ignore this check)`
-      )
-    } else if (!existingContent) {
-      doWrite = true
+  if (existingContent && existingContent === content) return false
+
+  let doWrite = false
+  if (existingContent && options.overwrite && !options.force) {
+    const YES_TEXT = 'Yes (overwrite)'
+    const NO_TEXT = 'No, dont touch'
+    const SHOWDIFF_TEXT = 'Show diff'
+    const confirmOverwrite = (
+      await inquirer.prompt({
+        name: 'overwrite',
+        type: 'expand',
+        message: `Would you like to update "${filePath}"?`,
+        choices: [
+          { key: 'Y', value: YES_TEXT },
+          { key: 'N', value: NO_TEXT },
+          { key: 'D', value: SHOWDIFF_TEXT }
+        ],
+        default: 0
+      })
+    ).overwrite
+    if (confirmOverwrite === YES_TEXT) doWrite = true
+    else if (confirmOverwrite === SHOWDIFF_TEXT) {
+      await tryDiff(content, fullPath)
+      await confirmWriteFile(filePath, content, options)
     }
+  } else if (!existingContent || (existingContent && options.overwrite && options.force)) {
+    doWrite = true
   }
 
-  if (!doWrite && output !== '-') {
-    return false
-  } else if (content || template) {
+  if (doWrite) {
     try {
-      if (output === '-') process.stdout.write((content || template) + '\n')
-      else await writeFile(fullPath, content || template)
+      await writeFile(fullPath, content)
       log(`Successfully ${content ? 'wrote' : 'wrote from template'} "${filePath}"`)
     } catch (err) {
       fatal(`Error writing ${filePath}: ${err.message}`)
@@ -264,12 +223,12 @@ async function confirmWriteFile (
 }
 
 module.exports = {
+  confirmWriteFile,
   getDeployTags,
   execSyncWithEnv,
   readLocalKubeConfig,
   readLocalDockerConfig,
   readKubeConfigNamespace,
-  shouldUseYarn,
   fatal,
   WARNING,
   ensureBinaries,
