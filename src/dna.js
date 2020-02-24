@@ -7,11 +7,15 @@ const inquirer = require('inquirer')
 const mkdirp = require('mkdirp')
 const style = require('ansi-styles')
 const diff = require('diff')
+const { isFQDN } = require('validator')
+const yaml = require('js-yaml')
 
 const readFile = util.promisify(fs.readFile)
 const writeFile = util.promisify(fs.writeFile)
-const WARNING = `${style.green.open}!!${style.green.close}`
+const WARNING = `${style.yellow.open}!!${style.yellow.close}`
 const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
+const KUBE_CONFIG_PATH = path.join(os.homedir(), '.kube', 'config')
+const NEW_KUBESAIL_CONTEXT = `KubeSail${style.gray.open} | Deploy on a free Kubernetes namespace${style.gray.close}`
 const validProjectNameRegex = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/i
 
 function fatal (message /*: string */) {
@@ -22,6 +26,35 @@ function fatal (message /*: string */) {
 function log () {
   // eslint-disable-next-line no-console
   console.log(...arguments)
+}
+
+function readLocalKubeConfig () {
+  // Read local .kube configuration to see if the user has an existing kube context they want to use
+  let kubeContexts = []
+  if (fs.existsSync(KUBE_CONFIG_PATH)) {
+    try {
+      const kubeConfig = yaml.safeLoad(fs.readFileSync(KUBE_CONFIG_PATH))
+
+      kubeContexts = kubeContexts.concat(
+        kubeConfig.contexts
+          .map(
+            context =>
+              context.name || (context.context && context.context.name) || context.context.cluster
+          )
+          .filter(context => context)
+      )
+    } catch (err) {
+      fatal(
+        `It seems you have a Kubernetes config file at ${KUBE_CONFIG_PATH}, but it is not valid yaml, or unreadable!`
+      )
+    }
+  }
+
+  // TODO add minikube deployment context
+  if (kubeContexts.filter(context => context.startsWith('kubesail-')).length === 0) {
+    kubeContexts.push(NEW_KUBESAIL_CONTEXT)
+  }
+  return kubeContexts
 }
 
 async function tryDiff (content /*: string */, existingPath /*: string */) {
@@ -96,6 +129,8 @@ function matchModules (packageJson) {
     modules.push(require(path.join(__dirname, './modules', file)))
   }
 
+  console.log(modules, dependencies)
+
   for (let i = 0; i < dependencies.length; i++) {
     const dep = dependencies[i]
     const mod = modules.find(mod => {
@@ -103,6 +138,8 @@ function matchModules (packageJson) {
     })
     if (mod) matchedModules.push(mod)
   }
+
+  console.log({ matchedModules })
 
   return matchedModules
 }
@@ -135,28 +172,29 @@ async function promptForPackageName (packageName, force = false) {
 }
 
 // promptForImageName asks a user what the name of our image should be (doesn't bother checking if the user actually has push access, which isn't really a concern yet)
-async function promptForImageName (projectName) {
+async function promptForImageName (projectName, existingName) {
   const { imageName } = await inquirer.prompt([
     {
       name: 'imageName',
       type: 'input',
       message:
         'What is the image name for our project? To use docker hub, try username/projectname.\n Note: Make sure this is marked private, or it may be automatically created as a public image!\n',
-      default: `${os.userInfo().username}/${projectName}`
+      default: existingName || `${os.userInfo().username}/${projectName}`
     }
   ])
 
   return imageName
 }
 
-async function promptForPorts () {
-  const { ports } = await inquirer.prompt([
+async function promptForPorts (projectName, existingPorts = []) {
+  const { newPorts } = await inquirer.prompt([
     {
-      name: 'ports',
+      name: 'newPorts',
       type: 'input',
       message: 'Does your app listen on any ports? If so, please enter them comma separated:',
-      default: '',
+      default: existingPorts.join(', '),
       validate: input => {
+        if (!input) return true
         const ports = input.replace(/ /g, '').split(',')
         for (let i = 0; i < ports.length; i++) {
           const port = parseInt(ports[i], 10)
@@ -172,9 +210,15 @@ async function promptForPorts () {
     }
   ])
 
-  // await writeService('./k8s/base/service.yaml', { ...commonOpts })
+  const ports = newPorts
+    .replace(/ /g, '')
+    .split(',')
+    .map(port => parseInt(port, 10))
+    .filter(Boolean)
 
-  return ports || []
+  await writeService('./k8s/base/service.yaml', { projectName, ports })
+
+  return ports
 }
 
 // promptForStaticSite tries to determine if this is possibly a static site, like those created with `create-react-app`.
@@ -191,7 +235,15 @@ async function promptForStaticSite (packageJson, force) {
   }
 
   if (!force && isStatic && !fs.existsSync('./Dockerfile')) {
-    console.log('is this a static site? Want to just use nginx?')
+    const { confirmStatic } = await inquirer.prompt([
+      {
+        name: 'confirmStatic',
+        type: 'confirm',
+        message:
+          'This project looks like it might be a static site - would you like to use Nginx & react-dev-server instead of Node.js?\n'
+      }
+    ])
+    if (confirmStatic) isStatic = true
   }
 
   return isStatic
@@ -205,12 +257,107 @@ async function promptForNewEnvironment (env) {
 }
 
 async function promptForIngress (path, options = { force: false, update: false }) {
-  const { uri } = options
-  console.log('writeIngress')
+  const { ingressUri } = await inquirer.prompt([
+    {
+      name: 'ingressUri',
+      type: 'input',
+      message:
+        'Should this be exposed to the internet via HTTPS? ie: Is this a web server?\nIf so, what URI should be used to access it? (Will not be exposed to the internet if left blank)\n',
+      default: '',
+      validate: input => {
+        if (input && !isFQDN(input)) {
+          return 'Either leave blank, or input a valid DNS name (ie: my.example.com)'
+        }
+        return true
+      }
+    }
+  ])
+  return ingressUri
 }
 
-async function promptForKubeContext () {
-  console.log('promptForKubeContext')
+async function promptForKubeContext (context, kubeContexts) {
+  if (context && kubeContexts.includes(context)) {
+    return context
+  } else {
+    if (context) {
+      process.stdout.write(
+        `${WARNING} This environment is configured to use the context "${context}", but that wasn't found in your Kube config!`
+      )
+    }
+
+    if (kubeContexts.filter(context => context.startsWith('kubesail-')).length === 0) {
+      kubeContexts.push(NEW_KUBESAIL_CONTEXT)
+    }
+
+    const { newContext } = await inquirer.prompt([
+      {
+        name: 'newContext',
+        type: 'list',
+        message: 'Which Kubernetes context do you want to deploy to?',
+        default: kubeContexts[0],
+        choices: kubeContexts
+      }
+    ])
+
+    if (newContext === NEW_KUBESAIL_CONTEXT) {
+      // TODO: Wire up to create new kubesail context
+    }
+
+    return newContext
+  }
+}
+
+async function writeModuleConfiguration (
+  env = 'production',
+  mod,
+  options = { force: false, update: false }
+) {
+  if (typeof mod !== 'object' || typeof mod.name !== 'string') throw new Error('Invalid module!')
+  const modPath = `k8s/dependencies/${mod.name}`
+
+  const deploymentFile = `${mod.kind || 'deployment'}.yaml`
+  const resources = [`./${deploymentFile}`]
+  const secrets = {}
+
+  log(`Writing configuration for the "${mod.name}" module!`)
+
+  await writeDeployment(`./${modPath}/${deploymentFile}`, { ...options, ...mod })
+
+  if (mod.service) {
+    await writeService(`./${modPath}/service.yaml`, { ...options, ...mod })
+    resources.push('./service.yaml')
+  }
+
+  await writeKustomization(`./${modPath}/kustomization.yaml`, { resources })
+
+  if (mod.secrets) {
+    const file = `secrets/${mod.name}.env`
+    await writeSecrets(`./k8s/overlays/${env}/${file}`, { ...options, ...mod })
+    secrets[mod.name] = file
+  }
+
+  return { base: `../../../${modPath}`, secrets }
+}
+
+async function writeTextLine (file, line, options = { update: false, force: false, append: false }) {
+  let existingContent
+  try {
+    existingContent = (await readFile(file)).toString()
+  } catch (_err) {}
+  if (existingContent.indexOf(line) === -1) {
+    if (options.append) {
+      await confirmWriteFile(file, existingContent + '\n' + line + '\n', options)
+    } else {
+      await confirmWriteFile(file, line + '\n', options)
+    }
+  }
+}
+
+async function writeDNAConfig (packageJson, config) {
+  packageJson['deploy-node-app'] = Object.assign({}, packageJson['deploy-node-app'] || {}, config)
+  await confirmWriteFile('package.json', {
+    content: JSON.stringify(packageJson, null, 2) + '\n'
+  })
 }
 
 async function writeDockerfile (
@@ -243,7 +390,7 @@ COPY --chown=nodejs . ./
 
 CMD ["${command}", "${entrypoint}"]
   `,
-      { append: false, ...options }
+      { ...options }
     )
   }
 }
@@ -278,24 +425,6 @@ async function writeSkaffold (path, options = { force: false, update: false }) {
   console.log('writeSkaffold')
 }
 
-async function writeTextLine (file, line, options = { update: false, force: false, append: true }) {
-  let existingContent
-  try {
-    existingContent = (await readFile(file)).toString()
-  } catch (_err) {}
-  if (existingContent.indexOf(line) === -1) {
-    if (options.append) {
-      await confirmWriteFile(file, existingContent + '\n' + line + '\n', options)
-    } else {
-      await confirmWriteFile(file, line + '\n', options)
-    }
-  }
-}
-
-async function writeDNAConfig (config) {
-  console.log('writeDNAConfig saving config to package.json')
-}
-
 async function init (env = 'production', options = { update: false, force: false }, packageJson) {
   const { update, force } = options
   const config = packageJson['deploy-node-app'] ? packageJson['deploy-node-app'] : {}
@@ -310,8 +439,11 @@ async function init (env = 'production', options = { update: false, force: false
     packageJson.name && validProjectNameRegex.test(packageJson.name)
       ? packageJson.name
       : await promptForPackageName(packageJson.name, force)
-  const image = config.image ? config.image : await promptForImageName(name)
-  const ports = config.ports ? config.ports : await promptForPorts()
+  const image =
+    !update && config[env].image
+      ? config[env].image
+      : await promptForImageName(name, config[env].image)
+  const ports = !update && config.ports ? config.ports : await promptForPorts(name, config.ports)
   let uri = false
   if (ports.length > 0 && config[env].uri === undefined) uri = await promptForIngress()
 
@@ -319,7 +451,11 @@ async function init (env = 'production', options = { update: false, force: false
   const imageFrom = `node:${process.versions.node.split('.')[0]}`
 
   // If update or no Dockerfile and command is nginx, prompt if nginx is okay
-  const command = (await promptForStaticSite(packageJson, force)) ? 'nginx' : 'node'
+  const command = config.command
+    ? config.command
+    : (await promptForStaticSite(packageJson, force))
+      ? 'nginx'
+      : 'node'
 
   // Find service modules we support
   const matchedModules = matchModules(packageJson)
@@ -327,7 +463,7 @@ async function init (env = 'production', options = { update: false, force: false
   // Shorthand for helper functions
   const commonOpts = { name, env, ports, update }
 
-  const secrets = {}
+  let secrets = {}
   const bases = ['../../base']
 
   await writeDockerfile('./Dockerfile', {
@@ -340,26 +476,9 @@ async function init (env = 'production', options = { update: false, force: false
 
   for (let i = 0; i < matchedModules.length; i++) {
     const matched = matchedModules[i]
-    const mPath = `k8s/dependencies/${matched.name}`
-
-    const mDeploymentFile = `${matched.kind || 'deployment'}.yaml`
-    const mResources = [`./${mDeploymentFile}`]
-
-    await writeDeployment(`./${mPath}/${mDeploymentFile}`, { ...matched, ...commonOpts })
-
-    if (matched.service) {
-      await writeService(`./${mPath}/service.yaml`, { ...commonOpts, ...matched })
-      mResources.push('./service.yaml')
-    }
-
-    await writeKustomization(`./${mPath}/kustomization.yaml`, { resources: mResources })
-    bases.push(`../../../${mPath}`)
-
-    if (matched.secrets) {
-      const file = `secrets/${matched.name}.env`
-      await writeSecrets(`./k8s/overlays/${env}/${file}`, { ...commonOpts, ...matched })
-      secrets[matched.name] = file
-    }
+    const { base, secrets: moduleSecrets } = await writeModuleConfiguration(env, matched)
+    secrets = Object.assign({}, secrets, moduleSecrets)
+    bases.push(base)
   }
 
   await writeSkaffold('./skaffold.yaml', { image, ...commonOpts })
@@ -371,16 +490,17 @@ async function init (env = 'production', options = { update: false, force: false
   await writeKustomization(`./k8s/overlays/${env}/kustomization.yaml`, { bases, secrets })
 
   // write gitignore to include *.env files
-  await writeTextLine('.gitignore', 'k8s/overlays/*/secrets/*', options)
-  await writeTextLine('.dockerignore', 'k8s', options)
+  await writeTextLine('.gitignore', 'k8s/overlays/*/secrets/*', { ...options, append: true })
+  await writeTextLine('.dockerignore', 'k8s', { ...options, append: true })
 
   // Ensure that we have the context expected, and if we don't, let's ask the user to help us resolve it
-  await promptForKubeContext(config.context)
+  const kubeContexts = readLocalKubeConfig()
+  const context = await promptForKubeContext(config.context, kubeContexts)
 
-  await writeDNAConfig({
-    image,
+  await writeDNAConfig(packageJson, {
+    command,
     ports,
-    [env]: { uri }
+    [env]: { uri, context, image }
   })
 }
 
