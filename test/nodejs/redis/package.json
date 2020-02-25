@@ -5,5 +5,16 @@
   "license": "MIT",
   "dependencies": {
     "redis": "^3.0.2"
+  },
+  "deploy-node-app": {
+    "command": "node",
+    "ports": [],
+    "envs": {
+      "production": {
+        "uri": false,
+        "context": "docker-desktop",
+        "image": "seand/dna-redis-test-app"
+      }
+    }
   }
 }

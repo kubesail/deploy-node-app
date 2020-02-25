@@ -1,0 +1,14 @@
+{
+  "deploy-node-app": {
+    "ports": [
+      8000
+    ],
+    "envs": {
+      "production": {
+        "uri": "erulabs.com",
+        "context": "docker-desktop",
+        "image": "seand/simple"
+      }
+    }
+  }
+}
