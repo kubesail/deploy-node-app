@@ -24,28 +24,34 @@ program
 
 const env = program.args[0] || 'production'
 const action = program.args[1] || 'deploy'
+async function dna () {
+  const normalizedPath = path.join(__dirname, './languages')
+  let detectedLanguage
+  const languageFiles = fs.readdirSync(normalizedPath)
+  for (let i = 0; i < languageFiles.length; i++) {
+    // eslint-disable-next-line security/detect-non-literal-require
+    const language = require(path.join(__dirname, './languages', languageFiles[i]))
+    if (await language.detect()) {
+      detectedLanguage = language
+      break
+    }
+  }
 
-const normalizedPath = path.join(__dirname, './languages')
-let detectedLanguage
-const languageFiles = fs.readdirSync(normalizedPath)
-for (let i = 0; i < languageFiles.length; i++) {
-  // eslint-disable-next-line security/detect-non-literal-require
-  const language = require(path.join(__dirname, './languages', languageFiles[i]))
-  if (language.detect()) {
-    detectedLanguage = language
-    break
+  if (detectedLanguage) {
+    deployNodeApp(env, action, detectedLanguage, {
+      update: program.update || false,
+      write: program.write,
+      force: program.force || false,
+      labels: (program.label || '')
+        .split(',')
+        .map(k => k.split('=').filter(Boolean))
+        .filter(Boolean)
+    })
+  } else {
+    fatal(
+      'Unable to determine what sort of project this is... If it\'s a real project, please let us know at https://github.com/kubesail/deploy-node-app/issues and we\'ll add support!'
+    )
   }
 }
 
-if (detectedLanguage) {
-  deployNodeApp(env, action, detectedLanguage, {
-    update: program.update || false,
-    write: program.write,
-    force: program.force || false,
-    labels: (program.label || '').split(',').map(k => k.split('='))
-  })
-} else {
-  fatal(
-    'Unable to determine what sort of project this is... If it\'s a real project, please let us know at https://github.com/kubesail/deploy-node-app/issues and we\'ll add support!'
-  )
-}
+dna()

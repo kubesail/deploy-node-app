@@ -16,10 +16,10 @@ const KUBE_CONFIG_PATH = path.join(os.homedir(), '.kube', 'config')
 const NEW_KUBESAIL_CONTEXT = `KubeSail${style.gray.open} | Deploy on a free Kubernetes namespace${style.gray.close}`
 const validProjectNameRegex = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/i
 
-const { fatal, log, confirmWriteFile } = require('./util2')
+const { fatal, log, confirmWriteFile } = require('./util')
 
+// Read local .kube configuration to see if the user has an existing kube context they want to use
 function readLocalKubeConfig () {
-  // Read local .kube configuration to see if the user has an existing kube context they want to use
   let kubeContexts = []
   if (fs.existsSync(KUBE_CONFIG_PATH)) {
     try {
@@ -191,10 +191,12 @@ async function writeModuleConfiguration (
 
   log(`Writing configuration for the "${mod.name}" module!`)
 
-  await writeDeployment(`./${modPath}/${deploymentFile}`, { ...options, ...mod })
+  await writeDeployment(`./${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, {
+    ...options
+  })
 
   if (mod.service) {
-    await writeService(`./${modPath}/service.yaml`, { ...options, ...mod })
+    await writeService(`./${modPath}/service.yaml`, mod.name, mod.ports, { ...options })
     resources.push('./service.yaml')
   }
 
@@ -266,52 +268,84 @@ async function writeTextLine (file, line, options = { update: false, force: fals
 //   }
 // }
 
-async function writeDeployment (path, options = { force: false, update: false }) {
-  const { image, envFrom } = options
-  console.log('writeDeployment', options)
+async function writeDeployment (
+  path,
+  name,
+  image,
+  ports,
+  options = { force: false, update: false }
+) {
+  const newYaml = loadAndMergeYAML(path, {
+    apiVersion: 'apps/v1',
+    kind: 'Deployment',
+    metadata: { name },
+    spec: {
+      replicas: 1,
+      selector: { matchLabels: { app: name } },
+      template: {
+        metadata: {
+          labels: {
+            app: name
+          }
+        },
+        spec: {
+          containers: [
+            {
+              name,
+              image,
+              ports: ports.map(port => {
+                return { containerPort: port }
+              }),
+              resources: {
+                requests: { cpu: '50m', memory: '100Mi' },
+                limits: { cpu: '2', memory: '1500Mi' }
+              }
+            }
+          ]
+        }
+      }
+    }
+  })
+  await confirmWriteFile(path, newYaml, options)
 }
 
-async function writeService (path, options = { force: false, update: false }) {
-  const { image, envFrom } = options
-  console.log('writeService', options)
+async function writeService (path, name, ports, options = { force: false, update: false }) {
+  const newYaml = loadAndMergeYAML(path, {
+    apiVersion: 'v1',
+    kind: 'Service',
+    metadata: { name },
+    spec: {
+      selector: { app: name },
+      ports: ports.map(port => {
+        return {
+          port,
+          targetPort: port,
+          protocol: 'TCP'
+        }
+      })
+    }
+  })
+  await confirmWriteFile(path, newYaml, options)
 }
 
-async function writeIngress (path, options = { force: false, update: false }) {
-  const { image, envFrom } = options
-  console.log('writeIngress', options)
-
-  // apiVersion: extensions/v1beta1
-  // kind: Ingress
-  // metadata:
-  //   name: grafana
-  //   namespace: system--metrics
-  //   annotations:
-  //     kubernetes.io/ingress.class: "nginx"
-  //     nginx.ingress.kubernetes.io/custom-http-errors: "404,415"
-  //     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
-  //     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
-  //     # nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-  //     # nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-  //     nginx.ingress.kubernetes.io/affinity: "cookie"
-  //     nginx.ingress.kubernetes.io/session-cookie-name: "INGRESSCOOKIE"
-  //     nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
-  //     nginx.ingress.kubernetes.io/session-cookie-expires: "172800"
-  //     nginx.ingress.kubernetes.io/upstream-hash-by: "$binary_remote_addr"
-  // spec:
-  //   tls:
-  //     - hosts:
-  //         - grafana.ops.kubesail.com
-  //       secretName: kubesailcom
-  //   rules:
-  //     - host: grafana.ops.kubesail.com
-  //       http:
-  //         paths:
-  //           - backend:
-  //               serviceName: grafana
-  //               servicePort: dashboard
-  //             path: /
-
-  const newYaml = loadAndMergeYAML(path, { resources, bases })
+async function writeIngress (path, name, host, port, options = { force: false, update: false }) {
+  const newYaml = loadAndMergeYAML(path, {
+    apiVersion: 'networking.k8s.io/v1beta1',
+    kind: 'Ingress',
+    metadata: { name },
+    spec: {
+      tls: [{ hosts: [host], secretName: name }],
+      rules: [
+        {
+          host,
+          http: {
+            paths: [{ path: '/', backend: { serviceName: name, servicePort: port } }]
+          }
+        }
+      ]
+    }
+  })
+  await confirmWriteFile(path, newYaml, options)
 }
 
 async function writeKustomization (path, options = { force: false, update: false }) {
@@ -325,9 +359,30 @@ async function writeSecrets (path, options = { force: false, update: false }) {
   console.log('writeSecrets', options)
 }
 
-async function writeSkaffold (path, options = { force: false, update: false }) {
+async function writeSkaffold (path, context, envs, options = { force: false, update: false }) {
   const { image } = options
-  console.log('writeSkaffold', options)
+  const newYaml = loadAndMergeYAML(path, {
+    apiVersion: 'skaffold/v1',
+    kind: 'Config',
+    build: {
+      artifacts: [
+        {
+          image,
+          context,
+          docker: { dockerfile: 'Dockerfile' },
+          sync: {}
+        }
+      ]
+    },
+    portForward: {},
+    profiles: Object.keys(envs).map(env => {
+      return {
+        name: env,
+        deploy: { kustomize: { path: `k8s/overlays/${env}` } }
+      }
+    })
+  })
+  await confirmWriteFile(path, newYaml, options)
 }
 
 async function init (env = 'production', language, options = { update: false, force: false }) {
@@ -353,6 +408,10 @@ async function init (env = 'production', language, options = { update: false, fo
     : await promptForImageName(name, config.envs[env].image)
   const ports = config.ports ? config.ports : await promptForPorts(name, config.ports)
 
+  // Ensure that we have the context expected, and if we don't, let's ask the user to help us resolve it
+  const kubeContexts = readLocalKubeConfig()
+  const context = await promptForKubeContext(config.envs[env].context, kubeContexts)
+
   log(
     `Deploying "${style.green.open}${name}${style.green.close}" to ${style.red.open}${env}${style.red.close}!`
   )
@@ -375,6 +434,7 @@ async function init (env = 'production', language, options = { update: false, fo
 
   let secrets = {}
   const bases = ['../../base']
+  const resources = ['./deployment.yaml']
 
   // Project dockerfile
   await confirmWriteFile(
@@ -384,21 +444,18 @@ async function init (env = 'production', language, options = { update: false, fo
   )
 
   // Primary app deployment
-  await writeDeployment('./k8s/base/deployment.yaml', {
-    image,
-    envFrom: name,
-    ...commonOpts
-  })
+  await writeDeployment('./k8s/base/deployment.yaml', name, image, ports, { ...commonOpts })
 
   // Service and Ingress
-  let uri = false
+  let uri = config.envs[env].uri || ''
   if (ports.length > 0) {
-    await writeService('./k8s/base/service.yaml', commonOpts)
-    if (!update && config.envs[env].uri === undefined) {
-      uri = await promptForIngress(config.name)
-      if (uri) {
-        await writeIngress('./k8s/base/service.yaml', { uri, ...commonOpts })
-      }
+    await writeService('./k8s/base/service.yaml', name, ports, commonOpts)
+    resources.push('./service.yaml')
+    if (uri === undefined) uri = await promptForIngress(config.name)
+    if (uri) {
+      // TODO: Ask which port
+      await writeIngress('./k8s/base/ingress.yaml', name, uri, ports[0], { ...commonOpts })
+      resources.push('./ingress.yaml')
     }
   }
 
@@ -409,11 +466,9 @@ async function init (env = 'production', language, options = { update: false, fo
     bases.push(base)
   }
 
-  await writeSkaffold('./skaffold.yaml', { ...commonOpts, image })
+  await writeSkaffold('./skaffold.yaml', context, config.envs, { ...commonOpts, image })
 
-  await writeKustomization('./k8s/base/kustomization.yaml', {
-    resources: ['./deployment.yaml', './service.yaml', './ingress.yaml']
-  })
+  await writeKustomization('./k8s/base/kustomization.yaml', { ...commonOpts, resources })
 
   await writeKustomization(`./k8s/overlays/${env}/kustomization.yaml`, {
     ...commonOpts,
@@ -424,10 +479,6 @@ async function init (env = 'production', language, options = { update: false, fo
   // write gitignore to include *.env files
   await writeTextLine('.gitignore', 'k8s/overlays/*/secrets/*', { ...options, append: true })
   await writeTextLine('.dockerignore', 'k8s', { ...options, append: true })
-
-  // Ensure that we have the context expected, and if we don't, let's ask the user to help us resolve it
-  const kubeContexts = readLocalKubeConfig()
-  const context = await promptForKubeContext(config.envs[env].context, kubeContexts)
 
   language.writeConfig(
     {

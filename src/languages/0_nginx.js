@@ -1,7 +1,7 @@
 const fs = require('fs')
 const util = require('util')
 const inquirer = require('inquirer')
-const { confirmWriteFile } = require('../util2')
+const { confirmWriteFile } = require('../util')
 
 const readFile = util.promisify(fs.readFile)
 const npmPackages = ['webpack', 'react']
@@ -14,10 +14,10 @@ module.exports = {
     let looksLikeFrontend = false
     if (fs.existsSync('./package.json')) {
       try {
-        const packageJson = JSON.parse(fs.readFile('./package.json'))
-        looksLikeFrontend = npmPackages.find(pkg =>
-          Object.keys(packageJson.dependencies).includes(pkg)
-        )
+        const packageJson = JSON.parse(fs.readFileSync('./package.json'))
+        looksLikeFrontend = !!npmPackages.find(pkg => {
+          return Object.keys(packageJson.dependencies).includes(pkg)
+        })
       } catch {}
     }
 

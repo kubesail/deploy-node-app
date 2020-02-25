@@ -1,6 +1,6 @@
 const fs = require('fs')
 const util = require('util')
-const { confirmWriteFile } = require('../util2')
+const { confirmWriteFile } = require('../util')
 
 const readFile = util.promisify(fs.readFile)
 
@@ -8,7 +8,7 @@ module.exports = {
   name: 'nodejs',
   image: 'node',
   command: 'node',
-  detect: () => {
+  detect: async () => {
     return fs.existsSync('./package.json')
   },
   dockerfile: ({ entrypoint }) => {
