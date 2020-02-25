@@ -8,11 +8,23 @@ module.exports = {
   name: 'nodejs',
   image: 'node',
   command: 'node',
-  detectVersion: () => {
-    return process.versions.node.split('.')[0]
-  },
   detect: () => {
     return fs.existsSync('./package.json')
+  },
+  dockerfile: ({ entrypoint }) => {
+    return `FROM node:${process.versions.node.split('.')[0]}
+WORKDIR /app
+
+RUN useradd nodejs && \
+    chown -R nodejs /app && \
+    chown -R nodejs /home/nodejs
+
+COPY package.json yarn.loc[k] .npmr[c] ./
+RUN yarn install --production
+
+COPY --chown=nodejs . ./
+
+CMD ["node", "${entrypoint}"]`
   },
   readConfig: async () => {
     let packageJson = {}

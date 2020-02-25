@@ -39,6 +39,11 @@ module.exports = {
 
     return false
   },
+  dockerfile: ({ entrypoint }) => {
+    return `FROM nginx
+
+COPY . /usr/share/html/`
+  },
   readConfig: async () => {
     let packageJson = {}
     try {

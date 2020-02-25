@@ -116,8 +116,6 @@ async function promptForPorts (projectName, existingPorts = []) {
     .map(port => parseInt(port, 10))
     .filter(Boolean)
 
-  await writeService('./k8s/base/service.yaml', { projectName, ports })
-
   return ports
 }
 
@@ -211,6 +209,18 @@ async function writeModuleConfiguration (
   return { base: `../../../${modPath}`, secrets }
 }
 
+function loadAndMergeYAML (path, newData) {
+  let yamlStr = ''
+  if (fs.existsSync(path)) {
+    const existing = yaml.safeLoad(fs.readFileSync(path))
+    merge(existing, newData)
+    yamlStr = yaml.safeDump(existing)
+  } else {
+    yamlStr = yaml.safeDump(newData)
+  }
+  return yamlStr + '\n'
+}
+
 async function writeTextLine (file, line, options = { update: false, force: false, append: false }) {
   let existingContent
   try {
@@ -221,40 +231,40 @@ async function writeTextLine (file, line, options = { update: false, force: fals
   }
 }
 
-async function writeDockerfile (
-  path,
-  options = {
-    image: 'node',
-    deployedAs: undefined,
-    command: 'node',
-    entrypoint: 'src/index.js',
-    update: false,
-    force: false
-  }
-) {
-  const { image, deployedAs, command, entrypoint } = options
-  if (fs.existsSync(path)) {
-    await writeTextLine(
-      path,
-      `${deployedAs ? `# Deployed as ${deployedAs}\n` : ''}
-FROM ${image}
-WORKDIR /app
+// async function writeDockerfile (
+//   path,
+//   options = {
+//     image: 'node',
+//     deployedAs: undefined,
+//     command: 'node',
+//     entrypoint: 'src/index.js',
+//     update: false,
+//     force: false
+//   }
+// ) {
+//   const { image, deployedAs, command, entrypoint } = options
+//   if (fs.existsSync(path)) {
+//     await writeTextLine(
+//       path,
+//       `${deployedAs ? `# Deployed as ${deployedAs}\n` : ''}
+// FROM ${image}
+// WORKDIR /app
 
-RUN useradd nodejs && \
-    chown -R nodejs /app && \
-    chown -R nodejs /home/nodejs
+// RUN useradd nodejs && \
+//     chown -R nodejs /app && \
+//     chown -R nodejs /home/nodejs
 
-COPY package.json yarn.loc[k] .npmr[c] ./
-RUN yarn install --production
+// COPY package.json yarn.loc[k] .npmr[c] ./
+// RUN yarn install --production
 
-COPY --chown=nodejs . ./
+// COPY --chown=nodejs . ./
 
-CMD ["${command}", "${entrypoint}"]
-  `,
-      { ...options }
-    )
-  }
-}
+// CMD ["${command}", "${entrypoint}"]
+//   `,
+//       { ...options }
+//     )
+//   }
+// }
 
 async function writeDeployment (path, options = { force: false, update: false }) {
   const { image, envFrom } = options
@@ -269,23 +279,45 @@ async function writeService (path, options = { force: false, update: false }) {
 async function writeIngress (path, options = { force: false, update: false }) {
   const { image, envFrom } = options
   console.log('writeIngress', options)
+
+  // apiVersion: extensions/v1beta1
+  // kind: Ingress
+  // metadata:
+  //   name: grafana
+  //   namespace: system--metrics
+  //   annotations:
+  //     kubernetes.io/ingress.class: "nginx"
+  //     nginx.ingress.kubernetes.io/custom-http-errors: "404,415"
+  //     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+  //     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+  //     # nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+  //     # nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  //     nginx.ingress.kubernetes.io/affinity: "cookie"
+  //     nginx.ingress.kubernetes.io/session-cookie-name: "INGRESSCOOKIE"
+  //     nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
+  //     nginx.ingress.kubernetes.io/session-cookie-expires: "172800"
+  //     nginx.ingress.kubernetes.io/upstream-hash-by: "$binary_remote_addr"
+  // spec:
+  //   tls:
+  //     - hosts:
+  //         - grafana.ops.kubesail.com
+  //       secretName: kubesailcom
+  //   rules:
+  //     - host: grafana.ops.kubesail.com
+  //       http:
+  //         paths:
+  //           - backend:
+  //               serviceName: grafana
+  //               servicePort: dashboard
+  //             path: /
+
+  const newYaml = loadAndMergeYAML(path, { resources, bases })
 }
 
 async function writeKustomization (path, options = { force: false, update: false }) {
   const { resources = [], bases = [], secrets = [] } = options
-
-  let yamlStr = ''
-  if (fs.existsSync(path)) {
-    const existing = yaml.safeLoad(fs.readFileSync(path))
-    merge(existing, { resources, bases })
-    yamlStr = yaml.safeDump(existing)
-  } else {
-    yamlStr = yaml.safeDump({ resources, bases })
-  }
-
-  // TODO: Write secretGenerators
-
-  await confirmWriteFile(path, yamlStr + '\n', options)
+  const newYaml = loadAndMergeYAML(path, { resources, bases })
+  await confirmWriteFile(path, newYaml, options)
 }
 
 async function writeSecrets (path, options = { force: false, update: false }) {
@@ -312,23 +344,21 @@ async function init (env = 'production', language, options = { update: false, fo
     config.name && validProjectNameRegex.test(config.name)
       ? config.name
       : await promptForPackageName(config.name || path.basename(process.cwd()), force)
-  log(
-    `Deploying "${style.green.open}${name}${style.green.close}" to ${style.red.open}${env}${style.red.close}!`
-  )
+
+  // TODO: Entrypoint prompt
+  const entrypoint = 'src/index.js'
+
   const image = config.envs[env].image
     ? config.envs[env].image
     : await promptForImageName(name, config.envs[env].image)
   const ports = config.ports ? config.ports : await promptForPorts(name, config.ports)
-  let uri = false
-  if (ports.length > 0 && config.envs[env].uri === undefined) {
-    uri = await promptForIngress(config.name)
-  }
 
-  // Base image for Dockerfile (use latest major version of the local node version)
-  const imageFrom = `node:${process.versions.node.split('.')[0]}`
+  log(
+    `Deploying "${style.green.open}${name}${style.green.close}" to ${style.red.open}${env}${style.red.close}!`
+  )
 
-  // If update or no Dockerfile and command is nginx, prompt if nginx is okay
-  const command = config.command || language.command
+  // Shorthand for helper functions
+  const commonOpts = { ...options, name, env, ports }
 
   // Load modules
   const modules = []
@@ -343,23 +373,34 @@ async function init (env = 'production', language, options = { update: false, fo
   // Find service modules we support
   const matchedModules = language.matchModules ? await language.matchModules(modules) : []
 
-  // Shorthand for helper functions
-  const commonOpts = { ...options, name, env, ports }
-
   let secrets = {}
   const bases = ['../../base']
 
-  await writeDockerfile('./Dockerfile', {
-    image: imageFrom,
-    deployedAs: image,
-    command,
-    ...commonOpts
-  })
+  // Project dockerfile
+  await confirmWriteFile(
+    './Dockerfile',
+    language.dockerfile({ entrypoint, ...commonOpts }),
+    options
+  )
+
+  // Primary app deployment
   await writeDeployment('./k8s/base/deployment.yaml', {
     image,
     envFrom: name,
     ...commonOpts
   })
+
+  // Service and Ingress
+  let uri = false
+  if (ports.length > 0) {
+    await writeService('./k8s/base/service.yaml', commonOpts)
+    if (!update && config.envs[env].uri === undefined) {
+      uri = await promptForIngress(config.name)
+      if (uri) {
+        await writeIngress('./k8s/base/service.yaml', { uri, ...commonOpts })
+      }
+    }
+  }
 
   for (let i = 0; i < matchedModules.length; i++) {
     const matched = matchedModules[i]
@@ -390,7 +431,6 @@ async function init (env = 'production', language, options = { update: false, fo
 
   language.writeConfig(
     {
-      command,
       ports,
       envs: {
         [env]: { uri, context, image }
