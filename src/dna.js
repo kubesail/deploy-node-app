@@ -233,41 +233,6 @@ async function writeTextLine (file, line, options = { update: false, force: fals
   }
 }
 
-// async function writeDockerfile (
-//   path,
-//   options = {
-//     image: 'node',
-//     deployedAs: undefined,
-//     command: 'node',
-//     entrypoint: 'src/index.js',
-//     update: false,
-//     force: false
-//   }
-// ) {
-//   const { image, deployedAs, command, entrypoint } = options
-//   if (fs.existsSync(path)) {
-//     await writeTextLine(
-//       path,
-//       `${deployedAs ? `# Deployed as ${deployedAs}\n` : ''}
-// FROM ${image}
-// WORKDIR /app
-
-// RUN useradd nodejs && \
-//     chown -R nodejs /app && \
-//     chown -R nodejs /home/nodejs
-
-// COPY package.json yarn.loc[k] .npmr[c] ./
-// RUN yarn install --production
-
-// COPY --chown=nodejs . ./
-
-// CMD ["${command}", "${entrypoint}"]
-//   `,
-//       { ...options }
-//     )
-//   }
-// }
-
 async function writeDeployment (
   path,
   name,
@@ -329,6 +294,7 @@ async function writeService (path, name, ports, options = { force: false, update
 }
 
 async function writeIngress (path, name, host, port, options = { force: false, update: false }) {
+  console.log('Writing path', path, options)
   const newYaml = loadAndMergeYAML(path, {
     apiVersion: 'networking.k8s.io/v1beta1',
     kind: 'Ingress',
@@ -406,11 +372,12 @@ async function init (env = 'production', language, options = { update: false, fo
   const image = config.envs[env].image
     ? config.envs[env].image
     : await promptForImageName(name, config.envs[env].image)
-  const ports = config.ports ? config.ports : await promptForPorts(name, config.ports)
 
   // Ensure that we have the context expected, and if we don't, let's ask the user to help us resolve it
   const kubeContexts = readLocalKubeConfig()
   const context = await promptForKubeContext(config.envs[env].context, kubeContexts)
+
+  const ports = config.ports ? config.ports : await promptForPorts(name, config.ports)
 
   log(
     `Deploying "${style.green.open}${name}${style.green.close}" to ${style.red.open}${env}${style.red.close}!`
@@ -451,8 +418,9 @@ async function init (env = 'production', language, options = { update: false, fo
   if (ports.length > 0) {
     await writeService('./k8s/base/service.yaml', name, ports, commonOpts)
     resources.push('./service.yaml')
-    if (uri === undefined) uri = await promptForIngress(config.name)
+    if (!uri) uri = await promptForIngress(config.name)
     if (uri) {
+      console.log('uhm', { uri })
       // TODO: Ask which port
       await writeIngress('./k8s/base/ingress.yaml', name, uri, ports[0], { ...commonOpts })
       resources.push('./ingress.yaml')
