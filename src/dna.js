@@ -16,7 +16,7 @@ const KUBE_CONFIG_PATH = path.join(os.homedir(), '.kube', 'config')
 const NEW_KUBESAIL_CONTEXT = `KubeSail${style.gray.open} | Deploy on a free Kubernetes namespace${style.gray.close}`
 const validProjectNameRegex = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/i
 
-const { fatal, log, confirmWriteFile } = require('./util')
+const { fatal, log, execSyncWithEnv, confirmWriteFile } = require('./util')
 
 // Read local .kube configuration to see if the user has an existing kube context they want to use
 function readLocalKubeConfig () {
@@ -294,7 +294,6 @@ async function writeService (path, name, ports, options = { force: false, update
 }
 
 async function writeIngress (path, name, host, port, options = { force: false, update: false }) {
-  console.log('Writing path', path, options)
   const newYaml = loadAndMergeYAML(path, {
     apiVersion: 'networking.k8s.io/v1beta1',
     kind: 'Ingress',
@@ -328,7 +327,7 @@ async function writeSecrets (path, options = { force: false, update: false }) {
 async function writeSkaffold (path, context, envs, options = { force: false, update: false }) {
   const { image } = options
   const newYaml = loadAndMergeYAML(path, {
-    apiVersion: 'skaffold/v1',
+    apiVersion: 'skaffold/v2alpha4',
     kind: 'Config',
     build: {
       artifacts: [
@@ -352,7 +351,6 @@ async function writeSkaffold (path, context, envs, options = { force: false, upd
 }
 
 async function init (env = 'production', language, options = { update: false, force: false }) {
-  const { update, force } = options
   const config = await language.readConfig()
   if (!config.envs || !config.envs[env]) config.envs = { [env]: {} }
 
@@ -364,7 +362,7 @@ async function init (env = 'production', language, options = { update: false, fo
   const name =
     config.name && validProjectNameRegex.test(config.name)
       ? config.name
-      : await promptForPackageName(config.name || path.basename(process.cwd()), force)
+      : await promptForPackageName(config.name || path.basename(process.cwd()), options.force)
 
   // TODO: Entrypoint prompt
   const entrypoint = 'src/index.js'
@@ -420,7 +418,6 @@ async function init (env = 'production', language, options = { update: false, fo
     resources.push('./service.yaml')
     if (!uri) uri = await promptForIngress(config.name)
     if (uri) {
-      console.log('uhm', { uri })
       // TODO: Ask which port
       await writeIngress('./k8s/base/ingress.yaml', name, uri, ports[0], { ...commonOpts })
       resources.push('./ingress.yaml')
@@ -459,12 +456,12 @@ async function init (env = 'production', language, options = { update: false, fo
   )
 }
 
-async function deploy (env, language, options) {
-  console.log('deploy()')
+function deploy (env) {
+  execSyncWithEnv(`skaffold deploy --profile=${env}`)
 }
 
-async function build (env, language, options) {
-  console.log('build()')
+function build (env) {
+  execSyncWithEnv(`skaffold build --profile=${env}`)
 }
 
 module.exports = async function DeployNodeApp (env, action, language, options) {
@@ -474,10 +471,10 @@ module.exports = async function DeployNodeApp (env, action, language, options) {
       break
     case 'deploy':
       await init(env, language, options)
-      await deploy(env, language, options)
+      deploy(env)
       break
     case 'build':
-      await build(env, language, options)
+      build(env)
       break
     default:
       process.stderr.write(`No such action "${action}"!`)

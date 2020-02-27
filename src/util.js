@@ -1,8 +1,10 @@
 const fs = require('fs')
 const path = require('path')
+// eslint-disable-next-line security/detect-child-process
+const execSync = require('child_process').execSync
+const util = require('util')
 const chalk = require('chalk')
 const diff = require('diff')
-const util = require('util')
 const inquirer = require('inquirer')
 const style = require('ansi-styles')
 
@@ -76,8 +78,28 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
   }
 }
 
+const execSyncWithEnv = (cmd, options = {}) => {
+  const mergedOpts = Object.assign({}, options, {
+    catchErr: true,
+    env: Object.assign({}, process.env, options.env)
+  })
+  let output
+  try {
+    output = execSync(cmd, mergedOpts)
+  } catch (err) {
+    if (mergedOpts.catchErr) {
+      fatal(`Command "${cmd}" failed to run`)
+      process.exit(1)
+    } else {
+      throw err
+    }
+  }
+  if (output) return output.toString().trim()
+}
+
 module.exports = {
   fatal,
   log,
-  confirmWriteFile
+  confirmWriteFile,
+  execSyncWithEnv
 }
