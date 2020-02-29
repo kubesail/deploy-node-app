@@ -3,11 +3,15 @@ const path = require('path')
 // eslint-disable-next-line security/detect-child-process
 const execSync = require('child_process').execSync
 const util = require('util')
+const stream = require('stream')
 const chalk = require('chalk')
 const diff = require('diff')
 const inquirer = require('inquirer')
 const style = require('ansi-styles')
+const commandExists = require('command-exists')
+const got = require('got')
 
+const pipeline = util.promisify(stream.pipeline)
 const readFile = util.promisify(fs.readFile)
 const writeFile = util.promisify(fs.writeFile)
 const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
@@ -97,9 +101,54 @@ const execSyncWithEnv = (cmd, options = {}) => {
   if (output) return output.toString().trim()
 }
 
+async function ensureBinaries () {
+  const existsInNodeModules = fs.existsSync('./node_modules/.bin/skaffold')
+  const existsInPath = commandExists.sync('skaffold')
+  if (!existsInNodeModules && !existsInPath) {
+    const { downloadSkaffold } = await inquirer.prompt([
+      {
+        name: 'downloadSkaffold',
+        type: 'confirm',
+        message: 'I can\'t find a local "skaffold" installed - Should I download one automatically?'
+      }
+    ])
+
+    if (!downloadSkaffold) {
+      return fatal('Please install skaffold manually - see https://skaffold.dev/docs/install/')
+    }
+
+    let skaffoldUri = ''
+
+    switch (process.platform) {
+      case 'darwin':
+        skaffoldUri =
+          'https://storage.googleapis.com/skaffold/releases/latest/skaffold-darwin-amd64'
+
+        break
+      case 'linux':
+        skaffoldUri = 'https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64'
+        break
+      case 'win32':
+        skaffoldUri =
+          'https://storage.googleapis.com/skaffold/releases/latest/skaffold-windows-amd64.exe'
+        break
+      default:
+        return fatal(
+          'Can\'t determine platform! Please download skaffold manually - see https://skaffold.dev/docs/install/'
+        )
+    }
+
+    if (skaffoldUri) {
+      await pipeline(got.stream(skaffoldUri), fs.createWriteStream('./node_modules/.bin/skaffold'))
+    }
+  }
+  return existsInPath ? 'skaffold' : './node_modules/.bin/skaffold'
+}
+
 module.exports = {
   fatal,
   log,
+  ensureBinaries,
   confirmWriteFile,
   execSyncWithEnv
 }

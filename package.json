@@ -53,6 +53,7 @@
     "diff": "^4.0.1",
     "dotenv": "^8.1.0",
     "get-kubesail-config": "^1.0.4",
+    "got": "^10.6.0",
     "inquirer": "^7.0.0",
     "inquirer-fuzzy-path": "^2.1.0",
     "is-valid-domain": "^0.0.11",

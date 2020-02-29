@@ -16,7 +16,7 @@ const KUBE_CONFIG_PATH = path.join(os.homedir(), '.kube', 'config')
 const NEW_KUBESAIL_CONTEXT = `KubeSail${style.gray.open} | Deploy on a free Kubernetes namespace${style.gray.close}`
 const validProjectNameRegex = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/i
 
-const { fatal, log, execSyncWithEnv, confirmWriteFile } = require('./util')
+const { fatal, log, ensureBinaries, execSyncWithEnv, confirmWriteFile } = require('./util')
 
 // Read local .kube configuration to see if the user has an existing kube context they want to use
 function readLocalKubeConfig () {
@@ -339,11 +339,11 @@ async function writeSkaffold (path, context, envs, options = { force: false, upd
         }
       ]
     },
-    portForward: {},
+    portForward: [],
     profiles: Object.keys(envs).map(env => {
       return {
         name: env,
-        deploy: { kustomize: { path: `k8s/overlays/${env}` } }
+        deploy: { kustomize: { paths: [`k8s/overlays/${env}`] } }
       }
     })
   })
@@ -356,7 +356,7 @@ async function init (env = 'production', language, options = { update: false, fo
 
   await mkdirp('k8s/base')
   await mkdirp('k8s/dependencies')
-  if (!force && !fs.existsSync(`./k8s/overlays/${env}`)) await promptForNewEnvironment(env)
+  if (!options.force && !fs.existsSync(`./k8s/overlays/${env}`)) await promptForNewEnvironment(env)
 
   // Ask some questions if we have missing info in our package.json
   const name =
@@ -456,25 +456,26 @@ async function init (env = 'production', language, options = { update: false, fo
   )
 }
 
-function deploy (env) {
-  execSyncWithEnv(`skaffold deploy --profile=${env}`)
+function deploy (env, skaffoldPath) {
+  process.stdout.write(execSyncWithEnv(`${skaffoldPath} deploy --profile=${env}`))
 }
 
-function build (env) {
-  execSyncWithEnv(`skaffold build --profile=${env}`)
+function build (env, skaffoldPath) {
+  process.stdout.write(execSyncWithEnv(`${skaffoldPath} build --profile=${env}`))
 }
 
 module.exports = async function DeployNodeApp (env, action, language, options) {
+  const skaffoldPath = await ensureBinaries()
   switch (action) {
     case 'init':
       await init(env, language, options)
       break
     case 'deploy':
       await init(env, language, options)
-      deploy(env)
+      deploy(env, skaffoldPath)
       break
     case 'build':
-      build(env)
+      build(env, skaffoldPath)
       break
     default:
       process.stderr.write(`No such action "${action}"!`)
