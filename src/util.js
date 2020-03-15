@@ -22,10 +22,10 @@ function fatal (message /*: string */) {
 }
 
 const execSyncWithEnv = (cmd, options = {}) => {
-  const mergedOpts = Object.assign({}, options, {
+  const mergedOpts = Object.assign({}, {
     catchErr: true,
     env: Object.assign({}, process.env, options.env)
-  })
+  }, options)
   let output
   try {
     output = execSync(cmd, mergedOpts)
