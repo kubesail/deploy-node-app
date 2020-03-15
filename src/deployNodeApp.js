@@ -168,20 +168,39 @@ async function deployNodeApp (packageJson /*: Object */, env /*: string */, opts
 
   function buildComposeFile (metaModules /*: Array<Object> */) {
     let services = {}
+    let networks = {}
+    let volumes = {}
     metaModules.forEach(dependency => {
       const filename = `./node_modules/${dependency.name}/docker-compose.yaml`
       if (fs.existsSync(filename)) {
         const config = yaml.safeLoad(fs.readFileSync(filename))
         services = Object.assign({}, services, config.services)
+        networks = Object.assign({}, networks, config.networks)
+        volumes = Object.assign({}, volumes, config.volumes)
       } else {
         process.stdout.write('Warning:', dependency.name, 'doesn\'t support Docker Compose mode\n')
       }
     })
 
-    return {
+    let file = {
       version: '3',
       services
     }
+
+    // Only add objects that aren't empty
+    if (JSON.stringify(networks) !== '{}') {
+      file = {
+        ...file,
+        networks
+      }
+    }
+    if (JSON.stringify(volumes) !== '{}') {
+      file = {
+        ...file,
+        volumes
+      }
+    }
+    return file
   }
 
   async function buildKustomize (
