@@ -16,16 +16,16 @@ const readFile = util.promisify(fs.readFile)
 const writeFile = util.promisify(fs.writeFile)
 const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
 
+// A stub logger for now
+function log () { console.log(...arguments) } // eslint-disable-line no-console
+
+// Fatal is like log, but exits the process
 function fatal (message /*: string */) {
   process.stderr.write(`${ERR_ARROWS} ${message}\n`)
   process.exit(1)
 }
 
-function log () {
-  // eslint-disable-next-line no-console
-  console.log(...arguments)
-}
-
+// Diffs two strings prettily to stdout
 function tryDiff (content /*: string */, existingData /*: string */) {
   const compare = diff.diffLines(existingData, content)
   compare.forEach(part =>
@@ -35,6 +35,8 @@ function tryDiff (content /*: string */, existingData /*: string */) {
   )
 }
 
+// Writes a file unless it already exists, then properly handles that
+// Can also diff before writing!
 async function confirmWriteFile (filePath, content, options = { update: false, force: false }) {
   const fullPath = path.join(process.cwd(), filePath)
   const { update, force } = options
@@ -82,6 +84,7 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
   }
 }
 
+// Runs a shell command with our "process.env" - allows passing environment variables to skaffold, for example.
 const execSyncWithEnv = (cmd, options = {}) => {
   const mergedOpts = Object.assign({}, options, {
     catchErr: true,
@@ -101,6 +104,7 @@ const execSyncWithEnv = (cmd, options = {}) => {
   if (output) return output.toString().trim()
 }
 
+// Ensures other applications are installed (eg: skaffold)
 async function ensureBinaries () {
   const existsInNodeModules = fs.existsSync('./node_modules/.bin/skaffold')
   const existsInPath = commandExists.sync('skaffold')
@@ -109,38 +113,22 @@ async function ensureBinaries () {
       {
         name: 'downloadSkaffold',
         type: 'confirm',
-        message: 'I can\'t find a local "skaffold" installed - Should I download one automatically?'
+        message: 'Can\'t find a local "skaffold" installed - Try to download one automatically?'
       }
     ])
-
-    if (!downloadSkaffold) {
-      return fatal('Please install skaffold manually - see https://skaffold.dev/docs/install/')
-    }
-
+    if (!downloadSkaffold) return fatal('Please install skaffold manually - see https://skaffold.dev/docs/install/')
     let skaffoldUri = ''
-
     switch (process.platform) {
       case 'darwin':
-        skaffoldUri =
-          'https://storage.googleapis.com/skaffold/releases/latest/skaffold-darwin-amd64'
-
-        break
+        skaffoldUri = 'https://storage.googleapis.com/skaffold/releases/latest/skaffold-darwin-amd64'; break
       case 'linux':
-        skaffoldUri = 'https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64'
-        break
+        skaffoldUri = 'https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64'; break
       case 'win32':
-        skaffoldUri =
-          'https://storage.googleapis.com/skaffold/releases/latest/skaffold-windows-amd64.exe'
-        break
+        skaffoldUri = 'https://storage.googleapis.com/skaffold/releases/latest/skaffold-windows-amd64.exe'; break
       default:
-        return fatal(
-          'Can\'t determine platform! Please download skaffold manually - see https://skaffold.dev/docs/install/'
-        )
+        return fatal('Can\'t determine platform! Please download skaffold manually - see https://skaffold.dev/docs/install/')
     }
-
-    if (skaffoldUri) {
-      await pipeline(got.stream(skaffoldUri), fs.createWriteStream('./node_modules/.bin/skaffold'))
-    }
+    if (skaffoldUri) await pipeline(got.stream(skaffoldUri), fs.createWriteStream('./node_modules/.bin/skaffold'))
   }
   return existsInPath ? 'skaffold' : './node_modules/.bin/skaffold'
 }
