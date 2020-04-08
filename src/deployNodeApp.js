@@ -172,24 +172,17 @@ async function writeModuleConfiguration (
   const deploymentFile = `${mod.kind || 'deployment'}.yaml`
   const resources = [`./${deploymentFile}`]
   const secrets = {}
-
   log(`Writing configuration for the "${mod.name}" module!`)
-
   await writeDeployment(`./${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, options)
-
   if (mod.service) {
     await writeService(`./${modPath}/service.yaml`, mod.name, mod.ports, options)
     resources.push('./service.yaml')
   }
-
   await writeKustomization(`./${modPath}/kustomization.yaml`, { resources })
-
   if (mod.secrets) {
-    const file = `secrets/${mod.name}.env`
-    await writeSecrets(`./k8s/overlays/${env}/${file}`, { ...options, ...mod })
-    secrets[mod.name] = file
+    await writeSecrets(`./k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod })
+    secrets[mod.name] = `secrets/${mod.name}.env`
   }
-
   return { base: `../../../${modPath}`, secrets }
 }
 
@@ -203,6 +196,7 @@ function loadAndMergeYAML (path, newData) {
   return yamlStr + '\n'
 }
 
+// Idempotently writes a line of text to a file
 async function writeTextLine (file, line, options = { update: false, force: false, append: false }) {
   let existingContent
   try {
@@ -213,6 +207,7 @@ async function writeTextLine (file, line, options = { update: false, force: fals
   }
 }
 
+// Writes a simple Kubernetes Deployment object
 async function writeDeployment (path, name, image, ports, options = { force: false, update: false }) {
   const resources = { requests: { cpu: '50m', memory: '100Mi' }, limits: { cpu: '2', memory: '1500Mi' } }
   const containerPorts = ports.map(port => { return { containerPort: port } })
@@ -232,6 +227,7 @@ async function writeDeployment (path, name, image, ports, options = { force: fal
   await confirmWriteFile(path, newYaml, options)
 }
 
+// Writes a simple Kubernetes Service object
 async function writeService (path, name, ports, options = { force: false, update: false }) {
   const newYaml = loadAndMergeYAML(path, {
     apiVersion: 'v1',
@@ -245,6 +241,7 @@ async function writeService (path, name, ports, options = { force: false, update
   await confirmWriteFile(path, newYaml, options)
 }
 
+// Writes a simple Kubernetes Ingress object
 async function writeIngress (path, name, host, port, options = { force: false, update: false }) {
   const newYaml = loadAndMergeYAML(path, {
     apiVersion: 'networking.k8s.io/v1beta1',
@@ -292,17 +289,13 @@ async function init (env = 'production', language, options = { update: false, fo
   await mkdirp(`k8s/overlays/${env}/secrets`)
 
   // Ask some questions if we have missing info in our package.json 'deploy-node-app' configuration:
-  // Project name:
   const name =
     config.name && validProjectNameRegex.test(config.name)
       ? config.name
       : await promptForPackageName(config.name || path.basename(process.cwd()), options.force)
 
   // Entrypoint:
-  const entrypoint =
-    config.entrypoint && fs.existsSync(config.entrypoint)
-      ? config.entrypoint
-      : await promptForEntrypoint()
+  const entrypoint = config.entrypoint && fs.existsSync(config.entrypoint) ? config.entrypoint : await promptForEntrypoint()
 
   // Container image:
   const image = config.envs[env].image
@@ -358,14 +351,7 @@ async function init (env = 'production', language, options = { update: false, fo
   // Write Kustomization and Skaffold configuration
   await writeSkaffold('./skaffold.yaml', context, config.envs, { ...options, name, image, env, ports })
   await writeKustomization('./k8s/base/kustomization.yaml', { ...options, name, env, ports, resources })
-  await writeKustomization(`./k8s/overlays/${env}/kustomization.yaml`, {
-    ...options,
-    name,
-    env,
-    ports,
-    bases,
-    secrets
-  })
+  await writeKustomization(`./k8s/overlays/${env}/kustomization.yaml`, { ...options, name, env, ports, bases, secrets })
 
   // Write supporting files - these aren't strictly required, but highly encouraged defaults
   await writeTextLine('.gitignore', 'k8s/overlays/*/secrets/*', { ...options, append: true })
@@ -381,7 +367,9 @@ async function init (env = 'production', language, options = { update: false, fo
       log(`${WARNING} Failed to parse your ./package.json file!`)
     }
   }
-  packageJson['deploy-node-app'] = { [env]: { uri, context, image } }
+  packageJson['deploy-node-app'] = Object.assign({}, packageJson['deploy-node-app'], {
+    [env]: Object.assign({}, (packageJson['deploy-node-app'] || {})[env], { uri, context, image })
+  })
   await confirmWriteFile('./package.json', JSON.stringify(packageJson, null, 2) + '\n', { ...options, update: true })
 }
 
