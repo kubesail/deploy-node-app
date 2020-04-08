@@ -12,6 +12,7 @@ const { isFQDN } = require('validator')
 const yaml = require('js-yaml')
 const merge = require('lodash/merge')
 const style = require('ansi-styles')
+inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
 const { fatal, log, ensureBinaries, execSyncWithEnv, confirmWriteFile } = require('./util')
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const WARNING = `${style.yellow.open}!!${style.yellow.close}`
@@ -72,19 +73,31 @@ async function promptForPackageName (packageName = '', force = false) {
   }
 }
 
-function promptForEntrypoint () {
-  return 'src/index.js'
+async function promptForEntrypoint () {
+  const suggestedDefaultPaths = ['src/index.js', 'index.js']
+  const invalidPaths = ['.', 'LICENSE', 'README', 'package-lock.json', 'node_modules', 'yarn.lock', 'yarn-error.log', 'package.json', 'Dockerfile']
+  const invalidExtensions = ['.log', '.json', '.lock', '.css', '.svg', '.md', '.html', '.png', '.disabled', '.ico', '.txt']
+  const { entrypoint } = await inquirer.prompt([{
+    name: 'entrypoint',
+    type: 'fuzzypath',
+    message: 'What is your application\'s entrypoint?',
+    default: suggestedDefaultPaths.find(p => fs.existsSync(p)),
+    excludePath: filepath => invalidPaths.find(p => filepath.startsWith(p)) || invalidExtensions.find(p => filepath.endsWith(p)),
+    itemType: 'file',
+    rootPath: '.',
+    suggestOnly: false
+  }])
+  return entrypoint
 }
 
 async function promptForImageName (projectName, existingName) {
-  const { imageName } = await inquirer.prompt([
-    {
-      name: 'imageName',
-      type: 'input',
-      message:
+  const { imageName } = await inquirer.prompt([{
+    name: 'imageName',
+    type: 'input',
+    message:
         'What is the image name for our project? To use docker hub, try username/projectname.\n Note: Make sure this is marked private, or it may be automatically created as a public image!\n',
-      default: existingName || `${os.userInfo().username}/${projectName}`
-    }
+    default: existingName || `${os.userInfo().username}/${projectName}`
+  }
   ])
   return imageName
 }
@@ -114,27 +127,21 @@ async function promptForPorts (projectName, existingPorts = []) {
       }
     }
   ])
-  return newPorts
-    .replace(/ /g, '')
-    .split(',')
-    .map(port => parseInt(port, 10))
-    .filter(Boolean)
+  return newPorts.replace(/ /g, '').split(',').map(port => parseInt(port, 10)).filter(Boolean)
 }
 
 async function promptForIngress (defaultDomain) {
-  const { ingressUri } = await inquirer.prompt([
-    {
-      name: 'ingressUri',
-      type: 'input',
-      message:
+  const { ingressUri } = await inquirer.prompt([{
+    name: 'ingressUri',
+    type: 'input',
+    message:
         'Should this be exposed to the internet via HTTPS? ie: Is this a web server?\nIf so, what URI should be used to access it? (Will not be exposed to the internet if left blank)\n',
-      default: defaultDomain && isFQDN(defaultDomain) ? defaultDomain : '',
-      validate: input => {
-        if (input && !isFQDN(input)) return 'Either leave blank, or input a valid DNS name (ie: my.example.com)'
-        else return true
-      }
+    default: defaultDomain && isFQDN(defaultDomain) ? defaultDomain : '',
+    validate: input => {
+      if (input && !isFQDN(input)) return 'Either leave blank, or input a valid DNS name (ie: my.example.com)'
+      else return true
     }
-  ])
+  }])
   return ingressUri
 }
 
@@ -142,24 +149,19 @@ async function promptForKubeContext (context, kubeContexts) {
   if (context && kubeContexts.includes(context)) {
     return context
   } else {
-    if (context) {
-      process.stdout.write(`${WARNING} This environment is configured to use the context "${context}", but that wasn't found in your Kube config!`)
-    }
-
-    const { newContext } = await inquirer.prompt([
-      {
-        name: 'newContext',
-        type: 'list',
-        message: 'Which Kubernetes context do you want to deploy to?',
-        default: kubeContexts[0],
-        choices: kubeContexts
-      }
-    ])
-
+    if (context) process.stdout.write(`${WARNING} This environment is configured to use the context "${context}", but that wasn't found in your Kube config!`)
+    const { newContext } = await inquirer.prompt([{
+      name: 'newContext',
+      type: 'list',
+      message: 'Which Kubernetes context do you want to deploy to?',
+      default: kubeContexts[0],
+      choices: kubeContexts
+    }])
     return newContext
   }
 }
 
+// Write out the Kustomization files for a meta-module
 async function writeModuleConfiguration (
   env = 'production',
   mod,
@@ -167,19 +169,16 @@ async function writeModuleConfiguration (
 ) {
   if (typeof mod !== 'object' || typeof mod.name !== 'string') throw new Error('Invalid module!')
   const modPath = `k8s/dependencies/${mod.name}`
-
   const deploymentFile = `${mod.kind || 'deployment'}.yaml`
   const resources = [`./${deploymentFile}`]
   const secrets = {}
 
   log(`Writing configuration for the "${mod.name}" module!`)
 
-  await writeDeployment(`./${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, {
-    ...options
-  })
+  await writeDeployment(`./${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, options)
 
   if (mod.service) {
-    await writeService(`./${modPath}/service.yaml`, mod.name, mod.ports, { ...options })
+    await writeService(`./${modPath}/service.yaml`, mod.name, mod.ports, options)
     resources.push('./service.yaml')
   }
 
@@ -200,9 +199,7 @@ function loadAndMergeYAML (path, newData) {
     const existing = yaml.safeLoad(fs.readFileSync(path))
     merge(existing, newData)
     yamlStr = yaml.safeDump(existing)
-  } else {
-    yamlStr = yaml.safeDump(newData)
-  }
+  } else yamlStr = yaml.safeDump(newData)
   return yamlStr + '\n'
 }
 
@@ -216,13 +213,9 @@ async function writeTextLine (file, line, options = { update: false, force: fals
   }
 }
 
-async function writeDeployment (
-  path,
-  name,
-  image,
-  ports,
-  options = { force: false, update: false }
-) {
+async function writeDeployment (path, name, image, ports, options = { force: false, update: false }) {
+  const resources = { requests: { cpu: '50m', memory: '100Mi' }, limits: { cpu: '2', memory: '1500Mi' } }
+  const containerPorts = ports.map(port => { return { containerPort: port } })
   const newYaml = loadAndMergeYAML(path, {
     apiVersion: 'apps/v1',
     kind: 'Deployment',
@@ -231,26 +224,8 @@ async function writeDeployment (
       replicas: 1,
       selector: { matchLabels: { app: name } },
       template: {
-        metadata: {
-          labels: {
-            app: name
-          }
-        },
-        spec: {
-          containers: [
-            {
-              name,
-              image,
-              ports: ports.map(port => {
-                return { containerPort: port }
-              }),
-              resources: {
-                requests: { cpu: '50m', memory: '100Mi' },
-                limits: { cpu: '2', memory: '1500Mi' }
-              }
-            }
-          ]
-        }
+        metadata: { labels: { app: name } },
+        spec: { containers: [{ name, image, ports: containerPorts, resources }] }
       }
     }
   })
@@ -264,13 +239,7 @@ async function writeService (path, name, ports, options = { force: false, update
     metadata: { name },
     spec: {
       selector: { app: name },
-      ports: ports.map(port => {
-        return {
-          port,
-          targetPort: port,
-          protocol: 'TCP'
-        }
-      })
+      ports: ports.map(port => { return { port, targetPort: port, protocol: 'TCP' } })
     }
   })
   await confirmWriteFile(path, newYaml, options)
@@ -283,14 +252,7 @@ async function writeIngress (path, name, host, port, options = { force: false, u
     metadata: { name },
     spec: {
       tls: [{ hosts: [host], secretName: name }],
-      rules: [
-        {
-          host,
-          http: {
-            paths: [{ path: '/', backend: { serviceName: name, servicePort: port } }]
-          }
-        }
-      ]
+      rules: [{ host, http: { paths: [{ path: '/', backend: { serviceName: name, servicePort: port } }] } }]
     }
   })
   await confirmWriteFile(path, newYaml, options)
@@ -312,23 +274,9 @@ async function writeSkaffold (path, context, envs, options = { force: false, upd
   const newYaml = loadAndMergeYAML(path, {
     apiVersion: 'skaffold/v2alpha4',
     kind: 'Config',
-    build: {
-      artifacts: [
-        {
-          image,
-          context,
-          docker: { dockerfile: 'Dockerfile' },
-          sync: {}
-        }
-      ]
-    },
+    build: { artifacts: [{ image, context, docker: { dockerfile: 'Dockerfile' }, sync: {} }] },
     portForward: [],
-    profiles: Object.keys(envs).map(env => {
-      return {
-        name: env,
-        deploy: { kustomize: { paths: [`k8s/overlays/${env}`] } }
-      }
-    })
+    profiles: Object.keys(envs).map(env => { return { name: env, deploy: { kustomize: { paths: [`k8s/overlays/${env}`] } } } })
   })
   await confirmWriteFile(path, newYaml, options)
 }

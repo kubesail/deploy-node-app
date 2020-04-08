@@ -4,7 +4,7 @@ const USAGE = '[env] [action]'
 
 const program = require('commander')
 const { fatal } = require('./util')
-const deployNodeApp = require('./dna')
+const deployNodeApp = require('./deployNodeApp')
 const dnaPackageJson = require(__dirname + '/../package.json') // eslint-disable-line
 
 const languages = [
@@ -33,11 +33,6 @@ if (detectedLanguage) {
     update: program.update || false,
     write: program.write,
     force: program.force || false,
-    labels: (program.label || '')
-      .split(',')
-      .map(k => k.split('=').filter(Boolean))
-      .filter(Boolean)
+    labels: (program.label || '').split(',').map(k => k.split('=').filter(Boolean)).filter(Boolean)
   })
-} else {
-  fatal('Unable to determine what sort of project this is. If it\'s a real project, please let us know at https://github.com/kubesail/deploy-node-app/issues and we\'ll add support!')
-}
+} else fatal('Unable to determine what sort of project this is. If it\'s a real project, please let us know at https://github.com/kubesail/deploy-node-app/issues and we\'ll add support!')
