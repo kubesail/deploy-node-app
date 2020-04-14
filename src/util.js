@@ -179,12 +179,15 @@ function promptUserForValue ({ name = 'unnamed prompt!', message, validate, type
 }
 
 function generateRandomStr (length = 16) {
-  return new Promise((resolve, reject) => {
-    crypto.randomBytes(length, function (err, buff) {
-      if (err) throw err
-      resolve(buff.toString('hex'))
+  return (existing) => {
+    if (existing) return existing
+    return new Promise((resolve, reject) => {
+      crypto.randomBytes(length, function (err, buff) {
+        if (err) throw err
+        resolve(buff.toString('hex'))
+      })
     })
-  })
+  }
 }
 
 module.exports = {

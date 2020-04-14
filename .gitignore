@@ -7,3 +7,4 @@ tmp
 test/*/*/k8s
 test/*/*/Dockerfile
 test/*/*/skaffold.yaml
+test/*/*/.*

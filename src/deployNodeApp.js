@@ -180,7 +180,7 @@ async function writeModuleConfiguration (
   await writeKustomization(`./${modPath}/kustomization.yaml`, { resources })
   if (mod.envs) {
     await mkdir(`./k8s/overlays/${env}/secrets`)
-    await writeSecrets(`./k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod })
+    await writeSecret(`./k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod })
     secrets[mod.name] = `secrets/${mod.name}.env`
   }
   return { base: `../../../${modPath}`, secrets }
@@ -257,11 +257,18 @@ async function writeKustomization (path, options = { force: false, update: false
   await confirmWriteFile(path, loadAndMergeYAML(path, { resources, bases, secrets }), options)
 }
 
-async function writeSecrets (path, options = { force: false, update: false }) {
+async function writeSecret (path, options = { force: false, update: false }) {
   const { envs } = options
   const lines = []
+  const existingSecrets = {}
+  if (fs.existsSync(path)) {
+    const lines = fs.readFileSync(path).toString().split('\n').filter(Boolean)
+    lines.forEach(line => {
+      existingSecrets[line.slice(0, line.indexOf('='))] = JSON.parse(line.slice(line.indexOf('=') + 1, line.length))
+    })
+  }
   for (const key in envs) {
-    let value = process.env[key] || typeof envs[key] === 'function' ? envs[key]() : envs[key]
+    let value = process.env[key] || typeof envs[key] === 'function' ? envs[key](existingSecrets[key]) : envs[key]
     if (value instanceof Promise) value = await value
     lines.push(`${key}="${value}"`)
   }
