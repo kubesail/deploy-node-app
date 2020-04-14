@@ -1,5 +1,5 @@
 
-const { promptUserForValue } = require('../util')
+const { generateRandomStr } = require('../util')
 
 module.exports = {
   name: 'postgres',
@@ -10,7 +10,7 @@ module.exports = {
   },
   ports: [5432],
   envs: {
-    POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD || promptUserForValue({ name: 'POSTGRES_PASSWORD' }),
+    POSTGRES_PASSWORD: generateRandomStr(),
     POSTGRES_PORT: 5432
   }
 }

@@ -171,7 +171,6 @@ async function writeModuleConfiguration (
   const deploymentFile = `${mod.kind || 'deployment'}.yaml`
   const resources = [`./${deploymentFile}`]
   const secrets = {}
-  debug(`Writing configuration for the "${mod.name}" module!`)
   await mkdir(`./${modPath}`)
   await writeDeployment(`./${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, options)
   if (mod.service) {
@@ -255,19 +254,14 @@ async function writeIngress (path, name, host, port, options = { force: false, u
 
 async function writeKustomization (path, options = { force: false, update: false }) {
   const { resources = [], bases = [], secrets = [] } = options
-  await confirmWriteFile(path, loadAndMergeYAML(path, { resources, bases }), options)
+  await confirmWriteFile(path, loadAndMergeYAML(path, { resources, bases, secrets }), options)
 }
 
-const secretsPromptedFor = []
 async function writeSecrets (path, options = { force: false, update: false }) {
   const { envs } = options
   const lines = []
   for (const key in envs) {
-    if (!secretsPromptedFor.includes(path + key)) {
-      log(`A dependency "${options.name || 'unnamed?'}" is requesting some settings:`)
-    }
-    secretsPromptedFor.push(path + key)
-    let value = typeof envs[key] === 'function' ? envs[key]() : envs[key]
+    let value = process.env[key] || typeof envs[key] === 'function' ? envs[key]() : envs[key]
     if (value instanceof Promise) value = await value
     lines.push(`${key}="${value}"`)
   }
@@ -318,8 +312,10 @@ async function init (env = 'production', language, options = { update: false, fo
   // Kubernetes Context (Cluster and User):
   const context = await promptForKubeContext(envConfig.context, readLocalKubeConfig())
 
-  if (options.action === 'deploy') log(`Deploying "${style.green.open}${name}${style.green.close}" to ${style.red.open}${env}${style.red.close}!`)
-  if (!options.force && !process.env.CI) await sleep(1500) // Give administrators a chance to exit!
+  if (options.action === 'deploy') {
+    log(`Deploying "${style.green.open}${name}${style.green.close}" to ${style.red.open}${env}${style.red.close}!`)
+    if (!options.force && !process.env.CI) await sleep(1500) // Give administrators a chance to exit!
+  }
 
   // Secrets will track secrets created by our dependencies which need to be written out to Kubernetes Secrets
   let secrets = {}
@@ -352,7 +348,7 @@ async function init (env = 'production', language, options = { update: false, fo
   // Add matched modules to our Kustomization file
   for (let i = 0; i < matchedModules.length; i++) {
     const matched = matchedModules[i]
-    const { base, secrets: moduleSecrets } = await writeModuleConfiguration(env, matched)
+    const { base, secrets: moduleSecrets } = await writeModuleConfiguration(env, matched, options)
     secrets = Object.assign({}, secrets, moduleSecrets)
     bases.push(base)
   }

@@ -3,6 +3,7 @@ const path = require('path')
 // eslint-disable-next-line security/detect-child-process
 const execSync = require('child_process').execSync
 const util = require('util')
+const crypto = require('crypto')
 const stream = require('stream')
 const chalk = require('chalk')
 const diff = require('diff')
@@ -170,11 +171,20 @@ async function ensureBinaries () {
   return existsInPath ? 'skaffold' : './node_modules/.bin/skaffold'
 }
 
-function promptUserForValue ({ name = 'unnamed prompt!', message, generateRandom = false, validate, type = 'input' }) {
+function promptUserForValue ({ name = 'unnamed prompt!', message, validate, type = 'input' }) {
   return async () => {
     const values = await inquirer.prompt([{ name, type, message, validate }])
     return values[name]
   }
+}
+
+function generateRandomStr (length = 16) {
+  return new Promise((resolve, reject) => {
+    crypto.randomBytes(length, function (err, buff) {
+      if (err) throw err
+      resolve(buff.toString('hex'))
+    })
+  })
 }
 
 module.exports = {
@@ -183,6 +193,7 @@ module.exports = {
   log,
   mkdir,
   cleanupWrittenFiles,
+  generateRandomStr,
   ensureBinaries,
   confirmWriteFile,
   execSyncWithEnv,
