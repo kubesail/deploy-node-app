@@ -88,7 +88,7 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
 const execSyncWithEnv = (cmd, options = {}) => {
   const mergedOpts = Object.assign({}, options, {
     catchErr: true,
-    env: Object.assign({}, process.env, options.env)
+    env: Object.assign({}, process.env, options.env || {})
   })
   let output
   try {
@@ -133,10 +133,16 @@ async function ensureBinaries () {
   return existsInPath ? 'skaffold' : './node_modules/.bin/skaffold'
 }
 
+async function promptUserForValue ({ message, generateRandom = false, validate, type = 'input' }) {
+  const { value } = await inquirer.prompt([{ name: 'value', type, message, validate }])
+  return value
+}
+
 module.exports = {
   fatal,
   log,
   ensureBinaries,
   confirmWriteFile,
-  execSyncWithEnv
+  execSyncWithEnv,
+  promptUserForValue
 }

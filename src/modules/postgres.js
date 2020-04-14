@@ -1,4 +1,5 @@
-function promptUserForPassword () {}
+
+const { promptUserForValue } = require('../util')
 
 module.exports = {
   name: 'postgres',
@@ -9,6 +10,6 @@ module.exports = {
   },
   ports: [5432],
   envs: {
-    POSTGRES_PASSWORD: promptUserForPassword()
+    POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD || promptUserForValue({})
   }
 }

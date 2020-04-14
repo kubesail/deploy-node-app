@@ -135,8 +135,8 @@ async function promptForIngress (defaultDomain) {
     name: 'ingressUri',
     type: 'input',
     message:
-        'Should this be exposed to the internet via HTTPS? ie: Is this a web server?\nIf so, what URI should be used to access it? (Will not be exposed to the internet if left blank)\n',
-    default: defaultDomain && isFQDN(defaultDomain) ? defaultDomain : '',
+        'Is this an HTTP service? \nIf so, what URI should be used to access it? (Will not be exposed to the internet if left blank)\n',
+    default: defaultDomain && isFQDN(defaultDomain) ? defaultDomain : 'myapp.example.com',
     validate: input => {
       if (input && !isFQDN(input)) return 'Either leave blank, or input a valid DNS name (ie: my.example.com)'
       else return true
@@ -173,13 +173,15 @@ async function writeModuleConfiguration (
   const resources = [`./${deploymentFile}`]
   const secrets = {}
   log(`Writing configuration for the "${mod.name}" module!`)
+  await mkdirp(`./${modPath}`)
   await writeDeployment(`./${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, options)
   if (mod.service) {
     await writeService(`./${modPath}/service.yaml`, mod.name, mod.ports, options)
     resources.push('./service.yaml')
   }
   await writeKustomization(`./${modPath}/kustomization.yaml`, { resources })
-  if (mod.secrets) {
+  if (mod.envs) {
+    await mkdirp(`./k8s/overlays/${env}/secrets`)
     await writeSecrets(`./k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod })
     secrets[mod.name] = `secrets/${mod.name}.env`
   }
@@ -211,7 +213,7 @@ async function writeTextLine (file, line, options = { update: false, force: fals
 async function writeDeployment (path, name, image, ports, options = { force: false, update: false }) {
   const resources = { requests: { cpu: '50m', memory: '100Mi' }, limits: { cpu: '2', memory: '1500Mi' } }
   const containerPorts = ports.map(port => { return { containerPort: port } })
-  const newYaml = loadAndMergeYAML(path, {
+  await confirmWriteFile(path, loadAndMergeYAML(path, {
     apiVersion: 'apps/v1',
     kind: 'Deployment',
     metadata: { name },
@@ -223,13 +225,12 @@ async function writeDeployment (path, name, image, ports, options = { force: fal
         spec: { containers: [{ name, image, ports: containerPorts, resources }] }
       }
     }
-  })
-  await confirmWriteFile(path, newYaml, options)
+  }), options)
 }
 
 // Writes a simple Kubernetes Service object
 async function writeService (path, name, ports, options = { force: false, update: false }) {
-  const newYaml = loadAndMergeYAML(path, {
+  await confirmWriteFile(path, loadAndMergeYAML(path, {
     apiVersion: 'v1',
     kind: 'Service',
     metadata: { name },
@@ -237,13 +238,12 @@ async function writeService (path, name, ports, options = { force: false, update
       selector: { app: name },
       ports: ports.map(port => { return { port, targetPort: port, protocol: 'TCP' } })
     }
-  })
-  await confirmWriteFile(path, newYaml, options)
+  }), options)
 }
 
 // Writes a simple Kubernetes Ingress object
 async function writeIngress (path, name, host, port, options = { force: false, update: false }) {
-  const newYaml = loadAndMergeYAML(path, {
+  await confirmWriteFile(path, loadAndMergeYAML(path, {
     apiVersion: 'networking.k8s.io/v1beta1',
     kind: 'Ingress',
     metadata: { name },
@@ -251,37 +251,40 @@ async function writeIngress (path, name, host, port, options = { force: false, u
       tls: [{ hosts: [host], secretName: name }],
       rules: [{ host, http: { paths: [{ path: '/', backend: { serviceName: name, servicePort: port } }] } }]
     }
-  })
-  await confirmWriteFile(path, newYaml, options)
+  }), options)
 }
 
 async function writeKustomization (path, options = { force: false, update: false }) {
   const { resources = [], bases = [], secrets = [] } = options
-  const newYaml = loadAndMergeYAML(path, { resources, bases })
-  await confirmWriteFile(path, newYaml, options)
+  await confirmWriteFile(path, loadAndMergeYAML(path, { resources, bases }), options)
 }
 
-function writeSecrets (path, options = { force: false, update: false }) {
+async function writeSecrets (path, options = { force: false, update: false }) {
   const { envs } = options
-  console.log('writeSecrets', options)
+  const lines = []
+  for (const key in envs) {
+    const value = await Promise.resolve(envs[key])
+    lines.push(`${key}="${value}"`)
+  }
+  await confirmWriteFile(path, lines.join('\n') + '\n', options)
 }
 
 async function writeSkaffold (path, context, envs, options = { force: false, update: false }) {
   const { image } = options
-  const newYaml = loadAndMergeYAML(path, {
+  await confirmWriteFile(path, loadAndMergeYAML(path, {
     apiVersion: 'skaffold/v2alpha4',
     kind: 'Config',
     build: { artifacts: [{ image, context, docker: { dockerfile: 'Dockerfile' }, sync: {} }] },
     portForward: [],
     profiles: Object.keys(envs).map(env => { return { name: env, deploy: { kustomize: { paths: [`k8s/overlays/${env}`] } } } })
-  })
-  await confirmWriteFile(path, newYaml, options)
+  }), options)
 }
 
 async function init (env = 'production', language, options = { update: false, force: false }) {
   const config = await language.readConfig()
   if (!config.envs || !config.envs[env]) config.envs = { [env]: {} }
-  if (validProjectNameRegex.test(env)) return fatal('Invalid env provided!')
+  if (!validProjectNameRegex.test(env)) return fatal(`Invalid env "${env}" provided!`)
+  const envConfig = config.envs[env]
 
   // Create directory structure
   await mkdirp('k8s/base')
@@ -295,19 +298,22 @@ async function init (env = 'production', language, options = { update: false, fo
       : await promptForPackageName(config.name || path.basename(process.cwd()), options.force)
 
   // Entrypoint:
-  const entrypoint = config.entrypoint && fs.existsSync(config.entrypoint) ? config.entrypoint : await promptForEntrypoint()
+  const entrypoint = envConfig.entrypoint && fs.existsSync(envConfig.entrypoint) ? envConfig.entrypoint : await promptForEntrypoint()
 
-  // Container image:
-  const image = config.envs[env].image
-    ? config.envs[env].image
-    : await promptForImageName(name, config.envs[env].image)
   // Container ports:
   const ports = config.ports ? config.ports : await promptForPorts(name, config.ports)
 
-  // Kubernetes Context (Cluster and User):
-  const context = await promptForKubeContext(config.envs[env].context, readLocalKubeConfig())
+  // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
+  let uri = envConfig.uri || ''
+  if (ports.length > 0 && !uri) uri = await promptForIngress(config.name)
 
-  log(`Deploying "${style.green.open}${name}${style.green.close}" to ${style.red.open}${env}${style.red.close}!`)
+  // Container image:
+  const image = envConfig.image ? envConfig.image : await promptForImageName(name, envConfig.image)
+
+  // Kubernetes Context (Cluster and User):
+  const context = await promptForKubeContext(envConfig.context, readLocalKubeConfig())
+
+  if (options.action === 'deploy') log(`Deploying "${style.green.open}${name}${style.green.close}" to ${style.red.open}${env}${style.red.close}!`)
   if (!options.force && !process.env.CI) await sleep(1500) // Give administrators a chance to exit!
 
   // Secrets will track secrets created by our dependencies which need to be written out to Kubernetes Secrets
@@ -325,8 +331,6 @@ async function init (env = 'production', language, options = { update: false, fo
   // Write a Kubernetes Deployment object
   await writeDeployment('./k8s/base/deployment.yaml', name, image, ports, { ...options, name, env, ports })
 
-  // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
-  let uri = config.envs[env].uri || ''
   if (ports.length > 0) {
     await writeService('./k8s/base/service.yaml', name, ports, { ...options, name, env, ports })
     resources.push('./service.yaml')
@@ -368,7 +372,10 @@ async function init (env = 'production', language, options = { update: false, fo
     }
   }
   packageJson['deploy-node-app'] = Object.assign({}, packageJson['deploy-node-app'], {
-    [env]: Object.assign({}, (packageJson['deploy-node-app'] || {})[env], { uri, context, image })
+    ports,
+    envs: Object.assign({}, (packageJson['deploy-node-app'] || {}).envs, {
+      [env]: Object.assign({}, (packageJson['deploy-node-app'] || {})[env], { uri, context, image, entrypoint })
+    })
   })
   await confirmWriteFile('./package.json', JSON.stringify(packageJson, null, 2) + '\n', { ...options, update: true })
 }

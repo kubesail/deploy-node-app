@@ -9,13 +9,19 @@
   },
   "deploy-node-app": {
     "ports": [
-      5000
+      8000
     ],
     "envs": {
       "dev": {
         "uri": "this-is-dev.com",
         "context": "docker-desktop",
         "image": "seand/dna-postgres-test-app"
+      },
+      "production": {
+        "uri": "myapp.example.com",
+        "context": "docker-desktop",
+        "image": "seand/dna-postgres-test-app",
+        "entrypoint": "index.js"
       }
     }
   }
