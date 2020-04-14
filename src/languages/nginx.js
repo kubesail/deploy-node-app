@@ -39,11 +39,7 @@ module.exports = {
 
     return false
   },
-  dockerfile: ({ entrypoint }) => {
-    return `FROM nginx
-
-COPY . /usr/share/html/`
-  },
+  dockerfile: ({ entrypoint }) => 'FROM nginx\n\nCOPY . /usr/share/html/',
   readConfig: async () => {
     let packageJson = {}
     try {
@@ -54,11 +50,8 @@ COPY . /usr/share/html/`
     config.ports = [8000]
     return config
   },
-  writeConfig: async (config, options) => {
-    let packageJson = {}
-    try {
-      packageJson = JSON.parse((await readFile('./package.json')).toString())
-    } catch (_err) {}
+  writeConfig: async function (config, options) {
+    const packageJson = await this.readConfig()
     packageJson['deploy-node-app'] = config
     await confirmWriteFile('./package.json', JSON.stringify(packageJson, null, 2) + '\n', {
       ...options,

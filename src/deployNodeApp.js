@@ -203,7 +203,7 @@ async function writeTextLine (file, line, options = { update: false, force: fals
   try {
     existingContent = (await readFile(file)).toString()
   } catch (_err) {}
-  if (existingContent && existingContent.indexOf(line) === -1 && options.append) {
+  if (!existingContent || (existingContent && existingContent.indexOf(line) === -1 && options.append)) {
     await confirmWriteFile(file, line + '\n', options)
   }
 }
@@ -258,11 +258,17 @@ async function writeKustomization (path, options = { force: false, update: false
   await confirmWriteFile(path, loadAndMergeYAML(path, { resources, bases }), options)
 }
 
+const secretsPromptedFor = []
 async function writeSecrets (path, options = { force: false, update: false }) {
   const { envs } = options
   const lines = []
   for (const key in envs) {
-    const value = await Promise.resolve(envs[key])
+    if (!secretsPromptedFor.includes(path + key)) {
+      log(`A dependency "${options.name || 'unnamed?'}" is requesting some settings:`)
+    }
+    secretsPromptedFor.push(path + key)
+    let value = typeof envs[key] === 'function' ? envs[key]() : envs[key]
+    if (value instanceof Promise) value = await value
     lines.push(`${key}="${value}"`)
   }
   await confirmWriteFile(path, lines.join('\n') + '\n', options)
@@ -357,8 +363,8 @@ async function init (env = 'production', language, options = { update: false, fo
   await writeKustomization(`./k8s/overlays/${env}/kustomization.yaml`, { ...options, name, env, ports, bases, secrets })
 
   // Write supporting files - these aren't strictly required, but highly encouraged defaults
-  await writeTextLine('.gitignore', 'k8s/overlays/*/secrets/*', { ...options, append: true })
-  await writeTextLine('.dockerignore', 'k8s', { ...options, append: true })
+  await writeTextLine('./.gitignore', 'k8s/overlays/*/secrets/*', { ...options, append: true })
+  await writeTextLine('./.dockerignore', 'k8s', { ...options, append: true })
 
   // Finally, let's write out the result of all the questions asked to the package.json file
   // Next time deploy-node-app is run, we shouldn't need to ask the user anything!

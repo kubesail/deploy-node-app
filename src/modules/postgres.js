@@ -10,6 +10,7 @@ module.exports = {
   },
   ports: [5432],
   envs: {
-    POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD || promptUserForValue({})
+    POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD || promptUserForValue({ name: 'POSTGRES_PASSWORD' }),
+    POSTGRES_PORT: 5432
   }
 }

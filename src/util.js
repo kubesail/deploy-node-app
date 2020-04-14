@@ -170,9 +170,11 @@ async function ensureBinaries () {
   return existsInPath ? 'skaffold' : './node_modules/.bin/skaffold'
 }
 
-async function promptUserForValue ({ message, generateRandom = false, validate, type = 'input' }) {
-  const { value } = await inquirer.prompt([{ name: 'value', type, message, validate }])
-  return value
+function promptUserForValue ({ name = 'unnamed prompt!', message, generateRandom = false, validate, type = 'input' }) {
+  return async () => {
+    const values = await inquirer.prompt([{ name, type, message, validate }])
+    return values[name]
+  }
 }
 
 module.exports = {
