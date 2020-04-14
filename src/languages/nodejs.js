@@ -1,5 +1,6 @@
 const fs = require('fs')
 const util = require('util')
+const path = require('path')
 const { confirmWriteFile } = require('../util')
 
 const readFile = util.promisify(fs.readFile)
@@ -29,10 +30,10 @@ COPY --chown=nodejs . ./
 CMD ["node", "${entrypoint}"]`
   },
 
-  readConfig: async () => {
+  readConfig: async (options) => {
     let packageJson = {}
     try {
-      packageJson = JSON.parse(await readFile('./package.json'))
+      packageJson = JSON.parse(await readFile(path.join(options.directory, './package.json')))
     } catch (_err) {}
     const config = packageJson['deploy-node-app'] || {}
     if (!config.name) config.name = packageJson.name
@@ -48,8 +49,8 @@ CMD ["node", "${entrypoint}"]`
     })
   },
 
-  matchModules: async function (modules) {
-    const packageJson = JSON.parse(await readFile('./package.json'))
+  matchModules: async function (modules, options) {
+    const packageJson = JSON.parse(await readFile(path.join(options.directory, './package.json')))
     const dependencies = Object.keys(packageJson.dependencies || [])
     // Don't bother loading module dependencies if we have no dependencies
     if (dependencies.length === 0) return []

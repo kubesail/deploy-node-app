@@ -98,8 +98,8 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
   }
 }
 
-const mkdir = async (fullPath) => {
-  const created = await mkdirp(fullPath)
+const mkdir = async (fullPath, options) => {
+  const created = await mkdirp(path.join(options.directory, fullPath))
   if (created) dirsWritten.push(fullPath)
   return created
 }
@@ -118,7 +118,7 @@ const cleanupWrittenFiles = () => {
       if (fs.readdirSync(dirPart).length === 0) {
         debug(`Removing directory "${dirPart}"`)
         fs.rmdirSync(dirPart)
-      }
+      } else break
     }
   })
 }

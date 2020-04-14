@@ -72,21 +72,20 @@ async function promptForPackageName (packageName = '', force = false) {
   }
 }
 
-async function promptForEntrypoint () {
+async function promptForEntrypoint (options) {
   const suggestedDefaultPaths = ['src/index.js', 'index.js']
-  const invalidPaths = ['.', 'LICENSE', 'README', 'package-lock.json', 'node_modules', 'yarn.lock', 'yarn-error.log', 'package.json', 'Dockerfile']
-  const invalidExtensions = ['.log', '.json', '.lock', '.css', '.svg', '.md', '.html', '.png', '.disabled', '.ico', '.txt']
+  const invalidPaths = ['.', 'LICENSE', 'README', 'package-lock.json', 'node_modules', 'yarn.lock', 'yarn-error.log', 'package.json', 'Dockerfile', '.log', '.json', '.lock', '.css', '.svg', '.md', '.png', '.disabled', '.ico', '.txt']
   const { entrypoint } = await inquirer.prompt([{
     name: 'entrypoint',
     type: 'fuzzypath',
     message: 'What is your application\'s entrypoint?',
-    default: suggestedDefaultPaths.find(p => fs.existsSync(p)),
-    excludePath: filepath => invalidPaths.find(p => filepath.startsWith(p)) || invalidExtensions.find(p => filepath.endsWith(p)),
+    default: suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.directory, p))),
+    excludePath: filepath => invalidPaths.find(p => filepath.endsWith(p)),
     itemType: 'file',
-    rootPath: '.',
+    rootPath: options.directory,
     suggestOnly: false
   }])
-  return entrypoint
+  return entrypoint.replace(/\\/g, '/').replace(options.directory, '.')
 }
 
 async function promptForImageName (projectName, existingName) {
@@ -171,7 +170,7 @@ async function writeModuleConfiguration (
   const deploymentFile = `${mod.kind || 'deployment'}.yaml`
   const resources = [deploymentFile]
   const secrets = {}
-  await mkdir(modPath)
+  await mkdir(modPath, options)
   await writeDeployment(`${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, options)
   if (mod.service) {
     await writeService(`${modPath}/service.yaml`, mod.name, mod.ports, options)
@@ -179,7 +178,7 @@ async function writeModuleConfiguration (
   }
   await writeKustomization(`${modPath}/kustomization.yaml`, { resources, ...options })
   if (mod.envs) {
-    await mkdir(`k8s/overlays/${env}/secrets`)
+    await mkdir(`k8s/overlays/${env}/secrets`, options)
     await writeSecret(`k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod })
     secrets[mod.name] = `secrets/${mod.name}.env`
   }
@@ -287,15 +286,15 @@ async function writeSkaffold (path, context, envs, options = { force: false, upd
 }
 
 async function init (env = 'production', language, options = { update: false, force: false }) {
-  const config = await language.readConfig()
+  const config = await language.readConfig(options)
   if (!config.envs || !config.envs[env]) config.envs = { [env]: {} }
   if (!validProjectNameRegex.test(env)) return fatal(`Invalid env "${env}" provided!`)
   const envConfig = config.envs[env]
 
   // Create directory structure
-  await mkdir('k8s/base')
-  await mkdir('k8s/dependencies')
-  await mkdir(`k8s/overlays/${env}/secrets`)
+  await mkdir('k8s/base', options)
+  await mkdir('k8s/dependencies', options)
+  await mkdir(`k8s/overlays/${env}/secrets`, options)
 
   // Ask some questions if we have missing info in our package.json 'deploy-node-app' configuration:
   const name =
@@ -304,7 +303,9 @@ async function init (env = 'production', language, options = { update: false, fo
       : await promptForPackageName(config.name || path.basename(process.cwd()), options.force)
 
   // Entrypoint:
-  const entrypoint = envConfig.entrypoint && fs.existsSync(envConfig.entrypoint) ? envConfig.entrypoint : await promptForEntrypoint()
+  const entrypoint = envConfig.entrypoint && fs.existsSync(path.join(options.directory, envConfig.entrypoint))
+    ? envConfig.entrypoint
+    : await promptForEntrypoint(options)
 
   // Container ports:
   const ports = config.ports ? config.ports : await promptForPorts(name, config.ports)
@@ -350,7 +351,7 @@ async function init (env = 'production', language, options = { update: false, fo
   }
 
   // Find service modules we support
-  const matchedModules = language.matchModules ? await language.matchModules(metaModules) : []
+  const matchedModules = language.matchModules ? await language.matchModules(metaModules, options) : []
 
   // Add matched modules to our Kustomization file
   for (let i = 0; i < matchedModules.length; i++) {
@@ -385,6 +386,7 @@ async function init (env = 'production', language, options = { update: false, fo
       [env]: Object.assign({}, (packageJson['deploy-node-app'] || {})[env], { uri, context, image, entrypoint })
     })
   })
+  packageJson.name = name
 
   await confirmWriteFile('package.json', JSON.stringify(packageJson, null, 2) + '\n', { ...options, update: true })
 }
@@ -400,7 +402,7 @@ module.exports = async function DeployNodeApp (env, action, language, options) {
   } else if (['build'].includes(action)) {
     execSyncWithEnv(`${skaffoldPath} ${action} --profile=${env}`)
   } else {
-    process.stderr.write(`No such action "${action}"!`)
+    process.stderr.write(`No such action "${action}"!\n`)
     process.exit(1)
   }
 

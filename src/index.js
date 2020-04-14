@@ -14,27 +14,31 @@ const languages = [
   require('./languages/python')
 ]
 
+let env
+let action
+
 program
   .arguments(USAGE)
   .usage(USAGE)
   .version(dnaPackageJson.version)
+  .action((_env, _action) => {
+    env = _env
+    action = _action
+  })
   .option('-w, --write', 'Keep files around after usage (writes out Dockerfile, skaffold.yaml, etc)')
   .option('-u, --update', 'Update local files (by default we don\'t change existing files)')
   .option('-f, --force', 'Dont prompt if possible (implies --write and --update)')
   .option('-l, --label [foo=bar,tier=service]', 'Add labels to created Kubernetes resources')
-  .option('-d, --directory', 'Target directory - defaults to current working directory')
+  .option('-d, --directory <path/to/project>', 'Target directory - defaults to current working directory')
   .parse(process.argv)
-
-const env = program.args[0] || 'production'
-const action = program.args[1] || 'deploy'
 
 async function DeployNodeApp () {
   for (let i = 0; i < languages.length; i++) {
     const language = languages[i]
     const detect = await language.detect()
     if (!detect) continue
-    deployNodeApp(env, action, language, {
-      action,
+    deployNodeApp(env || 'production', action || 'deploy', language, {
+      action: action || 'deploy',
       write: program.write || false,
       update: program.update || false,
       force: program.force || false,
