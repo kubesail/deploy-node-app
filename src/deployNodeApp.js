@@ -12,7 +12,7 @@ const yaml = require('js-yaml')
 const merge = require('lodash/merge')
 const style = require('ansi-styles')
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
-const { fatal, log, debug, mkdir, cleanupWrittenFiles, ensureBinaries, execSyncWithEnv, confirmWriteFile } = require('./util')
+const { fatal, log, mkdir, cleanupWrittenFiles, ensureBinaries, execSyncWithEnv, confirmWriteFile } = require('./util')
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const WARNING = `${style.yellow.open}!!${style.yellow.close}`
 
@@ -169,18 +169,18 @@ async function writeModuleConfiguration (
   if (typeof mod !== 'object' || typeof mod.name !== 'string') throw new Error('Invalid module!')
   const modPath = `k8s/dependencies/${mod.name}`
   const deploymentFile = `${mod.kind || 'deployment'}.yaml`
-  const resources = [`./${deploymentFile}`]
+  const resources = [deploymentFile]
   const secrets = {}
-  await mkdir(`./${modPath}`)
-  await writeDeployment(`./${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, options)
+  await mkdir(modPath)
+  await writeDeployment(`${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, options)
   if (mod.service) {
-    await writeService(`./${modPath}/service.yaml`, mod.name, mod.ports, options)
-    resources.push('./service.yaml')
+    await writeService(`${modPath}/service.yaml`, mod.name, mod.ports, options)
+    resources.push('service.yaml')
   }
-  await writeKustomization(`./${modPath}/kustomization.yaml`, { resources })
+  await writeKustomization(`${modPath}/kustomization.yaml`, { resources, ...options })
   if (mod.envs) {
-    await mkdir(`./k8s/overlays/${env}/secrets`)
-    await writeSecret(`./k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod })
+    await mkdir(`k8s/overlays/${env}/secrets`)
+    await writeSecret(`k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod })
     secrets[mod.name] = `secrets/${mod.name}.env`
   }
   return { base: `../../../${modPath}`, secrets }
@@ -293,9 +293,9 @@ async function init (env = 'production', language, options = { update: false, fo
   const envConfig = config.envs[env]
 
   // Create directory structure
-  await mkdir('./k8s/base')
-  await mkdir('./k8s/dependencies')
-  await mkdir(`./k8s/overlays/${env}/secrets`)
+  await mkdir('k8s/base')
+  await mkdir('k8s/dependencies')
+  await mkdir(`k8s/overlays/${env}/secrets`)
 
   // Ask some questions if we have missing info in our package.json 'deploy-node-app' configuration:
   const name =
@@ -334,13 +334,13 @@ async function init (env = 'production', language, options = { update: false, fo
   const resources = ['./deployment.yaml']
 
   // Write Dockerfile based on our language
-  await confirmWriteFile('./Dockerfile', language.dockerfile({ entrypoint, ...options, name, env, ports }), options)
+  await confirmWriteFile('Dockerfile', language.dockerfile({ entrypoint, ...options, name, env, ports }), options)
 
   // Write a Kubernetes Deployment object
-  await writeDeployment('./k8s/base/deployment.yaml', name, image, ports, { ...options, name, env, ports })
+  await writeDeployment('k8s/base/deployment.yaml', name, image, ports, { ...options, name, env, ports })
 
   if (ports.length > 0) {
-    await writeService('./k8s/base/service.yaml', name, ports, { ...options, name, env, ports })
+    await writeService('k8s/base/service.yaml', name, ports, { ...options, name, env, ports })
     resources.push('./service.yaml')
     if (!uri) uri = await promptForIngress(config.name)
     if (uri) {
@@ -361,20 +361,20 @@ async function init (env = 'production', language, options = { update: false, fo
   }
 
   // Write Kustomization and Skaffold configuration
-  await writeSkaffold('./skaffold.yaml', context, config.envs, { ...options, name, image, env, ports })
-  await writeKustomization('./k8s/base/kustomization.yaml', { ...options, name, env, ports, resources })
-  await writeKustomization(`./k8s/overlays/${env}/kustomization.yaml`, { ...options, name, env, ports, bases, secrets })
+  await writeSkaffold('skaffold.yaml', context, config.envs, { ...options, name, image, env, ports })
+  await writeKustomization('k8s/base/kustomization.yaml', { ...options, name, env, ports, resources })
+  await writeKustomization(`k8s/overlays/${env}/kustomization.yaml`, { ...options, name, env, ports, bases, secrets })
 
   // Write supporting files - these aren't strictly required, but highly encouraged defaults
-  await writeTextLine('./.gitignore', 'k8s/overlays/*/secrets/*', { ...options, append: true })
-  await writeTextLine('./.dockerignore', 'k8s', { ...options, append: true })
+  await writeTextLine('.gitignore', 'k8s/overlays/*/secrets/*', { ...options, append: true })
+  await writeTextLine('.dockerignore', 'k8s', { ...options, append: true })
 
   // Finally, let's write out the result of all the questions asked to the package.json file
   // Next time deploy-node-app is run, we shouldn't need to ask the user anything!
   let packageJson = {}
-  if (fs.existsSync('./package.json')) {
+  if (fs.existsSync(path.join(options.directory, 'package.json'))) {
     try {
-      packageJson = JSON.parse((await readFile('./package.json')).toString())
+      packageJson = JSON.parse((await readFile(path.join(options.directory, 'package.json'))).toString())
     } catch (_err) {
       log(`${WARNING} Failed to parse your ./package.json file!`)
     }
@@ -385,11 +385,12 @@ async function init (env = 'production', language, options = { update: false, fo
       [env]: Object.assign({}, (packageJson['deploy-node-app'] || {})[env], { uri, context, image, entrypoint })
     })
   })
-  await confirmWriteFile('./package.json', JSON.stringify(packageJson, null, 2) + '\n', { ...options, update: true })
+
+  await confirmWriteFile('package.json', JSON.stringify(packageJson, null, 2) + '\n', { ...options, update: true })
 }
 
 module.exports = async function DeployNodeApp (env, action, language, options) {
-  const skaffoldPath = await ensureBinaries()
+  const skaffoldPath = await ensureBinaries(options)
   if (action === 'init') await init(env, language, options)
   else if (action === 'deploy') {
     await init(env, language, options)

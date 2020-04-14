@@ -51,12 +51,13 @@ function tryDiff (content /*: string */, existingData /*: string */) {
 // Can also diff before writing!
 async function confirmWriteFile (filePath, content, options = { update: false, force: false }) {
   const { update, force } = options
+  const fullPath = path.join(options.directory, filePath)
 
-  const exists = fs.existsSync(filePath)
+  const exists = fs.existsSync(fullPath)
   let doWrite = !exists
   if (!update && exists) return false
   else if (exists && update && !force) {
-    const existingData = (await readFile(filePath)).toString()
+    const existingData = (await readFile(fullPath)).toString()
     if (content === existingData) return false
 
     const YES_TEXT = 'Yes (update)'
@@ -78,7 +79,7 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
     if (confirmUpdate === YES_TEXT) doWrite = true
     else if (confirmUpdate === SHOWDIFF_TEXT) {
       tryDiff(content, existingData)
-      await confirmWriteFile(filePath, content, options)
+      await confirmWriteFile(fullPath, content, options)
     }
   } else if (force) {
     doWrite = true
@@ -87,8 +88,8 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
   if (doWrite) {
     try {
       // Don't document writes to existing files - ie: never delete a users files!
-      if (!fs.existsSync(filePath)) filesWritten.push(filePath)
-      await writeFile(filePath, content)
+      if (!fs.existsSync(fullPath)) filesWritten.push(fullPath)
+      await writeFile(fullPath, content)
       debug(`Successfully wrote "${filePath}"`)
     } catch (err) {
       fatal(`Error writing ${filePath}: ${err.message}`)
@@ -114,9 +115,9 @@ const cleanupWrittenFiles = () => {
     const dirParts = dir.replace('./', '').split('/')
     for (let i = dirParts.length; i >= 0; i--) {
       const dirPart = dirParts.slice(0, i).join(path.sep)
-      if (fs.readdirSync(`./${dirPart}`).length === 0) {
+      if (fs.readdirSync(dirPart).length === 0) {
         debug(`Removing directory "${dirPart}"`)
-        fs.rmdirSync(`./${dirPart}`)
+        fs.rmdirSync(dirPart)
       }
     }
   })
@@ -143,8 +144,9 @@ const execSyncWithEnv = (cmd, options = {}) => {
 }
 
 // Ensures other applications are installed (eg: skaffold)
-async function ensureBinaries () {
-  const existsInNodeModules = fs.existsSync('./node_modules/.bin/skaffold')
+async function ensureBinaries (options) {
+  const nodeModulesPath = path.join(options.directory, 'node_modules/.bin/skaffold')
+  const existsInNodeModules = fs.existsSync(nodeModulesPath)
   const existsInPath = commandExists.sync('skaffold')
   if (!existsInNodeModules && !existsInPath) {
     const { downloadSkaffold } = await inquirer.prompt([
@@ -166,9 +168,9 @@ async function ensureBinaries () {
       default:
         return fatal('Can\'t determine platform! Please download skaffold manually - see https://skaffold.dev/docs/install/')
     }
-    if (skaffoldUri) await pipeline(got.stream(skaffoldUri), fs.createWriteStream('./node_modules/.bin/skaffold'))
+    if (skaffoldUri) await pipeline(got.stream(skaffoldUri), fs.createWriteStream(nodeModulesPath))
   }
-  return existsInPath ? 'skaffold' : './node_modules/.bin/skaffold'
+  return existsInPath ? 'skaffold' : nodeModulesPath
 }
 
 function promptUserForValue ({ name = 'unnamed prompt!', message, validate, type = 'input' }) {

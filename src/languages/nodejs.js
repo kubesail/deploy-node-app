@@ -1,6 +1,5 @@
 const fs = require('fs')
 const util = require('util')
-const path = require('path')
 const { confirmWriteFile } = require('../util')
 
 const readFile = util.promisify(fs.readFile)

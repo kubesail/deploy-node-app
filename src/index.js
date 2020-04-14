@@ -22,6 +22,7 @@ program
   .option('-u, --update', 'Update local files (by default we don\'t change existing files)')
   .option('-f, --force', 'Dont prompt if possible (implies --write and --update)')
   .option('-l, --label [foo=bar,tier=service]', 'Add labels to created Kubernetes resources')
+  .option('-d, --directory', 'Target directory - defaults to current working directory')
   .parse(process.argv)
 
 const env = program.args[0] || 'production'
@@ -37,6 +38,7 @@ async function DeployNodeApp () {
       write: program.write || false,
       update: program.update || false,
       force: program.force || false,
+      directory: program.directory || process.cwd(),
       labels: (program.label || '').split(',').map(k => k.split('=').filter(Boolean)).filter(Boolean)
     })
     return
