@@ -1,5 +1,6 @@
 const fs = require('fs')
 const util = require('util')
+const path = require('path')
 const { confirmWriteFile } = require('../util')
 
 const readFile = util.promisify(fs.readFile)
@@ -39,11 +40,8 @@ CMD ["node", "${entrypoint}"]`
     return config
   },
 
-  writeConfig: async (config, options) => {
-    let packageJson = {}
-    try {
-      packageJson = JSON.parse(await readFile('./package.json'))
-    } catch (_err) {}
+  writeConfig: async function (config, options) {
+    const packageJson = await this.readConfig()
     packageJson['deploy-node-app'] = config
     await confirmWriteFile('./package.json', JSON.stringify(packageJson, null, 2) + '\n', {
       ...options,

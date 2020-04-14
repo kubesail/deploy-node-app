@@ -6,6 +6,7 @@ const util = require('util')
 const stream = require('stream')
 const chalk = require('chalk')
 const diff = require('diff')
+const mkdirp = require('mkdirp')
 const inquirer = require('inquirer')
 const style = require('ansi-styles')
 const commandExists = require('command-exists')
@@ -16,8 +17,18 @@ const readFile = util.promisify(fs.readFile)
 const writeFile = util.promisify(fs.writeFile)
 const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
 
-// A stub logger for now
-function log () { console.log(...arguments) } // eslint-disable-line no-console
+// Tracks files written to during this process
+const filesWritten = []
+const dirsWritten = []
+
+function debug () {
+  if (!process.env.DNA_DEBUG) return
+  console.log(...arguments) // eslint-disable-line no-console
+}
+
+function log () {
+  console.log(...arguments) // eslint-disable-line no-console
+}
 
 // Fatal is like log, but exits the process
 function fatal (message /*: string */) {
@@ -38,14 +49,13 @@ function tryDiff (content /*: string */, existingData /*: string */) {
 // Writes a file unless it already exists, then properly handles that
 // Can also diff before writing!
 async function confirmWriteFile (filePath, content, options = { update: false, force: false }) {
-  const fullPath = path.join(process.cwd(), filePath)
   const { update, force } = options
 
-  const exists = fs.existsSync(fullPath)
+  const exists = fs.existsSync(filePath)
   let doWrite = !exists
   if (!update && exists) return false
   else if (exists && update && !force) {
-    const existingData = (await readFile(fullPath)).toString()
+    const existingData = (await readFile(filePath)).toString()
     if (content === existingData) return false
 
     const YES_TEXT = 'Yes (update)'
@@ -75,13 +85,40 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
 
   if (doWrite) {
     try {
-      await writeFile(fullPath, content)
-      log(`Successfully wrote "${filePath}"`)
+      // Don't document writes to existing files - ie: never delete a users files!
+      if (!fs.existsSync(filePath)) filesWritten.push(filePath)
+      await writeFile(filePath, content)
+      debug(`Successfully wrote "${filePath}"`)
     } catch (err) {
       fatal(`Error writing ${filePath}: ${err.message}`)
     }
     return true
   }
+}
+
+const mkdir = async (fullPath) => {
+  const created = await mkdirp(fullPath)
+  if (created) dirsWritten.push(fullPath)
+  return created
+}
+
+// Cleans up files written by confirmWriteFile and directories written by mkdir
+// Does not delete non-empty directories!
+const cleanupWrittenFiles = () => {
+  filesWritten.forEach(file => {
+    debug(`Removing file "${file}"`)
+    fs.unlinkSync(file)
+  })
+  dirsWritten.forEach(dir => {
+    const dirParts = dir.replace('./', '').split('/')
+    for (let i = dirParts.length; i >= 0; i--) {
+      const dirPart = dirParts.slice(0, i).join(path.sep)
+      if (fs.readdirSync(`./${dirPart}`).length === 0) {
+        debug(`Removing directory "${dirPart}"`)
+        fs.rmdirSync(`./${dirPart}`)
+      }
+    }
+  })
 }
 
 // Runs a shell command with our "process.env" - allows passing environment variables to skaffold, for example.
@@ -139,8 +176,11 @@ async function promptUserForValue ({ message, generateRandom = false, validate, 
 }
 
 module.exports = {
+  debug,
   fatal,
   log,
+  mkdir,
+  cleanupWrittenFiles,
   ensureBinaries,
   confirmWriteFile,
   execSyncWithEnv,

@@ -7,13 +7,12 @@ const path = require('path')
 const readFile = require('util').promisify(fs.readFile)
 const chalk = require('chalk')
 const inquirer = require('inquirer')
-const mkdirp = require('mkdirp')
 const { isFQDN } = require('validator')
 const yaml = require('js-yaml')
 const merge = require('lodash/merge')
 const style = require('ansi-styles')
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
-const { fatal, log, ensureBinaries, execSyncWithEnv, confirmWriteFile } = require('./util')
+const { fatal, log, debug, mkdir, cleanupWrittenFiles, ensureBinaries, execSyncWithEnv, confirmWriteFile } = require('./util')
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const WARNING = `${style.yellow.open}!!${style.yellow.close}`
 
@@ -172,8 +171,8 @@ async function writeModuleConfiguration (
   const deploymentFile = `${mod.kind || 'deployment'}.yaml`
   const resources = [`./${deploymentFile}`]
   const secrets = {}
-  log(`Writing configuration for the "${mod.name}" module!`)
-  await mkdirp(`./${modPath}`)
+  debug(`Writing configuration for the "${mod.name}" module!`)
+  await mkdir(`./${modPath}`)
   await writeDeployment(`./${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, options)
   if (mod.service) {
     await writeService(`./${modPath}/service.yaml`, mod.name, mod.ports, options)
@@ -181,7 +180,7 @@ async function writeModuleConfiguration (
   }
   await writeKustomization(`./${modPath}/kustomization.yaml`, { resources })
   if (mod.envs) {
-    await mkdirp(`./k8s/overlays/${env}/secrets`)
+    await mkdir(`./k8s/overlays/${env}/secrets`)
     await writeSecrets(`./k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod })
     secrets[mod.name] = `secrets/${mod.name}.env`
   }
@@ -287,9 +286,9 @@ async function init (env = 'production', language, options = { update: false, fo
   const envConfig = config.envs[env]
 
   // Create directory structure
-  await mkdirp('k8s/base')
-  await mkdirp('k8s/dependencies')
-  await mkdirp(`k8s/overlays/${env}/secrets`)
+  await mkdir('./k8s/base')
+  await mkdir('./k8s/dependencies')
+  await mkdir(`./k8s/overlays/${env}/secrets`)
 
   // Ask some questions if we have missing info in our package.json 'deploy-node-app' configuration:
   const name =
@@ -394,4 +393,6 @@ module.exports = async function DeployNodeApp (env, action, language, options) {
     process.stderr.write(`No such action "${action}"!`)
     process.exit(1)
   }
+
+  if (!options.write) await cleanupWrittenFiles()
 }
