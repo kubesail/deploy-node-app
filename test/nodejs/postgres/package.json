@@ -6,23 +6,5 @@
   "dependencies": {
     "pg": "^7.18.2",
     "redis": "^3.0.2"
-  },
-  "deploy-node-app": {
-    "ports": [
-      8000
-    ],
-    "envs": {
-      "dev": {
-        "uri": "this-is-dev.com",
-        "context": "docker-desktop",
-        "image": "seand/dna-postgres-test-app"
-      },
-      "production": {
-        "uri": "myapp.example.com",
-        "context": "docker-desktop",
-        "image": "seand/dna-postgres-test-app",
-        "entrypoint": "index.js"
-      }
-    }
   }
 }
