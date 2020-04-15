@@ -115,7 +115,8 @@ const cleanupWrittenFiles = () => {
     const dirParts = dir.replace('./', '').split('/')
     for (let i = dirParts.length; i >= 0; i--) {
       const dirPart = dirParts.slice(0, i).join(path.sep)
-      if (fs.readdirSync(dirPart).length === 0) {
+      if (!dirPart) continue
+      else if (fs.readdirSync(dirPart).length === 0) {
         debug(`Removing directory "${dirPart}"`)
         fs.rmdirSync(dirPart)
       } else break
