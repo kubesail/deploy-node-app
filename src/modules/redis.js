@@ -3,7 +3,9 @@ module.exports = {
   image: 'redis:latest',
   languages: {
     nodejs: ['redis', 'ioredis'],
-    python: ['redis']
+    python: ['redis'],
+    php: ['phpredis'],
+    ruby: ['redis']
   },
   ports: [6379]
 }

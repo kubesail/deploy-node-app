@@ -32,6 +32,7 @@ program
   .option('-l, --label [foo=bar,tier=service]', 'Add labels to created Kubernetes resources')
   .option('-d, --directory <path/to/project>', 'Target project directory', '.')
   .option('-c, --config <path/to/kubeconfig>', 'Kubernetes configuration file', '~/.kube/config')
+  .option('-m, --modules <redis,postgres,mongodb>', 'Explicitly add modules')
   .parse(process.argv)
 
 async function DeployNodeApp () {
@@ -44,6 +45,8 @@ async function DeployNodeApp () {
       write: program.write || false,
       update: program.update || false,
       force: program.force || false,
+      config: program.config === '~/.kube/config' ? null : program.config,
+      modules: (program.modules || '').split(','),
       directory: program.directory || process.cwd(),
       labels: (program.label || '').split(',').map(k => k.split('=').filter(Boolean)).filter(Boolean)
     })

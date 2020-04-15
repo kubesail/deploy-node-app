@@ -173,9 +173,9 @@ async function ensureBinaries (options) {
   return existsInPath ? 'skaffold' : nodeModulesPath
 }
 
-function promptUserForValue ({ name = 'unnamed prompt!', message, validate, type = 'input' }) {
+function promptUserForValue ({ name = 'unnamed prompt!', message, validate, defaultValue, type = 'input' }) {
   return async () => {
-    const values = await inquirer.prompt([{ name, type, message, validate }])
+    const values = await inquirer.prompt([{ name, type, message: message || name, validate, default: defaultValue }])
     return values[name]
   }
 }

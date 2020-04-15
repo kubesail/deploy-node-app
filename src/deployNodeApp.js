@@ -13,7 +13,7 @@ const merge = require('lodash/merge')
 const style = require('ansi-styles')
 const getKubesailConfig = require('get-kubesail-config')
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
-const { fatal, log, mkdir, cleanupWrittenFiles, ensureBinaries, execSyncWithEnv, confirmWriteFile } = require('./util')
+const { fatal, log, debug, mkdir, cleanupWrittenFiles, ensureBinaries, execSyncWithEnv, confirmWriteFile } = require('./util')
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const WARNING = `${style.yellow.open}!!${style.yellow.close}`
 const KUBESAIL_NEW_NAMESPACE_TEXT = 'Create a free Namespace on KubeSail.com'
@@ -29,17 +29,18 @@ const metaModules = [
 // Only allow projects that are valid dns components - we will prompt the user for a different name if this is name matched
 const validProjectNameRegex = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/i
 
-// Location to look for a Kubernetes configuration file
-const KUBE_CONFIG_PATH = path.join(os.homedir(), '.kube', 'config')
-
 // Read local .kube configuration to see if the user has an existing kube context they want to use
-function readLocalKubeConfig () {
-  if (!fs.existsSync(KUBE_CONFIG_PATH)) return {}
+function readLocalKubeConfig (configPathOption) {
+  const configPath = configPathOption || path.join(os.homedir(), '.kube', 'config')
+  debug(`Using kube config ${configPath}`)
+  if (!fs.existsSync(configPath)) return {}
+  let config = {}
   try {
-    return yaml.safeLoad(fs.readFileSync(KUBE_CONFIG_PATH))
+    config = yaml.safeLoad(fs.readFileSync(configPath))
   } catch (err) {
-    fatal(`It seems you have a Kubernetes config file at ${KUBE_CONFIG_PATH}, but it is not valid yaml, or unreadable! Error: ${err.message}`)
+    fatal(`It seems you have a Kubernetes config file at ${configPath}, but it is not valid yaml, or unreadable! Error: ${err.message}`)
   }
+  return config
 }
 
 // promptForPackageName tries to get a URI-able name out of a project using validProjectNameRegex
@@ -47,7 +48,7 @@ function readLocalKubeConfig () {
 async function promptForPackageName (packageName = '', force = false) {
   const sanitizedName = packageName.split('.')[0]
   if (force && validProjectNameRegex.test(sanitizedName)) {
-    process.stdout.write(`${WARNING} Using project name ${chalk.green.bold(sanitizedName)}...\n`)
+    process.stdout.write(`${WARNING} Using project name ${chalk.green.bold(sanitizedName)}...\n\n`)
     return sanitizedName
   } else {
     const newName = packageName.replace(/[^a-z0-9]/gi, '')
@@ -148,7 +149,7 @@ async function promptForKubeContext (context, kubeConfig) {
   if (context && contexts.find(c => c.name === context)) {
     return context
   } else {
-    if (context) process.stdout.write(`${WARNING} This environment is configured to use the context "${context}", but that wasn't found in your Kube config!`)
+    if (context) process.stdout.write(`${WARNING} This environment is configured to use the context "${context}", but that wasn't found in your Kube config!\n\n`)
     const kubeContexts = contexts.map(c => c.name)
     if (!kubeConfig.clusters || kubeConfig.clusters.find(c => c.cluster.server.endsWith('kubesail.coadm'))) {
       kubeContexts.push(KUBESAIL_NEW_NAMESPACE_TEXT)
@@ -325,7 +326,7 @@ async function init (env = 'production', language, options = { update: false, fo
   const image = envConfig.image ? envConfig.image : await promptForImageName(name, envConfig.image)
 
   // Kubernetes Context (Cluster and User):
-  const context = await promptForKubeContext(envConfig.context, readLocalKubeConfig())
+  const context = await promptForKubeContext(envConfig.context, readLocalKubeConfig(options.config))
 
   if (options.action === 'deploy') {
     log(`Deploying "${style.green.open}${name}${style.green.close}" to ${style.red.open}${env}${style.red.close}!`)
@@ -359,6 +360,15 @@ async function init (env = 'production', language, options = { update: false, fo
 
   // Find service modules we support
   const matchedModules = language.matchModules ? await language.matchModules(metaModules, options) : []
+
+  // Add explicitly chosen modules as well
+  const chosenModules = [].concat(config.modules || [], options.modules).filter((v, i, s) => s.indexOf(v) === i)
+  if (chosenModules.length) {
+    chosenModules.forEach(mod => {
+      const metaModule = metaModules.find(m => m.name === mod.name)
+      if (metaModule) matchedModules.push(metaModule)
+    })
+  }
 
   // Add matched modules to our Kustomization file
   for (let i = 0; i < matchedModules.length; i++) {
