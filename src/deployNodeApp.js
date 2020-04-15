@@ -79,7 +79,7 @@ async function promptForEntrypoint (options) {
     excludePath: filepath => invalidPaths.find(p => filepath.endsWith(p)),
     itemType: 'file',
     rootPath: options.directory,
-    suggestOnly: false
+    suggestOnly: true
   }])
   return entrypoint.replace(/\\/g, '/').replace(options.directory, '.')
 }
