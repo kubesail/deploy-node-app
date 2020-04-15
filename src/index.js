@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const USAGE = '[env] [action]'
+const USAGE = '[action] [env]'
 
 const program = require('commander')
 const { fatal } = require('./util')
@@ -22,7 +22,7 @@ program
   .arguments(USAGE)
   .usage(USAGE)
   .version(dnaPackageJson.version)
-  .action((_env, _action) => {
+  .action((_action, _env) => {
     env = _env
     action = _action
   })
@@ -46,7 +46,7 @@ async function DeployNodeApp () {
       update: program.update || false,
       force: program.force || false,
       config: program.config === '~/.kube/config' ? null : program.config,
-      modules: (program.modules || '').split(','),
+      modules: (program.modules || '').split(',').filter(Boolean),
       directory: program.directory || process.cwd(),
       labels: (program.label || '').split(',').map(k => k.split('=').filter(Boolean)).filter(Boolean)
     })
