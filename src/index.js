@@ -18,6 +18,7 @@ let env
 let action
 
 program
+  .name('deploy-to-kube')
   .arguments(USAGE)
   .usage(USAGE)
   .version(dnaPackageJson.version)
@@ -25,11 +26,12 @@ program
     env = _env
     action = _action
   })
-  .option('-w, --write', 'Keep files around after usage (writes out Dockerfile, skaffold.yaml, etc)')
-  .option('-u, --update', 'Update local files (by default we don\'t change existing files)')
-  .option('-f, --force', 'Dont prompt if possible (implies --write and --update)')
+  .option('-w, --write', 'Write files to project (writes out Dockerfile, skaffold.yaml, etc)', false)
+  .option('-u, --update', 'Update existing files', false)
+  .option('-f, --force', 'Dont prompt if possible (implies --write and --update)', false)
   .option('-l, --label [foo=bar,tier=service]', 'Add labels to created Kubernetes resources')
-  .option('-d, --directory <path/to/project>', 'Target directory - defaults to current working directory')
+  .option('-d, --directory <path/to/project>', 'Target project directory', '.')
+  .option('-c, --config <path/to/kubeconfig>', 'Kubernetes configuration file', '~/.kube/config')
   .parse(process.argv)
 
 async function DeployNodeApp () {

@@ -22,7 +22,8 @@
     "test": "./bin/test.sh"
   },
   "bin": {
-    "deploy-node-app": "src/index.js"
+    "deploy-node-app": "src/index.js",
+    "deploy-to-kube": "src/index.js"
   },
   "authors": [
     "Seandon Mooy <seandon@kubesail.com>",

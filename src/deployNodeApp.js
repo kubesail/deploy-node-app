@@ -11,10 +11,12 @@ const { isFQDN } = require('validator')
 const yaml = require('js-yaml')
 const merge = require('lodash/merge')
 const style = require('ansi-styles')
+const getKubesailConfig = require('get-kubesail-config')
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
 const { fatal, log, mkdir, cleanupWrittenFiles, ensureBinaries, execSyncWithEnv, confirmWriteFile } = require('./util')
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const WARNING = `${style.yellow.open}!!${style.yellow.close}`
+const KUBESAIL_NEW_NAMESPACE_TEXT = 'Create a free Namespace on KubeSail.com'
 
 // Load meta-modules! These match dependency packages to files in ./modules - these files in turn build out Kubernetes resources!
 const metaModules = [
@@ -32,19 +34,12 @@ const KUBE_CONFIG_PATH = path.join(os.homedir(), '.kube', 'config')
 
 // Read local .kube configuration to see if the user has an existing kube context they want to use
 function readLocalKubeConfig () {
-  if (!fs.existsSync(KUBE_CONFIG_PATH)) return []
-  let kubeContexts = []
+  if (!fs.existsSync(KUBE_CONFIG_PATH)) return {}
   try {
-    const kubeConfig = yaml.safeLoad(fs.readFileSync(KUBE_CONFIG_PATH))
-    kubeContexts = kubeContexts.concat(
-      kubeConfig.contexts
-        .map(context => context.name || (context.context && context.context.name) || context.context.cluster)
-        .filter(Boolean)
-    )
+    return yaml.safeLoad(fs.readFileSync(KUBE_CONFIG_PATH))
   } catch (err) {
     fatal(`It seems you have a Kubernetes config file at ${KUBE_CONFIG_PATH}, but it is not valid yaml, or unreadable! Error: ${err.message}`)
   }
-  return kubeContexts
 }
 
 // promptForPackageName tries to get a URI-able name out of a project using validProjectNameRegex
@@ -143,18 +138,30 @@ async function promptForIngress (defaultDomain) {
   return ingressUri
 }
 
-async function promptForKubeContext (context, kubeContexts) {
-  if (context && kubeContexts.includes(context)) {
+// Asks the user for the desired kube context. This is a fairly "sticky" point of code.
+//  - Sticky reason 1: We assume different users have similarly named contexts.
+//    For example, if one user registers "production" to mean a context called "production-1"
+//    We should probably handle missing context names a bit better. For now, assume users are naming their contexts consistently :(
+//  - Stick reason 2: This is where we inject our "advertisement" of creating a free KubeSail.com namespace.
+async function promptForKubeContext (context, kubeConfig) {
+  const contexts = kubeConfig.contexts || []
+  if (context && contexts.find(c => c.name === context)) {
     return context
   } else {
     if (context) process.stdout.write(`${WARNING} This environment is configured to use the context "${context}", but that wasn't found in your Kube config!`)
-    const { newContext } = await inquirer.prompt([{
+    const kubeContexts = contexts.map(c => c.name)
+    if (!kubeConfig.clusters || kubeConfig.clusters.find(c => c.cluster.server.endsWith('kubesail.coadm'))) {
+      kubeContexts.push(KUBESAIL_NEW_NAMESPACE_TEXT)
+    }
+    let { newContext } = await inquirer.prompt([{
       name: 'newContext',
       type: 'list',
       message: 'Which Kubernetes context do you want to deploy to?',
       default: kubeContexts[0],
       choices: kubeContexts
     }])
+    // getKubesailConfig will pop the users browser and return with a new valid context if the user signs up.
+    if (newContext === KUBESAIL_NEW_NAMESPACE_TEXT) newContext = await getKubesailConfig()
     return newContext
   }
 }
