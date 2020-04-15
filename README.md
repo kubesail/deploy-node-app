@@ -1,4 +1,4 @@
-# **deploy-to-kube**
+# **deploy-node-app**
 
 [![npm version](https://img.shields.io/npm/v/deploy-node-app.svg?style=flat-square)](https://www.npmjs.com/package/deploy-node-app)
 
@@ -11,27 +11,25 @@ Develop and deploy apps with Kubernetes, with zero config! Supports any Kubernet
 
 If you don't have a Kubernetes cluster, don't worry! This tool can automatically provision a free [KubeSail.com](https://kubesail.com) cluster for you!
 
-## Formerly known as **deploy-node-app**
-
-`deploy-node-app` is now `deploy-to-kube`, and now supports multiple languages. Node.js is our first-class citizen with Python and Ruby supported as well!
+`deploy-node-app` also supports more than just Node.js projects! Try it on a Python or Ruby project!
 
 ## Instructions
 
-Just run `npx deploy-to-kube` in your node project.
+Just run `npx deploy-node-app` in your node project.
 
 ![Example](https://github.com/kubesail/deploy-node-app/raw/master/docs/terminal-example-1.svg?sanitize=true)
 
 ## What does this tool do?
 
-`deploy-to-kube` is a project bootstrapper, powered by [Skaffold](https://github.com/GoogleContainerTools/skaffold). After answering a few questions about your app, this tool can:
+`deploy-node-app` is a project bootstrapper, powered by [Skaffold](https://github.com/GoogleContainerTools/skaffold). After answering a few questions about your app, this tool can:
 
 1. Create a Dockerfile, skaffold.yaml and all the YAML Kubernetes!
 2. Automatically provision common dependencies (like redis and postgres)!
 3. Develop and deploy your app on any Kubernetes cluster!
 
-Essentially, `deploy-to-kube` supercharges any web applications with awesome tools and best practices.
+Essentially, `deploy-node-app` supercharges any web applications with awesome tools and best practices.
 
-With `deploy-to-kube`, any codebase can have:
+With `deploy-node-app`, any codebase can have:
 
 1. Local and remote development!
 2. Infrastructure-as-code with no effort!
@@ -41,7 +39,7 @@ With `deploy-to-kube`, any codebase can have:
 ## Usage and examples
 
 ```
-Usage: deploy-to-kube [env] [action]
+Usage: deploy-node-app [action] [env]
 
 Options:
   -V, --version                           output the version number
@@ -55,13 +53,13 @@ Options:
   -h, --help                              display help for command
 ```
 
-By default, `deploy-to-kube` will write a few files to your directory, and by default files won't be touched if they've been modified.
+By default, `deploy-node-app` will write a few files to your directory, and by default files won't be touched if they've been modified.
 
-Simply run `npx deploy-to-kube` in your repository. The tool will attempt to prompt you when it needs answers to questions, and do it's best to bootstrap your application. Take a look at [supported languages](https://github.com/kubesail/deploy-node-app/tree/master/src/languages) - we're always looking to add more!
+Simply run `npx deploy-node-app` in your repository. The tool will attempt to prompt you when it needs answers to questions, and do it's best to bootstrap your application. Take a look at [supported languages](https://github.com/kubesail/deploy-node-app/tree/master/src/languages) - we're always looking to add more!
 
 # Dependencies
 
-`deploy-to-kube` knows about dependencies! For example, if you install a redis or postgres driver for Node.js, Python, Ruby [and more](https://github.com/kubesail/deploy-node-app/tree/master/src/languages), `deploy-to-kubep` will automatically create Redis or Postgres deployments that work with your app!
+`deploy-node-app` knows about dependencies! For example, if you install a redis or postgres driver for Node.js, Python, Ruby [and more](https://github.com/kubesail/deploy-node-app/tree/master/src/languages), `deploy-node-appp` will automatically create Redis or Postgres deployments that work with your app!
 
 ## Suggested tools:
 
@@ -70,7 +68,7 @@ Simply run `npx deploy-to-kube` in your repository. The tool will attempt to pro
 
 ---
 
-deploy-to-kube is created and maintained by
+deploy-node-app is created and maintained by
 
 [<img src="docs/kubesail-logo.png" alt="Kubesail" width="160">
 <br/>
