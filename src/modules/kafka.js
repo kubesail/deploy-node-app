@@ -2,7 +2,7 @@ module.exports = {
   name: 'kafka',
   image: 'wurstmeister/kafka:latest',
   languages: {
-    nodejs: ['kafka-node', 'kafka-node', 'kafkajs'],
+    nodejs: ['kafka-node', 'kafkajs'],
     python: ['kafka-python'],
     php: ['rdkafka'],
     ruby: ['ruby-kafka', 'rdkafka']

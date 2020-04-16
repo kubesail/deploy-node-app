@@ -1,9 +1,9 @@
 {
-  "name": "dna-kafka-test-app",
+  "name": "dna-mongodb-test-app",
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
-    "kafka-node": "^5.0.0"
+    "mongodb": "^3.5.6"
   }
 }
