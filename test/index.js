@@ -195,7 +195,7 @@ describe('Deploy-node-app init', function () {
         name: 'nodejs-mongodb',
         uri: 'nodejs-mongodb.test',
         image: 'kubesail/nodejs-mongodb-test',
-        entrypoint: 'index.js',
+        entrypoint: 'src/index.js',
         context: 'test',
         ports: [8005]
       }
@@ -212,36 +212,55 @@ describe('Deploy-node-app init', function () {
       })
     })
 
-    // describe('python', function () {
-    //   describe('simple', function () {
-    //     const path = 'test/python/simple'
-    //     it('Runs init without exception', () => {
-    //       execSyncWithEnv(`${cmd} init production \
-    //         -d ${path} \
-    //         --write \
-    //         --project-name=python-simple \
-    //         --entrypoint=index.js \
-    //         --ports=8008 \
-    //         --address=python-simple.test \
-    //         --image=kubesail/python-simple-test \
-    //         --context=test`, { catchErr: false })
-    //     })
-    //   })
-    //   describe('redis', function () {
-    //     const path = 'test/python/redis'
-    //     it('Runs init without exception', () => {
-    //       execSyncWithEnv(`${cmd} init production \
-    //         -d ${path} \
-    //         --write \
-    //         --project-name=python-redis \
-    //         --entrypoint=index.js \
-    //         --ports=8007 \
-    //         --address=python-redis.test \
-    //         --image=kubesail/python-redis-test \
-    //         --context=test`, { catchErr: false })
-    //     })
-    //   })
-    // })
+    describe('python', function () {
+      describe('simple', function () {
+        const path = 'test/python/simple'
+        const opts = {
+          language: 'python',
+          name: 'python-simple',
+          uri: 'python-simple.test',
+          image: 'kubesail/python-simple-test',
+          entrypoint: 'server.py',
+          context: 'test',
+          ports: [8005]
+        }
+        it('Runs init without exception', () => {
+          execSyncWithEnv(`${cmd} init production \
+                -d ${path} --config=kubeconfig.yaml --update --force \
+                --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
+                --ports=${opts.ports.join(',')} --address=${opts.uri} \
+                --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+          expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
+          expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
+          expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+          wrotePkgJsonProperly(path, opts)
+        })
+      })
+
+      describe('redis', function () {
+        const path = 'test/python/redis'
+        const opts = {
+          language: 'python',
+          name: 'python-redis',
+          uri: 'python-redis.test',
+          image: 'kubesail/python-redis-test',
+          entrypoint: 'server.py',
+          context: 'test',
+          ports: [8005]
+        }
+        it('Runs init without exception', () => {
+          execSyncWithEnv(`${cmd} init production \
+                -d ${path} --config=kubeconfig.yaml --update --force \
+                --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
+                --ports=${opts.ports.join(',')} --address=${opts.uri} \
+                --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+          expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
+          expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
+          expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+          wrotePkgJsonProperly(path, opts)
+        })
+      })
+    })
 
   // describe('ruby', function () {
   //   describe('simple', function () {
