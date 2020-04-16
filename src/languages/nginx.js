@@ -1,9 +1,6 @@
 const fs = require('fs')
-const util = require('util')
 const inquirer = require('inquirer')
-const { confirmWriteFile } = require('../util')
-
-const readFile = util.promisify(fs.readFile)
+const { confirmWriteFile, readConfig } = require('../util')
 const npmPackages = ['webpack', 'react']
 
 module.exports = {
@@ -40,18 +37,8 @@ module.exports = {
     return false
   },
   dockerfile: ({ entrypoint }) => 'FROM nginx\n\nCOPY . /usr/share/html/',
-  readConfig: async () => {
-    let packageJson = {}
-    try {
-      packageJson = JSON.parse((await readFile('./package.json')).toString())
-    } catch (_err) {}
-    const config = packageJson['deploy-node-app'] || {}
-    if (!config.name) config.name = packageJson.name
-    config.ports = [8000]
-    return config
-  },
   writeConfig: async function (config, options) {
-    const packageJson = await this.readConfig()
+    const packageJson = await readConfig()
     packageJson['deploy-node-app'] = config
     await confirmWriteFile('./package.json', JSON.stringify(packageJson, null, 2) + '\n', {
       ...options,

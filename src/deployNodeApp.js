@@ -13,7 +13,7 @@ const merge = require('lodash/merge')
 const style = require('ansi-styles')
 const getKubesailConfig = require('get-kubesail-config')
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
-const { fatal, log, debug, mkdir, cleanupWrittenFiles, ensureBinaries, execSyncWithEnv, confirmWriteFile } = require('./util')
+const { fatal, log, debug, mkdir, cleanupWrittenFiles, readConfig, ensureBinaries, execSyncWithEnv, confirmWriteFile } = require('./util')
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const WARNING = `${style.yellow.open}!!${style.yellow.close}`
 const KUBESAIL_NEW_NAMESPACE_TEXT = 'Create a free Namespace on KubeSail.com'
@@ -24,6 +24,13 @@ const metaModules = [
   require('./modules/kafka'),
   require('./modules/postgres'),
   require('./modules/redis')
+]
+
+const languages = [
+  require('./languages/nginx'),
+  require('./languages/nodejs'),
+  require('./languages/php'),
+  require('./languages/python')
 ]
 
 // Only allow projects that are valid dns components - we will prompt the user for a different name if this is name matched
@@ -260,8 +267,8 @@ async function writeIngress (path, name, host, port, options = { force: false, u
 }
 
 async function writeKustomization (path, options = { force: false, update: false }) {
-  const { resources = [], bases = [], secrets = [] } = options
-  await confirmWriteFile(path, loadAndMergeYAML(path, { resources, bases, secrets }), options)
+  const { resources = [], bases = [], secrets = {} } = options
+  await confirmWriteFile(path, loadAndMergeYAML(path, { resources, bases }), options)
 }
 
 async function writeSecret (path, options = { force: false, update: false }) {
@@ -294,8 +301,7 @@ async function writeSkaffold (path, context, envs, options = { force: false, upd
   }), options)
 }
 
-async function init (env = 'production', language, options = { update: false, force: false }) {
-  const config = await language.readConfig(options)
+async function init (env = 'production', language, config, options = { update: false, force: false }) {
   if (!config.envs || !config.envs[env]) config.envs = { [env]: {} }
   if (!validProjectNameRegex.test(env)) return fatal(`Invalid env "${env}" provided!`)
   const envConfig = config.envs[env]
@@ -415,9 +421,25 @@ async function init (env = 'production', language, options = { update: false, fo
   await confirmWriteFile('package.json', JSON.stringify(packageJson, null, 2) + '\n', { ...options, update: true, force: options.write, dontPrune: true })
 }
 
-module.exports = async function DeployNodeApp (env, action, language, options) {
+module.exports = async function DeployNodeApp (env, action, options) {
   const skaffoldPath = await ensureBinaries(options)
-  if (action === 'init') await init(env, language, options)
+  const config = await readConfig(options)
+
+  let language
+  for (let i = 0; i < languages.length; i++) {
+    if (
+      (options.language && options.language === languages[i].name) ||
+      (config.language && config.language === languages[i].name) ||
+      (!options.language && await languages[i].detect())
+    ) {
+      language = languages[i]
+    }
+  }
+  if (!language) {
+    return fatal('Unable to determine what sort of project this is. If it\'s a real project, please let us know at https://github.com/kubesail/deploy-node-app/issues and we\'ll add support!')
+  }
+
+  if (action === 'init') await init(env, language, config, options)
   else if (action === 'deploy') {
     await init(env, language, options)
     execSyncWithEnv(`${skaffoldPath} deploy --profile=${env}`)

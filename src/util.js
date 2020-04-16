@@ -203,6 +203,16 @@ function generateRandomStr (length = 16) {
   }
 }
 
+async function readConfig (options) {
+  let packageJson = {}
+  try {
+    packageJson = JSON.parse(await readFile(path.join(options.directory, './package.json')))
+  } catch (_err) {}
+  const config = packageJson['deploy-node-app'] || {}
+  if (!config.name) config.name = packageJson.name
+  return config
+}
+
 module.exports = {
   debug,
   fatal,
@@ -213,5 +223,6 @@ module.exports = {
   ensureBinaries,
   confirmWriteFile,
   execSyncWithEnv,
+  readConfig,
   promptUserForValue
 }

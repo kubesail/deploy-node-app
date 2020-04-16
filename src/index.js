@@ -3,16 +3,8 @@
 const USAGE = '[action] [env]'
 
 const program = require('commander')
-const { fatal } = require('./util')
 const deployNodeApp = require('./deployNodeApp')
 const dnaPackageJson = require(__dirname + '/../package.json') // eslint-disable-line
-
-const languages = [
-  require('./languages/nginx'),
-  require('./languages/nodejs'),
-  require('./languages/php'),
-  require('./languages/python')
-]
 
 let env
 let action
@@ -43,37 +35,21 @@ program
   .option('--no-prompts', 'Use default values whenever possible')
   .parse(process.argv)
 
-async function DeployNodeApp () {
-  for (let i = 0; i < languages.length; i++) {
-    const language = languages[i]
-
-    if (program.language && program.language !== language.name) continue
-    else if (!program.language) {
-      const detect = await language.detect()
-      if (!detect) continue
-    }
-
-    deployNodeApp(env || 'production', action || 'deploy', language, {
-      action: action || 'deploy',
-      write: program.write || false,
-      update: program.update || false,
-      force: program.force || false,
-      config: program.config === '~/.kube/config' ? null : program.config,
-      modules: (program.modules || '').split(',').filter(Boolean),
-      directory: program.directory || process.cwd(),
-      labels: (program.label || '').split(',').map(k => k.split('=').filter(Boolean)).filter(Boolean),
-      name: program.projectName || false,
-      entrypoint: program.entrypoint || false,
-      image: program.image || false,
-      ports: program.ports ? program.ports.split(',').map(p => parseInt(p, 10)).filter(Boolean) : false,
-      address: program.address || false,
-      context: program.context || false,
-      prompts: program.prompts || true
-    })
-    return
-  }
-
-  fatal('Unable to determine what sort of project this is. If it\'s a real project, please let us know at https://github.com/kubesail/deploy-node-app/issues and we\'ll add support!')
-}
-
-DeployNodeApp()
+deployNodeApp(env || 'production', action || 'deploy', {
+  language: program.language || null,
+  action: action || 'deploy',
+  write: program.write || false,
+  update: program.update || false,
+  force: program.force || false,
+  config: program.config === '~/.kube/config' ? null : program.config,
+  modules: (program.modules || '').split(',').filter(Boolean),
+  directory: program.directory || process.cwd(),
+  labels: (program.label || '').split(',').map(k => k.split('=').filter(Boolean)).filter(Boolean),
+  name: program.projectName || false,
+  entrypoint: program.entrypoint || false,
+  image: program.image || false,
+  ports: program.ports ? program.ports.split(',').map(p => parseInt(p, 10)).filter(Boolean) : false,
+  address: program.address || false,
+  context: program.context || false,
+  prompts: program.prompts || true
+})
