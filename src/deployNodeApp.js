@@ -215,7 +215,8 @@ async function writeTextLine (file, line, options = { update: false, force: fals
 }
 
 // Writes a simple Kubernetes Deployment object
-async function writeDeployment (path, name, image, ports, options = { force: false, update: false }) {
+async function writeDeployment (path, name, image, ports = [], options = { force: false, update: false }) {
+  console.log('ports', ports)
   const resources = { requests: { cpu: '50m', memory: '100Mi' }, limits: { cpu: '2', memory: '1500Mi' } }
   const containerPorts = ports.map(port => { return { containerPort: port } })
   await confirmWriteFile(path, loadAndMergeYAML(path, {
@@ -305,28 +306,27 @@ async function init (env = 'production', language, options = { update: false, fo
   await mkdir(`k8s/overlays/${env}/secrets`, options)
 
   // Ask some questions if we have missing info in our package.json 'deploy-node-app' configuration:
-  const name =
-    config.name && validProjectNameRegex.test(config.name)
-      ? config.name
-      : await promptForPackageName(config.name || path.basename(process.cwd()), options.force)
+  const name = options.name || (config.name && validProjectNameRegex.test(config.name)
+    ? config.name
+    : await promptForPackageName(config.name || path.basename(process.cwd()), options.force))
 
   // Entrypoint:
-  const entrypoint = envConfig.entrypoint && fs.existsSync(path.join(options.directory, envConfig.entrypoint))
+  const entrypoint = options.entrypoint || (envConfig.entrypoint && fs.existsSync(path.join(options.directory, envConfig.entrypoint))
     ? envConfig.entrypoint
-    : await promptForEntrypoint(options)
+    : await promptForEntrypoint(options))
 
   // Container ports:
-  const ports = config.ports ? config.ports : await promptForPorts(name, config.ports)
+  const ports = options.ports === 'none' ? [] : options.ports || (config.ports ? config.ports : await promptForPorts(name, config.ports))
 
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
-  let uri = envConfig.uri || ''
+  let uri = options.address || envConfig.uri || ''
   if (ports.length > 0 && !uri) uri = await promptForIngress(config.name)
 
   // Container image:
-  const image = envConfig.image ? envConfig.image : await promptForImageName(name, envConfig.image)
+  const image = options.image || (envConfig.image ? envConfig.image : await promptForImageName(name, envConfig.image))
 
   // Kubernetes Context (Cluster and User):
-  const context = await promptForKubeContext(envConfig.context, readLocalKubeConfig(options.config))
+  const context = options.context || await promptForKubeContext(envConfig.context, readLocalKubeConfig(options.config))
 
   if (options.action === 'deploy') {
     log(`Deploying "${style.green.open}${name}${style.green.close}" to ${style.red.open}${env}${style.red.close}!`)
@@ -351,11 +351,9 @@ async function init (env = 'production', language, options = { update: false, fo
   if (ports.length > 0) {
     await writeService('k8s/base/service.yaml', name, ports, { ...options, name, env, ports })
     resources.push('./service.yaml')
-    if (!uri) uri = await promptForIngress(config.name)
-    if (uri) {
-      await writeIngress('./k8s/base/ingress.yaml', name, uri, ports[0], { ...options, name, env, ports })
-      resources.push('./ingress.yaml')
-    }
+    if (!uri) return
+    await writeIngress('./k8s/base/ingress.yaml', name, uri, ports[0], { ...options, name, env, ports })
+    resources.push('./ingress.yaml')
   }
 
   // Find service modules we support

@@ -126,9 +126,10 @@ const cleanupWrittenFiles = () => {
 
 // Runs a shell command with our "process.env" - allows passing environment variables to skaffold, for example.
 const execSyncWithEnv = (cmd, options = {}) => {
-  const mergedOpts = Object.assign({}, options, {
-    catchErr: true,
-    env: Object.assign({}, process.env, options.env || {})
+  const mergedOpts = Object.assign({ catchErr: true }, options, {
+    env: Object.assign({}, process.env, options.env || {}, { PATH: process.env.PATH }),
+    stdio: 'inherit',
+    cwd: process.cwd()
   })
   let output
   try {
