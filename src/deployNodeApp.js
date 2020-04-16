@@ -417,7 +417,7 @@ async function init (env = 'production', language, config, options = { update: f
   })
   packageJson.name = name
 
-  await confirmWriteFile('package.json', JSON.stringify(packageJson, null, 2) + '\n', { ...options, update: true, force: options.write, dontPrune: true })
+  await confirmWriteFile('package.json', JSON.stringify(packageJson, null, 2) + '\n', { ...options, update: true, force: options.force || options.write, dontPrune: true })
 }
 
 module.exports = async function DeployNodeApp (env, action, options) {

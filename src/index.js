@@ -20,7 +20,7 @@ program
   })
   .option('-w, --write', 'Write files to project (writes out Dockerfile, skaffold.yaml, etc)', false)
   .option('-u, --update', 'Update existing files', false)
-  .option('-f, --force', 'Dont prompt if possible (implies --write and --update)', false)
+  .option('-f, --force', 'Dont prompt if possible', false)
   .option('-l, --label [foo=bar,tier=service]', 'Add labels to created Kubernetes resources')
   .option('-d, --directory <path/to/project>', 'Target project directory', '.')
   .option('-c, --config <path/to/kubeconfig>', 'Kubernetes configuration file', '~/.kube/config')
