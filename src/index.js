@@ -33,6 +33,7 @@ program
   .option('-d, --directory <path/to/project>', 'Target project directory', '.')
   .option('-c, --config <path/to/kubeconfig>', 'Kubernetes configuration file', '~/.kube/config')
   .option('-m, --modules <redis,postgres,mongodb>', 'Explicitly add modules')
+  .option('--language <name>', 'Override language detection')
   .option('--project-name <name>', 'Answer the project name question')
   .option('--entrypoint <entrypoint>', 'Answer the entrypoint question')
   .option('--image <image>', 'Answer the image address question')
@@ -45,8 +46,12 @@ program
 async function DeployNodeApp () {
   for (let i = 0; i < languages.length; i++) {
     const language = languages[i]
-    const detect = await language.detect()
-    if (!detect) continue
+
+    if (program.language && program.language !== language.name) continue
+    else if (!program.language) {
+      const detect = await language.detect()
+      if (!detect) continue
+    }
 
     deployNodeApp(env || 'production', action || 'deploy', language, {
       action: action || 'deploy',

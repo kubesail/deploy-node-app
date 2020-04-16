@@ -305,27 +305,34 @@ async function init (env = 'production', language, options = { update: false, fo
   await mkdir(`k8s/overlays/${env}`, options)
 
   // Ask some questions if we have missing info in our package.json 'deploy-node-app' configuration:
-  const name = options.name || (config.name && validProjectNameRegex.test(config.name)
-    ? config.name
-    : await promptForPackageName(config.name || path.basename(process.cwd()), options.force))
+  let name = config.name || options.name
+  if (!validProjectNameRegex.test(name)) {
+    name = await promptForPackageName(config.name || path.basename(process.cwd()), options.force)
+  }
 
   // Entrypoint:
-  const entrypoint = options.entrypoint || (envConfig.entrypoint && fs.existsSync(path.join(options.directory, envConfig.entrypoint))
-    ? envConfig.entrypoint
-    : await promptForEntrypoint(options))
+  let entrypoint = envConfig.entrypoint || options.entrypoint
+  if (entrypoint && !fs.existsSync(path.join(options.directory, entrypoint))) {
+    log(`${WARNING} The entrypoint "${entrypoint}" doesn't exist!`)
+    entrypoint = undefined
+  }
+
+  if (!entrypoint) entrypoint = await promptForEntrypoint(options)
 
   // Container ports:
-  const ports = options.ports === 'none' ? [] : options.ports || (config.ports ? config.ports : await promptForPorts(name, config.ports))
+  let ports = config.ports || options.ports
+  if (ports === 'none') ports = []
+  else if (ports.length === 0 && !config.ports) ports = await promptForPorts(name, config.ports)
 
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
   let uri = options.address || envConfig.uri || ''
   if (ports.length > 0 && !uri) uri = await promptForIngress(config.name)
 
   // Container image:
-  const image = options.image || (envConfig.image ? envConfig.image : await promptForImageName(name, envConfig.image))
+  const image = options.image ? options.image : (envConfig.image ? envConfig.image : await promptForImageName(name, envConfig.image))
 
   // Kubernetes Context (Cluster and User):
-  const context = options.context || await promptForKubeContext(envConfig.context, readLocalKubeConfig(options.config))
+  const context = options.context ? options.context : await promptForKubeContext(envConfig.context, readLocalKubeConfig(options.config))
 
   if (options.action === 'deploy') {
     log(`Deploying "${style.green.open}${name}${style.green.close}" to ${style.red.open}${env}${style.red.close}!`)
@@ -351,7 +358,7 @@ async function init (env = 'production', language, options = { update: false, fo
     await writeService('k8s/base/service.yaml', name, ports, { ...options, name, env, ports })
     resources.push('./service.yaml')
     if (!uri) return
-    await writeIngress('./k8s/base/ingress.yaml', name, uri, ports[0], { ...options, name, env, ports })
+    await writeIngress('k8s/base/ingress.yaml', name, uri, ports[0], { ...options, name, env, ports })
     resources.push('./ingress.yaml')
   }
 
@@ -366,6 +373,7 @@ async function init (env = 'production', language, options = { update: false, fo
       if (metaModule) matchedModules.push(metaModule)
     })
   }
+  if (matchedModules.length > 0) debug(`Adding configuration for submodules: "${matchedModules.join(', ')}"`)
 
   // Add matched modules to our Kustomization file
   for (let i = 0; i < matchedModules.length; i++) {
@@ -396,6 +404,7 @@ async function init (env = 'production', language, options = { update: false, fo
     }
   }
   packageJson['deploy-node-app'] = Object.assign({}, packageJson['deploy-node-app'], {
+    language: language.name,
     ports,
     envs: Object.assign({}, (packageJson['deploy-node-app'] || {}).envs, {
       [env]: Object.assign({}, (packageJson['deploy-node-app'] || {})[env], { uri, context, image, entrypoint })

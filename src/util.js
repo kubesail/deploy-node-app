@@ -98,9 +98,15 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
   }
 }
 
-const mkdir = async (fullPath, options) => {
-  const created = await mkdirp(path.join(options.directory, fullPath))
-  if (created) dirsWritten.push(fullPath)
+const mkdir = async (filePath, options) => {
+  const fullPath = path.join(options.directory, filePath)
+  const created = await mkdirp(fullPath)
+  if (created) {
+    const dirParts = filePath.replace('./', '').split('/')
+    for (let i = dirParts.length; i > 0; i--) {
+      dirsWritten.push(path.join(options.directory, dirParts.slice(0, i).join(path.sep)))
+    }
+  }
   return created
 }
 
@@ -111,17 +117,19 @@ const cleanupWrittenFiles = () => {
     debug(`Removing file "${file}"`)
     fs.unlinkSync(file)
   })
-  dirsWritten.forEach(dir => {
-    const dirParts = dir.replace('./', '').split('/')
+  const dirsToRemove = dirsWritten.filter((v, i, s) => s.indexOf(v) === i)
+  for (let i = 0; i < dirsToRemove.length; i++) {
+    const dir = dirsToRemove[i]
+    const dirParts = dir.replace('./', '').split(path.sep)
     for (let i = dirParts.length; i >= 0; i--) {
       const dirPart = dirParts.slice(0, i).join(path.sep)
       if (!dirPart) continue
-      else if (fs.readdirSync(dirPart).length === 0) {
+      else if (fs.existsSync(dirPart) && fs.readdirSync(dirPart).length === 0) {
         debug(`Removing directory "${dirPart}"`)
         fs.rmdirSync(dirPart)
       } else break
     }
-  })
+  }
 }
 
 // Runs a shell command with our "process.env" - allows passing environment variables to skaffold, for example.
@@ -131,6 +139,7 @@ const execSyncWithEnv = (cmd, options = {}) => {
     stdio: 'inherit',
     cwd: process.cwd()
   })
+  if (options.debug) log(`execSyncWithEnv: ${cmd}`)
   let output
   try {
     output = execSync(cmd, mergedOpts)
