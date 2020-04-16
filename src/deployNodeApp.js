@@ -158,7 +158,7 @@ async function promptForKubeContext (context, kubeConfig) {
   } else {
     if (context) process.stdout.write(`${WARNING} This environment is configured to use the context "${context}", but that wasn't found in your Kube config!\n\n`)
     const kubeContexts = contexts.map(c => c.name)
-    if (!kubeConfig.clusters || kubeConfig.clusters.find(c => c.cluster.server.endsWith('kubesail.coadm'))) {
+    if (!kubeConfig.clusters || kubeConfig.clusters.find(c => c.cluster.server.endsWith('kubesail.com'))) {
       kubeContexts.push(KUBESAIL_NEW_NAMESPACE_TEXT)
     }
     let { newContext } = await inquirer.prompt([{
