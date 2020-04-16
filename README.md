@@ -59,7 +59,7 @@ Simply run `npx deploy-node-app` in your repository. The tool will attempt to pr
 
 # Dependencies
 
-`deploy-node-app` knows about dependencies! For example, if you install a redis or postgres driver for Node.js, Python, Ruby [and more](https://github.com/kubesail/deploy-node-app/tree/master/src/languages), `deploy-node-appp` will automatically create Redis or Postgres deployments that work with your app!
+`deploy-node-app` knows about dependencies! For example, if you install a redis or postgres driver for Node.js, Python, Ruby [and more](https://github.com/kubesail/deploy-node-app/tree/master/src/languages), `deploy-node-app` will automatically create Redis or Postgres deployments that work with your app!
 
 ## Suggested tools:
 
