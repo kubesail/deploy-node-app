@@ -16,6 +16,10 @@ jobs:
           command: ./bin/lint.sh
 
       - run:
+          name: set Kubeconfig
+          command: echo "$DNA_KUBECONFIG" | base64 -d > kubeconfig.yaml
+
+      - run:
           name: Testing
           command: ./bin/test.sh
 

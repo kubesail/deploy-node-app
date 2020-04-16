@@ -15,6 +15,7 @@ describe('Deploy-node-app init', function () {
       it('Runs init without writing anything except the package.json', () => {
         execSyncWithEnv(`${cmd} init production \
           -d ${path} \
+          --config=kubeconfig.yaml \
           --language=nginx \
           --project-name=foobar \
           --entrypoint=public/index.html \
