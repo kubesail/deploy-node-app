@@ -18,7 +18,7 @@ let env
 let action
 
 program
-  .name('deploy-to-kube')
+  .name('deploy-node-app')
   .arguments(USAGE)
   .usage(USAGE)
   .version(dnaPackageJson.version)
