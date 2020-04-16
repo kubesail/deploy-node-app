@@ -322,7 +322,6 @@ async function init (env = 'production', language, config, options = { update: f
     log(`${WARNING} The entrypoint "${entrypoint}" doesn't exist!`)
     entrypoint = undefined
   }
-
   if (!entrypoint) entrypoint = await promptForEntrypoint(options)
 
   // Container ports:
@@ -439,6 +438,8 @@ module.exports = async function DeployNodeApp (env, action, options) {
     return fatal('Unable to determine what sort of project this is. If it\'s a real project, please let us know at https://github.com/kubesail/deploy-node-app/issues and we\'ll add support!')
   }
 
+  if (!options.write) process.on('beforeExit', cleanupWrittenFiles)
+
   if (action === 'init') await init(env, language, config, options)
   else if (action === 'deploy') {
     await init(env, language, options)
@@ -451,6 +452,4 @@ module.exports = async function DeployNodeApp (env, action, options) {
     process.stderr.write(`No such action "${action}"!\n`)
     process.exit(1)
   }
-
-  if (!options.write) await cleanupWrittenFiles()
 }
