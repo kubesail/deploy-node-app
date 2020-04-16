@@ -8,3 +8,4 @@ test/*/*/k8s
 test/*/*/Dockerfile
 test/*/*/skaffold.yaml
 test/*/*/.*
+test/nginx/simple/package.json

@@ -18,15 +18,15 @@ describe('Deploy-node-app end-to-end', function () {
         --ports=8000 \
         --address=simple-nginx.test \
         --image=kubesail/nginx-simple-test \
-        --context=test`, { catchErr: false })
+        --context=test`, { catchErr: false, env: { DNA_DEBUG: true } })
 
       it('Creates appropriate YAML:', () => {
-        expect(fs.existsSync(`${path}/k8s/base/deployment.yaml`)).to.equal(true)
-        expect(fs.existsSync(`${path}/k8s/base/ingress.yaml`)).to.equal(true)
-        expect(fs.existsSync(`${path}/k8s/base/kustomization.yaml`)).to.equal(true)
-        expect(fs.existsSync(`${path}/k8s/base/service.yaml`)).to.equal(true)
-        expect(fs.existsSync(`${path}/k8s/base/deployment.yaml`)).to.equal(true)
-        expect(fs.existsSync(`${path}/k8s/overlays/production/kustomization.yaml`)).to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/base/deployment.yaml`), 'deployment.yaml').to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/base/ingress.yaml`), 'ingress.yaml').to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/base/kustomization.yaml`), 'kustomization.yaml').to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/base/service.yaml`), 'service.yaml').to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/base/deployment.yaml`, 'deployment.yaml')).to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/overlays/production/kustomization.yaml`), 'overlays/production/kustomization.yaml').to.equal(true)
       })
 
       it('Updates package.json properly', () => {
