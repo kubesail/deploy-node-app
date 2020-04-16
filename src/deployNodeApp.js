@@ -69,7 +69,7 @@ async function promptForPackageName (packageName = '', force = false) {
 }
 
 async function promptForEntrypoint (options) {
-  const suggestedDefaultPaths = ['src/index.js', 'index.js']
+  const suggestedDefaultPaths = ['src/index.js', 'index.js', 'index.py', 'src/index.py', 'public/index.html']
   const invalidPaths = ['.', 'LICENSE', 'README', 'package-lock.json', 'node_modules', 'yarn.lock', 'yarn-error.log', 'package.json', 'Dockerfile', '.log', '.json', '.lock', '.css', '.svg', '.md', '.png', '.disabled', '.ico', '.txt']
   const { entrypoint } = await inquirer.prompt([{
     name: 'entrypoint',
@@ -403,7 +403,7 @@ async function init (env = 'production', language, options = { update: false, fo
   })
   packageJson.name = name
 
-  await confirmWriteFile('package.json', JSON.stringify(packageJson, null, 2) + '\n', { ...options, update: true, force: options.write })
+  await confirmWriteFile('package.json', JSON.stringify(packageJson, null, 2) + '\n', { ...options, update: true, force: options.write, dontPrune: true })
 }
 
 module.exports = async function DeployNodeApp (env, action, language, options) {

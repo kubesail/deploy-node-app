@@ -88,7 +88,7 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
   if (doWrite) {
     try {
       // Don't document writes to existing files - ie: never delete a users files!
-      if (!fs.existsSync(fullPath)) filesWritten.push(fullPath)
+      if (!options.dontPrune && !fs.existsSync(fullPath)) filesWritten.push(fullPath)
       await writeFile(fullPath, content)
       debug(`Successfully wrote "${filePath}"`)
     } catch (err) {
