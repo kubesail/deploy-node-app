@@ -216,7 +216,6 @@ async function writeTextLine (file, line, options = { update: false, force: fals
 
 // Writes a simple Kubernetes Deployment object
 async function writeDeployment (path, name, image, ports = [], options = { force: false, update: false }) {
-  console.log('ports', ports)
   const resources = { requests: { cpu: '50m', memory: '100Mi' }, limits: { cpu: '2', memory: '1500Mi' } }
   const containerPorts = ports.map(port => { return { containerPort: port } })
   await confirmWriteFile(path, loadAndMergeYAML(path, {
@@ -269,6 +268,7 @@ async function writeSecret (path, options = { force: false, update: false }) {
   const { envs } = options
   const lines = []
   const existingSecrets = {}
+  await mkdir(`k8s/overlays/${options.env}/secrets`, options)
   if (fs.existsSync(path)) {
     const lines = fs.readFileSync(path).toString().split('\n').filter(Boolean)
     lines.forEach(line => {
@@ -302,8 +302,7 @@ async function init (env = 'production', language, options = { update: false, fo
 
   // Create directory structure
   await mkdir('k8s/base', options)
-  await mkdir('k8s/dependencies', options)
-  await mkdir(`k8s/overlays/${env}/secrets`, options)
+  await mkdir(`k8s/overlays/${env}`, options)
 
   // Ask some questions if we have missing info in our package.json 'deploy-node-app' configuration:
   const name = options.name || (config.name && validProjectNameRegex.test(config.name)
@@ -388,9 +387,10 @@ async function init (env = 'production', language, options = { update: false, fo
   // Finally, let's write out the result of all the questions asked to the package.json file
   // Next time deploy-node-app is run, we shouldn't need to ask the user anything!
   let packageJson = {}
-  if (fs.existsSync(path.join(options.directory, 'package.json'))) {
+  const packageJsonPath = path.join(options.directory, 'package.json')
+  if (fs.existsSync(packageJsonPath)) {
     try {
-      packageJson = JSON.parse((await readFile(path.join(options.directory, 'package.json'))).toString())
+      packageJson = JSON.parse((await readFile(packageJsonPath)).toString())
     } catch (_err) {
       log(`${WARNING} Failed to parse your ./package.json file!`)
     }
@@ -403,7 +403,7 @@ async function init (env = 'production', language, options = { update: false, fo
   })
   packageJson.name = name
 
-  await confirmWriteFile('package.json', JSON.stringify(packageJson, null, 2) + '\n', { ...options, update: true })
+  await confirmWriteFile('package.json', JSON.stringify(packageJson, null, 2) + '\n', { ...options, update: true, force: options.write })
 }
 
 module.exports = async function DeployNodeApp (env, action, language, options) {

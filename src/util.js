@@ -79,7 +79,7 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
     if (confirmUpdate === YES_TEXT) doWrite = true
     else if (confirmUpdate === SHOWDIFF_TEXT) {
       tryDiff(content, existingData)
-      await confirmWriteFile(fullPath, content, options)
+      await confirmWriteFile(filePath, content, options)
     }
   } else if (force) {
     doWrite = true
