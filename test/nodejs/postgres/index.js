@@ -1,1 +1,1 @@
-console.log('DNA nodejs redis test Hello world')
+console.log('Postgres test')

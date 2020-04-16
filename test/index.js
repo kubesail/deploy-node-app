@@ -7,24 +7,23 @@ const it = global.it
 const cmd = 'node ./src/index.js'
 const debug = false
 
-function wrotePkgJsonProperly (path) {
+function wrotePkgJsonProperly (path, { language, uri, image, entrypoint, context, ports }) {
   const packageJson = JSON.parse(fs.readFileSync(`${path}/package.json`))
   const cfg = packageJson['deploy-node-app']
-  expect(cfg.language).to.equal('nginx')
+  expect(cfg.language).to.equal(language)
   expect(cfg.envs.production).to.be.an('Object')
-  expect(cfg.envs.production.uri).to.equal('nginx-simple.test')
-  expect(cfg.envs.production.image).to.equal('kubesail/nginx-simple-test')
-  expect(cfg.envs.production.entrypoint).to.equal('public/index.html')
-  expect(cfg.envs.production.context).to.equal('test')
-  expect(cfg.ports[0]).to.equal(8000)
+  expect(cfg.envs.production.uri).to.equal(uri)
+  expect(cfg.envs.production.image).to.equal(image)
+  expect(cfg.envs.production.entrypoint).to.equal(entrypoint)
+  expect(cfg.envs.production.context).to.equal(context)
+  expect(cfg.ports).to.have.members(ports)
 }
 
-function wroteYamlStructureProperly (path) {
+function wroteYamlStructureProperly (path, env = 'production') {
   expect(fs.existsSync(`${path}/k8s/base/deployment.yaml`), 'deployment.yaml').to.equal(true)
-  expect(fs.existsSync(`${path}/k8s/base/ingress.yaml`), 'ingress.yaml').to.equal(true)
+
   expect(fs.existsSync(`${path}/k8s/base/kustomization.yaml`), 'kustomization.yaml').to.equal(true)
-  expect(fs.existsSync(`${path}/k8s/base/service.yaml`), 'service.yaml').to.equal(true)
-  expect(fs.existsSync(`${path}/k8s/overlays/production/kustomization.yaml`), 'overlays/production/kustomization.yaml').to.equal(true)
+  expect(fs.existsSync(`${path}/k8s/overlays/${env}/kustomization.yaml`), `overlays/${env}/kustomization.yaml`).to.equal(true)
   expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
   expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
 }
@@ -33,152 +32,216 @@ describe('Deploy-node-app init', function () {
   describe('Nginx', function () {
     describe('Simple', function () {
       const path = 'test/nginx/simple'
+      const opts = {
+        language: 'nginx',
+        name: 'nginx-simple',
+        uri: 'nginx-simple.test',
+        image: 'kubesail/nginx-simple-test',
+        entrypoint: 'public/index.html',
+        context: 'test',
+        ports: [8000]
+      }
 
       it('Runs init without writing anything except the package.json', () => {
         execSyncWithEnv(`${cmd} init production \
-          -d ${path} \
-          --config=kubeconfig.yaml \
-          --language=nginx \
-          --project-name=foobar \
-          --entrypoint=public/index.html \
-          --ports=8000 \
-          --address=nginx-simple.test \
-          --image=kubesail/nginx-simple-test \
-          --context=test`, { catchErr: false, debug })
+          -d ${path} --config=kubeconfig.yaml \
+          --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
+          --ports=${opts.ports.join(',')} --address=${opts.uri} \
+          --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
       })
 
       it('Updates package.json properly', () => {
-        wrotePkgJsonProperly(path)
+        wrotePkgJsonProperly(path, opts)
       })
 
       it('Writes out files in write mode', () => {
         execSyncWithEnv(`${cmd} init production -d ${path} --write`, { catchErr: false })
         wroteYamlStructureProperly(path)
-        wrotePkgJsonProperly(path)
+        wrotePkgJsonProperly(path, opts)
+        expect(fs.existsSync(`${path}/k8s/base/ingress.yaml`), 'ingress.yaml').to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/base/service.yaml`), 'service.yaml').to.equal(true)
       })
     })
   })
 
-  // describe('nodejs', function () {
-  //   describe('simple', function () {
-  //     const path = 'test/nodejs/simple'
-  //     it('Runs init without exception', () => {
-  //       execSyncWithEnv(`${cmd} init production \
-  //         -d ${path} \
-  //         --write \
-  //         --project-name=nodejs-simple \
-  //         --entrypoint=index.js \
-  //         --ports=8001 \
-  //         --address=nodejs-simple.test \
-  //         --image=kubesail/nodejs-simple-test \
-  //         --context=test`, { catchErr: false })
-  //     })
-  //   })
-  //   describe('postgres', function () {
-  //     const path = 'test/nodejs/postgres'
-  //     it('Runs init without exception', () => {
-  //       execSyncWithEnv(`${cmd} init production \
-  //         -d ${path} \
-  //         --write \
-  //         --project-name=nodejs-postgres \
-  //         --entrypoint=index.js \
-  //         --ports=8002 \
-  //         --address=nodejs-postgres.test \
-  //         --image=kubesail/nodejs-postgres-test \
-  //         --context=test`, { catchErr: false })
-  //     })
-  //   })
-  //   describe('redis', function () {
-  //     const path = 'test/nodejs/redis'
-  //     it('Runs init without exception', () => {
-  //       execSyncWithEnv(`${cmd} init production \
-  //         -d ${path} \
-  //         --write \
-  //         --project-name=nodejs-redis \
-  //         --entrypoint=index.js \
-  //         --ports=8003 \
-  //         --address=nodejs-redis.test \
-  //         --image=kubesail/nodejs-redis-test \
-  //         --context=test`, { catchErr: false })
-  //     })
-  //   })
-  //   describe('elasticsearch', function () {
-  //     const path = 'test/nodejs/elasticsearch'
-  //     it('Runs init without exception', () => {
-  //       execSyncWithEnv(`${cmd} init production \
-  //         -d ${path} \
-  //         --write \
-  //         --project-name=nodejs-elasticsearch \
-  //         --entrypoint=index.js \
-  //         --ports=8004 \
-  //         --address=nodejs-elasticsearch.test \
-  //         --image=kubesail/nodejs-elasticsearch-test \
-  //         --context=test`, { catchErr: false })
-  //     })
-  //   })
-  //   describe('kafka', function () {
-  //     const path = 'test/nodejs/kafka'
-  //     it('Runs init without exception', () => {
-  //       execSyncWithEnv(`${cmd} init production \
-  //         -d ${path} \
-  //         --write \
-  //         --project-name=nodejs-kafka \
-  //         --entrypoint=index.js \
-  //         --ports=8005 \
-  //         --address=nodejs-kafka.test \
-  //         --image=kubesail/nodejs-kafka-test \
-  //         --context=test`, { catchErr: false })
-  //     })
-  //   })
-  //   describe('mongodb', function () {
-  //     const path = 'test/nodejs/mongodb'
-  //     it('Runs init without exception', () => {
-  //       execSyncWithEnv(`${cmd} init production \
-  //         -d ${path} \
-  //         --write \
-  //         --project-name=nodejs-mongodb \
-  //         --entrypoint=index.js \
-  //         --ports=8006 \
-  //         --address=nodejs-mongodb.test \
-  //         --image=kubesail/nodejs-mongodb-test \
-  //         --context=test`, { catchErr: false })
-  //     })
-  //   })
-  // })
+  describe('nodejs', function () {
+    describe('simple', function () {
+      const path = 'test/nodejs/simple'
+      const opts = {
+        language: 'nodejs',
+        name: 'nodejs-simple',
+        uri: 'nodejs-simple.test',
+        image: 'kubesail/nodejs-simple-test',
+        entrypoint: 'index.js',
+        context: 'test',
+        ports: [8001]
+      }
+      it('Runs init without exception', () => {
+        execSyncWithEnv(`${cmd} init production \
+            -d ${path} --config=kubeconfig.yaml --update --force \
+            --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
+            --ports=${opts.ports.join(',')} --address=${opts.uri} \
+            --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        wrotePkgJsonProperly(path, opts)
+      })
+    })
 
-  // describe('python', function () {
-  //   describe('simple', function () {
-  //     const path = 'test/python/simple'
-  //     it('Runs init without exception', () => {
-  //       execSyncWithEnv(`${cmd} init production \
-  //         -d ${path} \
-  //         --write \
-  //         --project-name=python-simple \
-  //         --entrypoint=index.js \
-  //         --ports=8008 \
-  //         --address=python-simple.test \
-  //         --image=kubesail/python-simple-test \
-  //         --context=test`, { catchErr: false })
-  //     })
-  //   })
-  //   describe('redis', function () {
-  //     const path = 'test/python/redis'
-  //     it('Runs init without exception', () => {
-  //       execSyncWithEnv(`${cmd} init production \
-  //         -d ${path} \
-  //         --write \
-  //         --project-name=python-redis \
-  //         --entrypoint=index.js \
-  //         --ports=8007 \
-  //         --address=python-redis.test \
-  //         --image=kubesail/python-redis-test \
-  //         --context=test`, { catchErr: false })
-  //     })
-  //   })
-  // })
+    describe('postgres', function () {
+      const path = 'test/nodejs/postgres'
+      const opts = {
+        language: 'nodejs',
+        name: 'nodejs-postgres',
+        uri: 'nodejs-postgres.test',
+        image: 'kubesail/nodejs-postgres-test',
+        entrypoint: 'index.js',
+        context: 'test',
+        ports: [8002]
+      }
+      it('Runs init without exception', () => {
+        execSyncWithEnv(`${cmd} init production \
+            -d ${path} --config=kubeconfig.yaml --update --force \
+            --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
+            --ports=${opts.ports.join(',')} --address=${opts.uri} \
+            --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        wrotePkgJsonProperly(path, opts)
+      })
+    })
+
+    describe('redis', function () {
+      const path = 'test/nodejs/redis'
+      const opts = {
+        language: 'nodejs',
+        name: 'nodejs-redis',
+        uri: 'nodejs-redis.test',
+        image: 'kubesail/nodejs-redis-test',
+        entrypoint: 'index.js',
+        context: 'test',
+        ports: [8003]
+      }
+      it('Runs init without exception', () => {
+        execSyncWithEnv(`${cmd} init production \
+            -d ${path} --config=kubeconfig.yaml --update --force \
+            --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
+            --ports=${opts.ports.join(',')} --address=${opts.uri} \
+            --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        wrotePkgJsonProperly(path, opts)
+      })
+    })
+
+    describe('elasticsearch', function () {
+      const path = 'test/nodejs/elasticsearch'
+      const opts = {
+        language: 'nodejs',
+        name: 'nodejs-elasticsearch',
+        uri: 'nodejs-elasticsearch.test',
+        image: 'kubesail/nodejs-elasticsearch-test',
+        entrypoint: 'index.js',
+        context: 'test',
+        ports: [8004]
+      }
+      it('Runs init without exception', () => {
+        execSyncWithEnv(`${cmd} init production \
+              -d ${path} --config=kubeconfig.yaml --update --force \
+              --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
+              --ports=${opts.ports.join(',')} --address=${opts.uri} \
+              --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        wrotePkgJsonProperly(path, opts)
+      })
+    })
+
+    describe('kafka', function () {
+      const path = 'test/nodejs/kafka'
+      const opts = {
+        language: 'nodejs',
+        name: 'nodejs-kafka',
+        uri: 'nodejs-kafka.test',
+        image: 'kubesail/nodejs-kafka-test',
+        entrypoint: 'src/index.js',
+        context: 'test',
+        ports: [8005]
+      }
+      it('Runs init without exception', () => {
+        execSyncWithEnv(`${cmd} init production \
+              -d ${path} --config=kubeconfig.yaml --update --force \
+              --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
+              --ports=${opts.ports.join(',')} --address=${opts.uri} \
+              --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        wrotePkgJsonProperly(path, opts)
+      })
+    })
+
+    describe('mongodb', function () {
+      const path = 'test/nodejs/mongodb'
+      const opts = {
+        language: 'nodejs',
+        name: 'nodejs-mongodb',
+        uri: 'nodejs-mongodb.test',
+        image: 'kubesail/nodejs-mongodb-test',
+        entrypoint: 'index.js',
+        context: 'test',
+        ports: [8005]
+      }
+      it('Runs init without exception', () => {
+        execSyncWithEnv(`${cmd} init production \
+              -d ${path} --config=kubeconfig.yaml --update --force \
+              --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
+              --ports=${opts.ports.join(',')} --address=${opts.uri} \
+              --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        wrotePkgJsonProperly(path, opts)
+      })
+    })
+
+    // describe('python', function () {
+    //   describe('simple', function () {
+    //     const path = 'test/python/simple'
+    //     it('Runs init without exception', () => {
+    //       execSyncWithEnv(`${cmd} init production \
+    //         -d ${path} \
+    //         --write \
+    //         --project-name=python-simple \
+    //         --entrypoint=index.js \
+    //         --ports=8008 \
+    //         --address=python-simple.test \
+    //         --image=kubesail/python-simple-test \
+    //         --context=test`, { catchErr: false })
+    //     })
+    //   })
+    //   describe('redis', function () {
+    //     const path = 'test/python/redis'
+    //     it('Runs init without exception', () => {
+    //       execSyncWithEnv(`${cmd} init production \
+    //         -d ${path} \
+    //         --write \
+    //         --project-name=python-redis \
+    //         --entrypoint=index.js \
+    //         --ports=8007 \
+    //         --address=python-redis.test \
+    //         --image=kubesail/python-redis-test \
+    //         --context=test`, { catchErr: false })
+    //     })
+    //   })
+    // })
 
   // describe('ruby', function () {
   //   describe('simple', function () {
@@ -209,5 +272,5 @@ describe('Deploy-node-app init', function () {
   //         --context=test`, { catchErr: false })
   //     })
   //   })
-  // })
+  })
 })
