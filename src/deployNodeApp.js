@@ -30,7 +30,8 @@ const languages = [
   require('./languages/nginx'),
   require('./languages/nodejs'),
   require('./languages/php'),
-  require('./languages/python')
+  require('./languages/python'),
+  require('./languages/ruby')
 ]
 
 // Only allow projects that are valid dns components - we will prompt the user for a different name if this is name matched
@@ -76,7 +77,8 @@ async function promptForPackageName (packageName = '', force = false) {
 }
 
 async function promptForEntrypoint (options) {
-  const suggestedDefaultPaths = ['src/index.js', 'index.js', 'index.py', 'src/index.py', 'public/index.html']
+  // TODO: suggestedDefaultPaths should probably be informed by Language
+  const suggestedDefaultPaths = ['src/index.js', 'index.js', 'index.py', 'src/index.py', 'public/index.html', 'main.py', 'server.py', 'index.html']
   const invalidPaths = ['.', 'LICENSE', 'README', 'package-lock.json', 'node_modules', 'yarn.lock', 'yarn-error.log', 'package.json', 'Dockerfile', '.log', '.json', '.lock', '.css', '.svg', '.md', '.png', '.disabled', '.ico', '.txt']
   const { entrypoint } = await inquirer.prompt([{
     name: 'entrypoint',

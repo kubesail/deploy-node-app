@@ -2,10 +2,11 @@ const fs = require('fs')
 const path = require('path')
 
 module.exports = {
-  name: 'python',
-  image: 'python',
+  name: 'ruby',
+  image: 'ruby',
   dockerfile: ({ entrypoint }) => 'FROM nginx\n\nCOPY . /usr/share/html/',
   detect: (dir) => {
-    return fs.existsSync(path.join(dir, 'requirements.txt'))
+    console.log('checking for ', path.join(dir, 'Gemfile'))
+    return fs.existsSync(path.join(dir, 'Gemfile'))
   }
 }
