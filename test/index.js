@@ -7,6 +7,28 @@ const it = global.it
 const cmd = 'node ./src/index.js'
 const debug = false
 
+function wrotePkgJsonProperly (path) {
+  const packageJson = JSON.parse(fs.readFileSync(`${path}/package.json`))
+  const cfg = packageJson['deploy-node-app']
+  expect(cfg.language).to.equal('nginx')
+  expect(cfg.envs.production).to.be.an('Object')
+  expect(cfg.envs.production.uri).to.equal('nginx-simple.test')
+  expect(cfg.envs.production.image).to.equal('kubesail/nginx-simple-test')
+  expect(cfg.envs.production.entrypoint).to.equal('public/index.html')
+  expect(cfg.envs.production.context).to.equal('test')
+  expect(cfg.ports[0]).to.equal(8000)
+}
+
+function wroteYamlStructureProperly (path) {
+  expect(fs.existsSync(`${path}/k8s/base/deployment.yaml`), 'deployment.yaml').to.equal(true)
+  expect(fs.existsSync(`${path}/k8s/base/ingress.yaml`), 'ingress.yaml').to.equal(true)
+  expect(fs.existsSync(`${path}/k8s/base/kustomization.yaml`), 'kustomization.yaml').to.equal(true)
+  expect(fs.existsSync(`${path}/k8s/base/service.yaml`), 'service.yaml').to.equal(true)
+  expect(fs.existsSync(`${path}/k8s/overlays/production/kustomization.yaml`), 'overlays/production/kustomization.yaml').to.equal(true)
+  expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
+  expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
+}
+
 describe('Deploy-node-app init', function () {
   describe('Nginx', function () {
     describe('Simple', function () {
@@ -29,26 +51,13 @@ describe('Deploy-node-app init', function () {
       })
 
       it('Updates package.json properly', () => {
-        const packageJson = JSON.parse(fs.readFileSync(`${path}/package.json`))
-        const cfg = packageJson['deploy-node-app']
-        expect(cfg.envs.production).to.be.an('Object')
-        expect(cfg.envs.production.uri).to.equal('nginx-simple.test')
-        expect(cfg.envs.production.image).to.equal('kubesail/nginx-simple-test')
-        expect(cfg.envs.production.entrypoint).to.equal('public/index.html')
-        expect(cfg.envs.production.context).to.equal('test')
-        expect(cfg.ports[0]).to.equal(8000)
+        wrotePkgJsonProperly(path)
       })
 
       it('Writes out files in write mode', () => {
         execSyncWithEnv(`${cmd} init production -d ${path} --write`, { catchErr: false })
-        expect(fs.existsSync(`${path}/k8s/base/deployment.yaml`), 'deployment.yaml').to.equal(true)
-        expect(fs.existsSync(`${path}/k8s/base/ingress.yaml`), 'ingress.yaml').to.equal(true)
-        expect(fs.existsSync(`${path}/k8s/base/kustomization.yaml`), 'kustomization.yaml').to.equal(true)
-        expect(fs.existsSync(`${path}/k8s/base/service.yaml`), 'service.yaml').to.equal(true)
-        expect(fs.existsSync(`${path}/k8s/base/deployment.yaml`, 'deployment.yaml')).to.equal(true)
-        expect(fs.existsSync(`${path}/k8s/overlays/production/kustomization.yaml`), 'overlays/production/kustomization.yaml').to.equal(true)
-        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
-        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
+        wroteYamlStructureProperly(path)
+        wrotePkgJsonProperly(path)
       })
     })
   })

@@ -1,9 +1,10 @@
 const fs = require('fs')
+const path = require('path')
 
 module.exports = {
   name: 'python',
   image: 'python',
-  detect: () => {
-    return fs.existsSync('./requirements.txt')
+  detect: (dir) => {
+    return fs.existsSync(path.join(dir, './requirements.txt'))
   }
 }

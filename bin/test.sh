@@ -8,4 +8,7 @@ function finish {
 trap finish ERR
 
 git clean -xdf test/
+
 ./node_modules/.bin/mocha ./test/index.js
+
+git clean -xdf test/ > /dev/null

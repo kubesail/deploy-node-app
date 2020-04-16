@@ -2,7 +2,7 @@
 module.exports = {
   name: 'php',
   image: 'php',
-  detect: () => {
+  detect: (dir) => {
     return false
   }
 }

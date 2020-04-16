@@ -10,8 +10,14 @@ module.exports = {
   image: 'node',
   command: 'node',
 
-  detect: () => {
-    return fs.existsSync('./package.json')
+  detect: (dir) => {
+    const pkgPath = path.join(dir, './package.json')
+    if (fs.existsSync(pkgPath)) {
+      try {
+        const packageJson = JSON.parse(fs.readFileSync(pkgPath))
+        if (packageJson && packageJson.name && packageJson.version) return true
+      } catch {}
+    }
   },
 
   dockerfile: ({ entrypoint }) => {

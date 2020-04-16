@@ -290,12 +290,12 @@ async function writeSecret (path, options = { force: false, update: false }) {
   await confirmWriteFile(path, lines.join('\n') + '\n', options)
 }
 
-async function writeSkaffold (path, context, envs, options = { force: false, update: false }) {
+async function writeSkaffold (path, envs, options = { force: false, update: false }) {
   const { image } = options
   await confirmWriteFile(path, loadAndMergeYAML(path, {
     apiVersion: 'skaffold/v2alpha4',
     kind: 'Config',
-    build: { artifacts: [{ image, context, docker: { dockerfile: 'Dockerfile' }, sync: {} }] },
+    build: { artifacts: [{ image, context: '.', docker: { dockerfile: 'Dockerfile' }, sync: {} }] },
     portForward: [],
     profiles: Object.keys(envs).map(env => { return { name: env, deploy: { kustomize: { paths: [`k8s/overlays/${env}`] } } } })
   }), options)
@@ -389,7 +389,7 @@ async function init (env = 'production', language, config, options = { update: f
   }
 
   // Write Kustomization and Skaffold configuration
-  await writeSkaffold('skaffold.yaml', context, config.envs, { ...options, name, image, env, ports })
+  await writeSkaffold('skaffold.yaml', config.envs, { ...options, name, image, env, ports })
   await writeKustomization('k8s/base/kustomization.yaml', { ...options, name, env, ports, resources })
   await writeKustomization(`k8s/overlays/${env}/kustomization.yaml`, { ...options, name, env, ports, bases, secrets })
 
@@ -429,7 +429,7 @@ module.exports = async function DeployNodeApp (env, action, options) {
     if (
       (options.language && options.language === languages[i].name) ||
       (config.language && config.language === languages[i].name) ||
-      (!options.language && await languages[i].detect())
+      (!options.language && await languages[i].detect(options.directory))
     ) {
       language = languages[i]
     }
