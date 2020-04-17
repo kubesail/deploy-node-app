@@ -137,7 +137,7 @@ const execSyncWithEnv = (cmd, options = {}) => {
   const mergedOpts = Object.assign({ catchErr: true }, options, {
     stdio: options.stdio || 'pipe',
     cwd: process.cwd(),
-    shell: true
+    shell: process.env.SHELL || '/bin/sh'
   })
   if (options.debug) log(`execSyncWithEnv: ${cmd}`)
   let output

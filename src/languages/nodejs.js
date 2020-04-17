@@ -24,14 +24,14 @@ module.exports = {
     return `FROM node:${process.versions.node.split('.')[0]}
 WORKDIR /app
 
-RUN useradd nodejs && \
-    chown -R nodejs /app && \
-    chown -R nodejs /home/nodejs
+RUN useradd nodejs && chown -R nodejs /app
 
 COPY package.json yarn.loc[k] .npmr[c] ./
 RUN yarn install --production
 
 COPY --chown=nodejs . ./
+
+USER nodejs
 
 CMD ["node", "${entrypoint}"]`
   },

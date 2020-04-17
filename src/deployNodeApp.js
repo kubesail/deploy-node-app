@@ -160,7 +160,7 @@ async function promptForKubeContext (context, kubeConfig) {
   } else {
     if (context) process.stdout.write(`${WARNING} This environment is configured to use the context "${context}", but that wasn't found in your Kube config!\n\n`)
     const kubeContexts = contexts.map(c => c.name)
-    if (!kubeConfig.clusters || kubeConfig.clusters.find(c => c.cluster.server.endsWith('kubesail.com'))) {
+    if (!kubeConfig.clusters || !kubeConfig.clusters.find(c => c.cluster.server.endsWith('kubesail.com'))) {
       kubeContexts.push(KUBESAIL_NEW_NAMESPACE_TEXT)
     }
     let { newContext } = await inquirer.prompt([{
@@ -348,11 +348,6 @@ async function init (env = 'production', language, config, options = { update: f
   // Kubernetes Context (Cluster and User):
   const context = options.context ? options.context : await promptForKubeContext(envConfig.context, readLocalKubeConfig(options.config))
 
-  if (options.action === 'deploy') {
-    log(`Deploying "${style.green.open}${name}${style.green.close}" to ${style.red.open}${env}${style.red.close}!`)
-    if (!options.force && !process.env.CI) await sleep(1500) // Give administrators a chance to exit!
-  }
-
   // Secrets will track secrets created by our dependencies which need to be written out to Kubernetes Secrets
   let secrets = []
 
@@ -449,10 +444,16 @@ module.exports = async function DeployNodeApp (env, action, options) {
 
   if (!options.write) process.on('beforeExit', cleanupWrittenFiles)
 
+  async function deployMessage () {
+    log(`Deploying to ${style.red.open}${env}${style.red.close}!`)
+    if (!options.force && !process.env.CI) await sleep(1000) // Give administrators a chance to exit!
+  }
+
   if (action === 'init') await init(env, language, config, options)
   else if (action === 'deploy') {
     await init(env, language, config, options)
-    execSyncWithEnv(`${skaffoldPath} deploy --profile=${env}`, { stdio: 'inherit' })
+    await deployMessage()
+    execSyncWithEnv(`${skaffoldPath} run --profile=${env}`, { stdio: 'inherit' })
   } else if (action === 'dev') {
     execSyncWithEnv(`${skaffoldPath} dev --profile=${env} --port-forward`, { stdio: 'inherit' })
   } else if (['build'].includes(action)) {
