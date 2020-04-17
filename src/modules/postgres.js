@@ -1,5 +1,5 @@
 
-const { generateRandomStr } = require('../util')
+const { generateRandomStr, promptUserForValue } = require('../util')
 
 module.exports = {
   name: 'postgres',
@@ -12,6 +12,8 @@ module.exports = {
   },
   ports: [5432],
   envs: {
+    POSTGRES_USER: generateRandomStr(5),
+    POSTGRES_DB: promptUserForValue('POSTGRES_DB', { defaultToProjectName: true }),
     POSTGRES_PASSWORD: generateRandomStr(),
     POSTGRES_PORT: 5432
   }

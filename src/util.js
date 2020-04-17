@@ -112,7 +112,8 @@ const mkdir = async (filePath, options) => {
 
 // Cleans up files written by confirmWriteFile and directories written by mkdir
 // Does not delete non-empty directories!
-const cleanupWrittenFiles = () => {
+const cleanupWrittenFiles = (options) => {
+  if (options.write) return
   filesWritten.forEach(file => {
     debug(`Removing file "${file}"`)
     fs.unlinkSync(file)
@@ -185,15 +186,18 @@ async function ensureBinaries (options) {
   return existsInPath ? execSyncWithEnv('which skaffold') : nodeModulesPath
 }
 
-function promptUserForValue ({ name = 'unnamed prompt!', message, validate, defaultValue, type = 'input' }) {
-  return async () => {
-    const values = await inquirer.prompt([{ name, type, message: message || name, validate, default: defaultValue }])
+function promptUserForValue (name, { message, validate, defaultValue, type = 'input', defaultToProjectName }) {
+  return async (existing, options) => {
+    defaultValue = defaultValue || existing
+    if (defaultToProjectName) defaultValue = options.name
+    if (!message) message = `Module "${options.name}" needs a setting: ${name}`
+    const values = await inquirer.prompt([{ name, type, message, validate, default: defaultValue }])
     return values[name]
   }
 }
 
 function generateRandomStr (length = 16) {
-  return (existing) => {
+  return (existing, _options) => {
     if (existing) return existing
     return new Promise((resolve, reject) => {
       crypto.randomBytes(length, function (err, buff) {

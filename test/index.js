@@ -48,17 +48,12 @@ describe('Deploy-node-app init', function () {
           --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
           --ports=${opts.ports.join(',')} --address=${opts.uri} \
           --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
-        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
-        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
-        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
       })
 
       it('Updates package.json properly', () => {
-        wrotePkgJsonProperly(path, opts)
-      })
-
-      it('Writes out files in write mode', () => {
-        execSyncWithEnv(`${cmd} init production -t ${path} --write`, { catchErr: false })
         wroteYamlStructureProperly(path)
         wrotePkgJsonProperly(path, opts)
         expect(fs.existsSync(`${path}/k8s/base/ingress.yaml`), 'ingress.yaml').to.equal(true)
@@ -85,9 +80,9 @@ describe('Deploy-node-app init', function () {
             --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
             --ports=${opts.ports.join(',')} --address=${opts.uri} \
             --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
-        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
-        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
-        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
         wrotePkgJsonProperly(path, opts)
       })
     })
@@ -109,9 +104,9 @@ describe('Deploy-node-app init', function () {
             --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
             --ports=${opts.ports.join(',')} --address=${opts.uri} \
             --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
-        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
-        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
-        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
         wrotePkgJsonProperly(path, opts)
       })
     })
@@ -133,9 +128,9 @@ describe('Deploy-node-app init', function () {
             --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
             --ports=${opts.ports.join(',')} --address=${opts.uri} \
             --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
-        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
-        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
-        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
         wrotePkgJsonProperly(path, opts)
       })
     })
@@ -157,9 +152,9 @@ describe('Deploy-node-app init', function () {
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
               --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
-        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
-        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
-        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
         wrotePkgJsonProperly(path, opts)
       })
     })
@@ -181,9 +176,9 @@ describe('Deploy-node-app init', function () {
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
               --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
-        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
-        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
-        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
         wrotePkgJsonProperly(path, opts)
       })
     })
@@ -205,9 +200,9 @@ describe('Deploy-node-app init', function () {
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
               --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
-        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
-        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
-        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
         wrotePkgJsonProperly(path, opts)
       })
     })
@@ -230,9 +225,9 @@ describe('Deploy-node-app init', function () {
                 --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
                 --ports=${opts.ports.join(',')} --address=${opts.uri} \
                 --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
-          expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
-          expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
-          expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+          expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
+          expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
+          expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
           wrotePkgJsonProperly(path, opts)
         })
       })
@@ -254,9 +249,9 @@ describe('Deploy-node-app init', function () {
                 --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
                 --ports=${opts.ports.join(',')} --address=${opts.uri} \
                 --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
-          expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
-          expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
-          expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+          expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
+          expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
+          expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
           wrotePkgJsonProperly(path, opts)
         })
       })
@@ -281,9 +276,9 @@ describe('Deploy-node-app init', function () {
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
               --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
-        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
-        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
-        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
         wrotePkgJsonProperly(path, opts)
       })
     })
@@ -305,9 +300,9 @@ describe('Deploy-node-app init', function () {
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
               --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
-        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(false)
-        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(false)
-        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(false)
+        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
+        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
+        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
         wrotePkgJsonProperly(path, opts)
       })
     })

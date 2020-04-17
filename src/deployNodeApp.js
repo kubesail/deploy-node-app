@@ -188,7 +188,6 @@ async function writeModuleConfiguration (
   const resources = [deploymentFile]
   const secrets = []
   await mkdir(modPath, options)
-  await writeDeployment(`${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, options)
   if (mod.ports && mod.ports.length > 0) {
     await writeService(`${modPath}/service.yaml`, mod.name, mod.ports, options)
     resources.push('service.yaml')
@@ -196,9 +195,10 @@ async function writeModuleConfiguration (
   await writeKustomization(`${modPath}/kustomization.yaml`, { ...options, resources, secrets: [] })
   if (mod.envs) {
     await mkdir(`k8s/overlays/${env}/secrets`, options)
-    await writeSecret(`k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod })
+    await writeSecret(`k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod, env })
     secrets.push({ name: mod.name, path: `secrets/${mod.name}.env` })
   }
+  await writeDeployment(`${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, secrets, options)
   return { base: `../../../${modPath}`, secrets }
 }
 
@@ -213,9 +213,17 @@ function loadAndMergeYAML (path, newData) {
 }
 
 // Writes a simple Kubernetes Deployment object
-async function writeDeployment (path, name, image, ports = [], options = { force: false, update: false }) {
+async function writeDeployment (path, name, image, ports = [], secrets = [], options = { force: false, update: false }) {
   const resources = { requests: { cpu: '50m', memory: '100Mi' }, limits: { cpu: '2', memory: '1500Mi' } }
   const containerPorts = ports.map(port => { return { containerPort: port } })
+
+  const container = { name, image, ports: containerPorts, resources }
+  if (secrets.length > 0) {
+    container.envFrom = secrets.map(secret => {
+      return { secretRef: { name: secret.name } }
+    })
+  }
+
   await confirmWriteFile(path, loadAndMergeYAML(path, {
     apiVersion: 'apps/v1',
     kind: 'Deployment',
@@ -225,7 +233,7 @@ async function writeDeployment (path, name, image, ports = [], options = { force
       selector: { matchLabels: { app: name } },
       template: {
         metadata: { labels: { app: name } },
-        spec: { containers: [{ name, image, ports: containerPorts, resources }] }
+        spec: { containers: [container] }
       }
     }
   }), options)
@@ -281,7 +289,9 @@ async function writeSecret (path, options = { force: false, update: false }) {
     })
   }
   for (const key in envs) {
-    let value = process.env[key] || typeof envs[key] === 'function' ? envs[key](existingSecrets[key]) : envs[key]
+    let value = (process.env[key] || typeof envs[key] === 'function')
+      ? envs[key](existingSecrets[key], options)
+      : envs[key]
     if (value instanceof Promise) value = await value
     lines.push(`${key}="${value}"`)
   }
@@ -350,7 +360,7 @@ async function init (env = 'production', language, config, options = { update: f
   await confirmWriteFile('Dockerfile', language.dockerfile({ ...options, entrypoint, name, env, ports }), options)
 
   // Write a Kubernetes Deployment object
-  await writeDeployment('k8s/base/deployment.yaml', name, image, ports, { ...options, name, env, ports })
+  await writeDeployment('k8s/base/deployment.yaml', name, image, ports, secrets, { ...options, name, env, ports })
 
   if (ports.length > 0) {
     await writeService('k8s/base/service.yaml', name, ports, { ...options, name, env, ports })
@@ -432,17 +442,18 @@ module.exports = async function DeployNodeApp (env, action, options) {
     return fatal('Unable to determine what sort of project this is. If it\'s a real project, please let us know at https://github.com/kubesail/deploy-node-app/issues and we\'ll add support!')
   }
 
-  if (!options.write) process.on('beforeExit', cleanupWrittenFiles)
+  if (!options.write) process.on('beforeExit', () => cleanupWrittenFiles(options))
 
   async function deployMessage () {
     log(`Deploying to ${style.red.open}${env}${style.red.close}!`)
     if (!options.force && !process.env.CI) await sleep(1000) // Give administrators a chance to exit!
   }
 
+  if (action === 'init') options.write = true
   await init(env, language, config, options)
 
   if (action === 'init') {
-    // We've already inited
+    // Already done!
   } else if (action === 'deploy') {
     await deployMessage()
     execSyncWithEnv(`${skaffoldPath} run --profile=${env}`, { stdio: 'inherit' })
