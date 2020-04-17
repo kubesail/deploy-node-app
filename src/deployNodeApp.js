@@ -450,9 +450,11 @@ module.exports = async function DeployNodeApp (env, action, options) {
     if (!options.force && !process.env.CI) await sleep(1000) // Give administrators a chance to exit!
   }
 
-  if (action === 'init') await init(env, language, config, options)
-  else if (action === 'deploy') {
-    await init(env, language, config, options)
+  await init(env, language, config, options)
+
+  if (action === 'init') {
+    // We've already inited
+  } else if (action === 'deploy') {
     await deployMessage()
     execSyncWithEnv(`${skaffoldPath} run --profile=${env}`, { stdio: 'inherit' })
   } else if (action === 'dev') {
