@@ -31,7 +31,7 @@ function wroteYamlStructureProperly (path, env = 'production') {
 describe('Deploy-node-app init', function () {
   describe('Nginx', function () {
     describe('Simple', function () {
-      const path = 'test/nginx/simple'
+      const path = 'test/nginx-simple'
       const opts = {
         language: 'nginx',
         name: 'nginx-simple',
@@ -69,7 +69,7 @@ describe('Deploy-node-app init', function () {
 
   describe('nodejs', function () {
     describe('simple', function () {
-      const path = 'test/nodejs/simple'
+      const path = 'test/nodejs-simple'
       const opts = {
         language: 'nodejs',
         name: 'nodejs-simple',
@@ -93,7 +93,7 @@ describe('Deploy-node-app init', function () {
     })
 
     describe('postgres', function () {
-      const path = 'test/nodejs/postgres'
+      const path = 'test/nodejs-postgres'
       const opts = {
         language: 'nodejs',
         name: 'nodejs-postgres',
@@ -117,7 +117,7 @@ describe('Deploy-node-app init', function () {
     })
 
     describe('redis', function () {
-      const path = 'test/nodejs/redis'
+      const path = 'test/nodejs-redis'
       const opts = {
         language: 'nodejs',
         name: 'nodejs-redis',
@@ -141,7 +141,7 @@ describe('Deploy-node-app init', function () {
     })
 
     describe('elasticsearch', function () {
-      const path = 'test/nodejs/elasticsearch'
+      const path = 'test/nodejs-elasticsearch'
       const opts = {
         language: 'nodejs',
         name: 'nodejs-elasticsearch',
@@ -165,7 +165,7 @@ describe('Deploy-node-app init', function () {
     })
 
     describe('kafka', function () {
-      const path = 'test/nodejs/kafka'
+      const path = 'test/nodejs-kafka'
       const opts = {
         language: 'nodejs',
         name: 'nodejs-kafka',
@@ -189,7 +189,7 @@ describe('Deploy-node-app init', function () {
     })
 
     describe('mongodb', function () {
-      const path = 'test/nodejs/mongodb'
+      const path = 'test/nodejs-mongodb'
       const opts = {
         language: 'nodejs',
         name: 'nodejs-mongodb',
@@ -214,7 +214,7 @@ describe('Deploy-node-app init', function () {
 
     describe('python', function () {
       describe('simple', function () {
-        const path = 'test/python/simple'
+        const path = 'test/python-simple'
         const opts = {
           language: 'python',
           name: 'python-simple',
@@ -238,7 +238,7 @@ describe('Deploy-node-app init', function () {
       })
 
       describe('redis', function () {
-        const path = 'test/python/redis'
+        const path = 'test/python-redis'
         const opts = {
           language: 'python',
           name: 'python-redis',
@@ -265,7 +265,7 @@ describe('Deploy-node-app init', function () {
 
   describe('ruby', function () {
     describe('simple', function () {
-      const path = 'test/ruby/simple'
+      const path = 'test/ruby-simple'
       const opts = {
         language: 'ruby',
         name: 'ruby-simple',
@@ -289,7 +289,7 @@ describe('Deploy-node-app init', function () {
     })
 
     describe('redis', function () {
-      const path = 'test/ruby/redis'
+      const path = 'test/ruby-redis'
       const opts = {
         language: 'ruby',
         name: 'ruby-redis',
