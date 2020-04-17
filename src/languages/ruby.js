@@ -5,7 +5,7 @@ module.exports = {
   name: 'ruby',
   image: 'ruby',
   dockerfile: ({ entrypoint }) => 'FROM nginx\n\nCOPY . /usr/share/html/',
-  detect: (dir) => {
-    return fs.existsSync(path.join(dir, 'Gemfile'))
+  detect: (options) => {
+    return fs.existsSync(path.join(options.target, 'Gemfile'))
   }
 }

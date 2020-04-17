@@ -13,7 +13,7 @@ const merge = require('lodash/merge')
 const style = require('ansi-styles')
 const getKubesailConfig = require('get-kubesail-config')
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
-const { fatal, log, debug, mkdir, cleanupWrittenFiles, readConfig, ensureBinaries, execSyncWithEnv, confirmWriteFile } = require('./util')
+const { fatal, log, debug, mkdir, cleanupWrittenFiles, readConfig, ensureBinaries, writeTextLine, execSyncWithEnv, confirmWriteFile } = require('./util')
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const WARNING = `${style.yellow.open}!!${style.yellow.close}`
 const KUBESAIL_NEW_NAMESPACE_TEXT = 'Create a free Namespace on KubeSail.com'
@@ -189,11 +189,11 @@ async function writeModuleConfiguration (
   const secrets = []
   await mkdir(modPath, options)
   await writeDeployment(`${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, options)
-  if (mod.service) {
+  if (mod.ports && mod.ports.length > 0) {
     await writeService(`${modPath}/service.yaml`, mod.name, mod.ports, options)
     resources.push('service.yaml')
   }
-  await writeKustomization(`${modPath}/kustomization.yaml`, { resources, ...options, secrets: [] })
+  await writeKustomization(`${modPath}/kustomization.yaml`, { ...options, resources, secrets: [] })
   if (mod.envs) {
     await mkdir(`k8s/overlays/${env}/secrets`, options)
     await writeSecret(`k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod })
@@ -210,17 +210,6 @@ function loadAndMergeYAML (path, newData) {
     yamlStr = yaml.safeDump(existing)
   } else yamlStr = yaml.safeDump(newData)
   return yamlStr + '\n'
-}
-
-// Idempotently writes a line of text to a file
-async function writeTextLine (file, line, options = { update: false, force: false, append: false }) {
-  let existingContent
-  try {
-    existingContent = (await readFile(file)).toString()
-  } catch (_err) {}
-  if (!existingContent || (existingContent && existingContent.indexOf(line) === -1 && options.append)) {
-    await confirmWriteFile(file, line + '\n', options)
-  }
 }
 
 // Writes a simple Kubernetes Deployment object
@@ -434,7 +423,7 @@ module.exports = async function DeployNodeApp (env, action, options) {
     if (
       (options.language && options.language === languages[i].name) ||
       (config.language && config.language === languages[i].name) ||
-      (!options.language && await languages[i].detect(options.target))
+      (!options.language && await languages[i].detect(options))
     ) {
       language = languages[i]
     }

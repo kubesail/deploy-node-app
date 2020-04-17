@@ -214,6 +214,19 @@ async function readConfig (options) {
   return config
 }
 
+// Idempotently writes a line of text to a file
+async function writeTextLine (file, line, options = { update: false, force: false, append: false }) {
+  let existingContent
+  try {
+    existingContent = (await readFile(file)).toString()
+  } catch (_err) {}
+  if (!existingContent || (existingContent && existingContent.indexOf(line) === -1 && options.append)) {
+    await confirmWriteFile(file, [existingContent, line].filter(Boolean).join('\n'), {
+      ...options, force: filesWritten.includes(file) || options.force
+    })
+  }
+}
+
 module.exports = {
   debug,
   fatal,
@@ -223,6 +236,7 @@ module.exports = {
   generateRandomStr,
   ensureBinaries,
   confirmWriteFile,
+  writeTextLine,
   execSyncWithEnv,
   readConfig,
   promptUserForValue

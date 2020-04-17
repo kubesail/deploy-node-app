@@ -1,7 +1,7 @@
 const fs = require('fs')
 const util = require('util')
 const path = require('path')
-const { confirmWriteFile, readConfig } = require('../util')
+const { confirmWriteFile, readConfig, writeTextLine } = require('../util')
 
 const readFile = util.promisify(fs.readFile)
 
@@ -10,14 +10,20 @@ module.exports = {
   image: 'node',
   command: 'node',
 
-  detect: (dir) => {
-    const pkgPath = path.join(dir, './package.json')
+  detect: async (options) => {
+    const pkgPath = path.join(options.target, './package.json')
+    let looksLikeNode = false
     if (fs.existsSync(pkgPath)) {
       try {
         const packageJson = JSON.parse(fs.readFileSync(pkgPath))
-        if (packageJson && packageJson.name && packageJson.version) return true
+        if (packageJson && packageJson.name && packageJson.version) looksLikeNode = true
       } catch {}
     }
+    if (looksLikeNode) {
+      await writeTextLine('.gitignore', 'node_modules', { ...options, append: true })
+      await writeTextLine('.dockerignore', 'node_modules', { ...options, append: true })
+    }
+    return looksLikeNode
   },
 
   dockerfile: ({ entrypoint, ports }) => {

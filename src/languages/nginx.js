@@ -7,10 +7,10 @@ const npmPackages = ['webpack', 'react']
 module.exports = {
   name: 'nginx',
   image: 'nginx',
-  detect: async (dir) => {
+  detect: async (options) => {
     // Look for common node.js based frontend packages
     let looksLikeFrontend = false
-    const pkgPath = path.join(dir, './package.json')
+    const pkgPath = path.join(options.target, './package.json')
     if (fs.existsSync(pkgPath)) {
       try {
         const packageJson = JSON.parse(fs.readFileSync(pkgPath))
