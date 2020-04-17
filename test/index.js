@@ -44,7 +44,7 @@ describe('Deploy-node-app init', function () {
 
       it('Runs init without writing anything except the package.json', () => {
         execSyncWithEnv(`${cmd} init production \
-          -d ${path} --config=kubeconfig.yaml \
+          -t ${path} --config=kubeconfig.yaml \
           --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
           --ports=${opts.ports.join(',')} --address=${opts.uri} \
           --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
@@ -58,7 +58,7 @@ describe('Deploy-node-app init', function () {
       })
 
       it('Writes out files in write mode', () => {
-        execSyncWithEnv(`${cmd} init production -d ${path} --write`, { catchErr: false })
+        execSyncWithEnv(`${cmd} init production -t ${path} --write`, { catchErr: false })
         wroteYamlStructureProperly(path)
         wrotePkgJsonProperly(path, opts)
         expect(fs.existsSync(`${path}/k8s/base/ingress.yaml`), 'ingress.yaml').to.equal(true)
@@ -81,7 +81,7 @@ describe('Deploy-node-app init', function () {
       }
       it('Runs init without exception', () => {
         execSyncWithEnv(`${cmd} init production \
-            -d ${path} --config=kubeconfig.yaml --update --force \
+            -t ${path} --config=kubeconfig.yaml --update --force \
             --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
             --ports=${opts.ports.join(',')} --address=${opts.uri} \
             --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
@@ -105,7 +105,7 @@ describe('Deploy-node-app init', function () {
       }
       it('Runs init without exception', () => {
         execSyncWithEnv(`${cmd} init production \
-            -d ${path} --config=kubeconfig.yaml --update --force \
+            -t ${path} --config=kubeconfig.yaml --update --force \
             --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
             --ports=${opts.ports.join(',')} --address=${opts.uri} \
             --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
@@ -129,7 +129,7 @@ describe('Deploy-node-app init', function () {
       }
       it('Runs init without exception', () => {
         execSyncWithEnv(`${cmd} init production \
-            -d ${path} --config=kubeconfig.yaml --update --force \
+            -t ${path} --config=kubeconfig.yaml --update --force \
             --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
             --ports=${opts.ports.join(',')} --address=${opts.uri} \
             --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
@@ -153,7 +153,7 @@ describe('Deploy-node-app init', function () {
       }
       it('Runs init without exception', () => {
         execSyncWithEnv(`${cmd} init production \
-              -d ${path} --config=kubeconfig.yaml --update --force \
+              -t ${path} --config=kubeconfig.yaml --update --force \
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
               --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
@@ -177,7 +177,7 @@ describe('Deploy-node-app init', function () {
       }
       it('Runs init without exception', () => {
         execSyncWithEnv(`${cmd} init production \
-              -d ${path} --config=kubeconfig.yaml --update --force \
+              -t ${path} --config=kubeconfig.yaml --update --force \
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
               --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
@@ -201,7 +201,7 @@ describe('Deploy-node-app init', function () {
       }
       it('Runs init without exception', () => {
         execSyncWithEnv(`${cmd} init production \
-              -d ${path} --config=kubeconfig.yaml --update --force \
+              -t ${path} --config=kubeconfig.yaml --update --force \
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
               --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
@@ -226,7 +226,7 @@ describe('Deploy-node-app init', function () {
         }
         it('Runs init without exception', () => {
           execSyncWithEnv(`${cmd} init production \
-                -d ${path} --config=kubeconfig.yaml --update --force \
+                -t ${path} --config=kubeconfig.yaml --update --force \
                 --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
                 --ports=${opts.ports.join(',')} --address=${opts.uri} \
                 --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
@@ -250,7 +250,7 @@ describe('Deploy-node-app init', function () {
         }
         it('Runs init without exception', () => {
           execSyncWithEnv(`${cmd} init production \
-                -d ${path} --config=kubeconfig.yaml --update --force \
+                -t ${path} --config=kubeconfig.yaml --update --force \
                 --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
                 --ports=${opts.ports.join(',')} --address=${opts.uri} \
                 --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
@@ -277,7 +277,7 @@ describe('Deploy-node-app init', function () {
       }
       it('Runs init without exception', () => {
         execSyncWithEnv(`${cmd} init production \
-              -d ${path} --config=kubeconfig.yaml --update --force \
+              -t ${path} --config=kubeconfig.yaml --update --force \
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
               --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
@@ -301,7 +301,7 @@ describe('Deploy-node-app init', function () {
       }
       it('Runs init without exception', () => {
         execSyncWithEnv(`${cmd} init production \
-              -d ${path} --config=kubeconfig.yaml --update --force \
+              -t ${path} --config=kubeconfig.yaml --update --force \
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
               --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })

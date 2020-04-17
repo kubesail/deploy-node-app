@@ -84,13 +84,13 @@ async function promptForEntrypoint (options) {
     name: 'entrypoint',
     type: 'fuzzypath',
     message: 'What is your application\'s entrypoint?',
-    default: suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.directory, p))),
+    default: suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p))),
     excludePath: filepath => invalidPaths.find(p => filepath.endsWith(p)),
     itemType: 'file',
-    rootPath: options.directory,
+    rootPath: options.target,
     suggestOnly: true
   }])
-  return entrypoint.replace(/\\/g, '/').replace(options.directory, '.')
+  return entrypoint.replace(/\\/g, '/').replace(options.target, '.')
 }
 
 async function promptForImageName (projectName, existingName) {
@@ -327,7 +327,7 @@ async function init (env = 'production', language, config, options = { update: f
 
   // Entrypoint:
   let entrypoint = envConfig.entrypoint || options.entrypoint
-  if (entrypoint && !fs.existsSync(path.join(options.directory, entrypoint))) {
+  if (entrypoint && !fs.existsSync(path.join(options.target, entrypoint))) {
     log(`${WARNING} The entrypoint "${entrypoint}" doesn't exist!`)
     entrypoint = undefined
   }
@@ -409,7 +409,7 @@ async function init (env = 'production', language, config, options = { update: f
   // Finally, let's write out the result of all the questions asked to the package.json file
   // Next time deploy-node-app is run, we shouldn't need to ask the user anything!
   let packageJson = {}
-  const packageJsonPath = path.join(options.directory, 'package.json')
+  const packageJsonPath = path.join(options.target, 'package.json')
   if (fs.existsSync(packageJsonPath)) {
     try {
       packageJson = JSON.parse((await readFile(packageJsonPath)).toString())
@@ -438,7 +438,7 @@ module.exports = async function DeployNodeApp (env, action, options) {
     if (
       (options.language && options.language === languages[i].name) ||
       (config.language && config.language === languages[i].name) ||
-      (!options.language && await languages[i].detect(options.directory))
+      (!options.language && await languages[i].detect(options.target))
     ) {
       language = languages[i]
     }
@@ -451,7 +451,7 @@ module.exports = async function DeployNodeApp (env, action, options) {
 
   if (action === 'init') await init(env, language, config, options)
   else if (action === 'deploy') {
-    await init(env, language, options)
+    await init(env, language, config, options)
     execSyncWithEnv(`${skaffoldPath} deploy --profile=${env}`)
   } else if (action === 'dev') {
     execSyncWithEnv(`${skaffoldPath} dev --profile=${env} --port-forward`)

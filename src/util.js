@@ -51,7 +51,7 @@ function tryDiff (content /*: string */, existingData /*: string */) {
 // Can also diff before writing!
 async function confirmWriteFile (filePath, content, options = { update: false, force: false }) {
   const { update, force } = options
-  const fullPath = path.join(options.directory, filePath)
+  const fullPath = path.join(options.target, filePath)
 
   const exists = fs.existsSync(fullPath)
   let doWrite = !exists
@@ -99,12 +99,12 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
 }
 
 const mkdir = async (filePath, options) => {
-  const fullPath = path.join(options.directory, filePath)
+  const fullPath = path.join(options.target, filePath)
   const created = await mkdirp(fullPath)
   if (created) {
     const dirParts = filePath.replace('./', '').split('/')
     for (let i = dirParts.length; i > 0; i--) {
-      dirsWritten.push(path.join(options.directory, dirParts.slice(0, i).join(path.sep)))
+      dirsWritten.push(path.join(options.target, dirParts.slice(0, i).join(path.sep)))
     }
   }
   return created
@@ -156,7 +156,7 @@ const execSyncWithEnv = (cmd, options = {}) => {
 
 // Ensures other applications are installed (eg: skaffold)
 async function ensureBinaries (options) {
-  const nodeModulesPath = path.join(options.directory, 'node_modules/.bin/skaffold')
+  const nodeModulesPath = path.join(options.target, 'node_modules/.bin/skaffold')
   const existsInNodeModules = fs.existsSync(nodeModulesPath)
   const existsInPath = commandExists.sync('skaffold')
   if (!existsInNodeModules && !existsInPath) {
@@ -206,7 +206,7 @@ function generateRandomStr (length = 16) {
 async function readConfig (options) {
   let packageJson = {}
   try {
-    packageJson = JSON.parse(await readFile(path.join(options.directory, './package.json')))
+    packageJson = JSON.parse(await readFile(path.join(options.target, './package.json')))
   } catch (_err) {}
   const config = packageJson['deploy-node-app'] || {}
   if (!config.name) config.name = packageJson.name

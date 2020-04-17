@@ -22,7 +22,7 @@ program
   .option('-u, --update', 'Update existing files', false)
   .option('-f, --force', 'Dont prompt if possible', false)
   .option('-l, --label [foo=bar,tier=service]', 'Add labels to created Kubernetes resources')
-  .option('-d, --directory <path/to/project>', 'Target project directory', '.')
+  .option('-t, --target <path/to/project>', 'Target project directory', '.')
   .option('-c, --config <path/to/kubeconfig>', 'Kubernetes configuration file', '~/.kube/config')
   .option('-m, --modules <redis,postgres,mongodb>', 'Explicitly add modules')
   .option('--language <name>', 'Override language detection')
@@ -43,7 +43,7 @@ deployNodeApp(env || 'production', action || 'deploy', {
   force: program.force || false,
   config: program.config === '~/.kube/config' ? null : program.config,
   modules: (program.modules || '').split(',').filter(Boolean),
-  directory: program.directory || process.cwd(),
+  target: program.target || '.',
   labels: (program.label || '').split(',').map(k => k.split('=').filter(Boolean)).filter(Boolean),
   name: program.projectName || false,
   entrypoint: program.entrypoint || false,
