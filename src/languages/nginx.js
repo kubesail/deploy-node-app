@@ -30,7 +30,7 @@ module.exports = {
         {
           name: 'useNginx',
           type: 'confirm',
-          message: 'This project looks like it might be a static site, would you like to use nginx?'
+          message: 'This project looks like it might be a static site, would you like to use nginx?\n'
         }
       ])
       return useNginx

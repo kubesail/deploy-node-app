@@ -66,7 +66,7 @@ async function promptForPackageName (packageName = '', force = false) {
         {
           name: 'name',
           type: 'input',
-          message: 'What should we name this project?',
+          message: 'What should we name this project?\n',
           default: newName,
           validate: input => (validProjectNameRegex.test(input) ? true : 'Invalid name!')
         }
@@ -88,7 +88,7 @@ async function promptForEntrypoint (options) {
     excludePath: filepath => invalidPaths.find(p => filepath.endsWith(p)),
     itemType: 'file',
     rootPath: options.target,
-    suggestOnly: true
+    suggestOnly: false
   }])
   return entrypoint.replace(/\\/g, '/').replace(options.target, '.')
 }
@@ -106,13 +106,13 @@ async function promptForImageName (projectName, existingName) {
 }
 
 // Promps user for project ports and attempts to suggest best practices
-async function promptForPorts (projectName, existingPorts = []) {
+async function promptForPorts (existingPorts = []) {
   const { newPorts } = await inquirer.prompt([
     {
       name: 'newPorts',
       type: 'input',
-      message: 'Does your app listen on any ports? If so, please enter them comma separated:',
-      default: existingPorts.join(', '),
+      message: 'Does your app listen on any ports? If so, please enter them comma separated\n',
+      default: existingPorts.length > 0 ? existingPorts.join(', ') : '8000',
       validate: input => {
         if (!input) return true
         const ports = input.replace(/ /g, '').split(',')
@@ -138,7 +138,7 @@ async function promptForIngress (defaultDomain) {
     name: 'ingressUri',
     type: 'input',
     message:
-        'Is this an HTTP service? \nIf so, what URI should be used to access it? (Will not be exposed to the internet if left blank)\n',
+        'Is this an HTTP service? If so, what URI should be used to access it? (Will not be exposed to the internet if left blank)\n',
     default: defaultDomain && isFQDN(defaultDomain) ? defaultDomain : 'myapp.example.com',
     validate: input => {
       if (input && !isFQDN(input)) return 'Either leave blank, or input a valid DNS name (ie: my.example.com)'
@@ -166,7 +166,7 @@ async function promptForKubeContext (context, kubeConfig) {
     let { newContext } = await inquirer.prompt([{
       name: 'newContext',
       type: 'list',
-      message: 'Which Kubernetes context do you want to deploy to?',
+      message: 'Which Kubernetes context do you want to deploy to?\n',
       default: kubeContexts[0],
       choices: kubeContexts
     }])
@@ -320,10 +320,10 @@ async function init (env = 'production', language, config, options = { update: f
   await mkdir(`k8s/overlays/${env}`, options)
 
   // Ask some questions if we have missing info in our package.json 'deploy-node-app' configuration:
-  let name = config.name || options.name
-  if (!validProjectNameRegex.test(name)) {
-    name = await promptForPackageName(config.name || path.basename(process.cwd()), options.force)
-  }
+  let name = options.name || config.name
+  const baseDirName = path.basename(process.cwd())
+  if (validProjectNameRegex.test(baseDirName)) name = baseDirName
+  if (!name || !validProjectNameRegex.test(name)) name = await promptForPackageName(baseDirName, options.force)
 
   // Entrypoint:
   let entrypoint = envConfig.entrypoint || options.entrypoint
@@ -335,8 +335,8 @@ async function init (env = 'production', language, config, options = { update: f
 
   // Container ports:
   let ports = config.ports || options.ports
-  if (ports === 'none') ports = []
-  else if (ports.length === 0 && !config.ports) ports = await promptForPorts(name, config.ports)
+  if (!ports || ports === 'none') ports = []
+  if (ports.length === 0 && !config.ports) ports = await promptForPorts(config.ports)
 
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
   let uri = options.address || envConfig.uri || ''
@@ -452,11 +452,11 @@ module.exports = async function DeployNodeApp (env, action, options) {
   if (action === 'init') await init(env, language, config, options)
   else if (action === 'deploy') {
     await init(env, language, config, options)
-    execSyncWithEnv(`${skaffoldPath} deploy --profile=${env}`)
+    execSyncWithEnv(`${skaffoldPath} deploy --profile=${env}`, { stdio: 'inherit' })
   } else if (action === 'dev') {
-    execSyncWithEnv(`${skaffoldPath} dev --profile=${env} --port-forward`)
+    execSyncWithEnv(`${skaffoldPath} dev --profile=${env} --port-forward`, { stdio: 'inherit' })
   } else if (['build'].includes(action)) {
-    execSyncWithEnv(`${skaffoldPath} ${action} --profile=${env}`)
+    execSyncWithEnv(`${skaffoldPath} ${action} --profile=${env}`, { stdio: 'inherit' })
   } else {
     process.stderr.write(`No such action "${action}"!\n`)
     process.exit(1)

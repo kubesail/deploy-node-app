@@ -67,7 +67,7 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
       await inquirer.prompt({
         name: 'update',
         type: 'expand',
-        message: `Would you like to update "${filePath}"?`,
+        message: `Would you like to update "${filePath}"?\n`,
         choices: [
           { key: 'Y', value: YES_TEXT },
           { key: 'N', value: NO_TEXT },
@@ -135,9 +135,9 @@ const cleanupWrittenFiles = () => {
 // Runs a shell command with our "process.env" - allows passing environment variables to skaffold, for example.
 const execSyncWithEnv = (cmd, options = {}) => {
   const mergedOpts = Object.assign({ catchErr: true }, options, {
-    env: Object.assign({}, process.env, options.env || {}, { PATH: process.env.PATH }),
-    stdio: 'inherit',
-    cwd: process.cwd()
+    stdio: options.stdio || 'pipe',
+    cwd: process.cwd(),
+    shell: true
   })
   if (options.debug) log(`execSyncWithEnv: ${cmd}`)
   let output
@@ -181,7 +181,8 @@ async function ensureBinaries (options) {
     }
     if (skaffoldUri) await pipeline(got.stream(skaffoldUri), fs.createWriteStream(nodeModulesPath))
   }
-  return existsInPath ? 'skaffold' : nodeModulesPath
+
+  return existsInPath ? execSyncWithEnv('which skaffold') : nodeModulesPath
 }
 
 function promptUserForValue ({ name = 'unnamed prompt!', message, validate, defaultValue, type = 'input' }) {

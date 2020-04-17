@@ -45,10 +45,10 @@ deployNodeApp(env || 'production', action || 'deploy', {
   modules: (program.modules || '').split(',').filter(Boolean),
   target: program.target || '.',
   labels: (program.label || '').split(',').map(k => k.split('=').filter(Boolean)).filter(Boolean),
-  name: program.projectName || false,
+  name: program.projectName,
   entrypoint: program.entrypoint || false,
   image: program.image || false,
-  ports: program.ports ? program.ports.split(',').map(p => parseInt(p, 10)).filter(Boolean) : false,
+  ports: program.ports ? program.ports.split(',').map(p => parseInt(p, 10)).filter(Boolean) : null,
   address: program.address || false,
   context: program.context || false,
   prompts: program.prompts || true
