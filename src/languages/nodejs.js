@@ -20,7 +20,7 @@ module.exports = {
     }
   },
 
-  dockerfile: ({ entrypoint }) => {
+  dockerfile: ({ entrypoint, ports }) => {
     return `FROM node:${process.versions.node.split('.')[0]}
 WORKDIR /app
 
@@ -30,6 +30,8 @@ COPY package.json yarn.loc[k] .npmr[c] ./
 RUN yarn install --production
 
 COPY --chown=nodejs . ./
+
+${ports.length > 0 ? `EXPOSE ${ports.join(' ')}` : ''}
 
 USER nodejs
 

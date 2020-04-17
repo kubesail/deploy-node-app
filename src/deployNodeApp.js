@@ -139,7 +139,7 @@ async function promptForIngress (defaultDomain) {
     type: 'input',
     message:
         'Is this an HTTP service? If so, what URI should be used to access it? (Will not be exposed to the internet if left blank)\n',
-    default: defaultDomain && isFQDN(defaultDomain) ? defaultDomain : 'myapp.example.com',
+    default: defaultDomain && isFQDN(defaultDomain) ? defaultDomain : null,
     validate: input => {
       if (input && !isFQDN(input)) return 'Either leave blank, or input a valid DNS name (ie: my.example.com)'
       else return true
@@ -358,7 +358,7 @@ async function init (env = 'production', language, config, options = { update: f
   const resources = ['./deployment.yaml']
 
   // Write Dockerfile based on our language
-  await confirmWriteFile('Dockerfile', language.dockerfile({ entrypoint, ...options, name, env, ports }), options)
+  await confirmWriteFile('Dockerfile', language.dockerfile({ ...options, entrypoint, name, env, ports }), options)
 
   // Write a Kubernetes Deployment object
   await writeDeployment('k8s/base/deployment.yaml', name, image, ports, { ...options, name, env, ports })
@@ -366,9 +366,10 @@ async function init (env = 'production', language, config, options = { update: f
   if (ports.length > 0) {
     await writeService('k8s/base/service.yaml', name, ports, { ...options, name, env, ports })
     resources.push('./service.yaml')
-    if (!uri) return
-    await writeIngress('k8s/base/ingress.yaml', name, uri, ports[0], { ...options, name, env, ports })
-    resources.push('./ingress.yaml')
+    if (uri) {
+      await writeIngress('k8s/base/ingress.yaml', name, uri, ports[0], { ...options, name, env, ports })
+      resources.push('./ingress.yaml')
+    }
   }
 
   // Find service modules we support
