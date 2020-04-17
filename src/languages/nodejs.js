@@ -46,7 +46,7 @@ CMD ["node", "${entrypoint}"]`
   },
 
   matchModules: async function (modules, options) {
-    const packageJson = JSON.parse(await readFile(path.join(options.directory, './package.json')))
+    const packageJson = JSON.parse(await readFile(path.join(options.target, './package.json')))
     const dependencies = Object.keys(packageJson.dependencies || [])
     // Don't bother loading module dependencies if we have no dependencies
     if (dependencies.length === 0) return []
