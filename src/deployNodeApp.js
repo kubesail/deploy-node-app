@@ -186,18 +186,18 @@ async function writeModuleConfiguration (
   const modPath = `k8s/dependencies/${mod.name}`
   const deploymentFile = `${mod.kind || 'deployment'}.yaml`
   const resources = [deploymentFile]
-  const secrets = {}
+  const secrets = []
   await mkdir(modPath, options)
   await writeDeployment(`${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, options)
   if (mod.service) {
     await writeService(`${modPath}/service.yaml`, mod.name, mod.ports, options)
     resources.push('service.yaml')
   }
-  await writeKustomization(`${modPath}/kustomization.yaml`, { resources, ...options })
+  await writeKustomization(`${modPath}/kustomization.yaml`, { resources, ...options, secrets: [] })
   if (mod.envs) {
     await mkdir(`k8s/overlays/${env}/secrets`, options)
     await writeSecret(`k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod })
-    secrets[mod.name] = `secrets/${mod.name}.env`
+    secrets.push({ name: mod.name, path: `secrets/${mod.name}.env` })
   }
   return { base: `../../../${modPath}`, secrets }
 }
@@ -270,7 +270,14 @@ async function writeIngress (path, name, host, port, options = { force: false, u
 
 async function writeKustomization (path, options = { force: false, update: false }) {
   const { resources = [], bases = [], secrets = {} } = options
-  await confirmWriteFile(path, loadAndMergeYAML(path, { resources, bases }), options)
+  const kustomization = { resources, bases }
+  if (secrets.length > 0) {
+    kustomization.secretGenerator = []
+    for (let i = 0; i < secrets.length; i++) {
+      kustomization.secretGenerator.push({ name: secrets[i].name, envs: [secrets[i].path] })
+    }
+  }
+  await confirmWriteFile(path, loadAndMergeYAML(path, kustomization), options)
 }
 
 async function writeSecret (path, options = { force: false, update: false }) {
@@ -347,7 +354,7 @@ async function init (env = 'production', language, config, options = { update: f
   }
 
   // Secrets will track secrets created by our dependencies which need to be written out to Kubernetes Secrets
-  let secrets = {}
+  let secrets = []
 
   // Bases is an array of Kustomization directories - this always includes our base structure and also any supported dependencies
   const bases = ['../../base']
@@ -386,13 +393,13 @@ async function init (env = 'production', language, config, options = { update: f
   for (let i = 0; i < matchedModules.length; i++) {
     const matched = matchedModules[i]
     const { base, secrets: moduleSecrets } = await writeModuleConfiguration(env, matched, options)
-    secrets = Object.assign({}, secrets, moduleSecrets)
+    secrets = secrets.concat(moduleSecrets)
     bases.push(base)
   }
 
   // Write Kustomization and Skaffold configuration
   await writeSkaffold('skaffold.yaml', config.envs, { ...options, name, image, env, ports })
-  await writeKustomization('k8s/base/kustomization.yaml', { ...options, name, env, ports, resources })
+  await writeKustomization('k8s/base/kustomization.yaml', { ...options, name, env, ports, resources, secrets: [] })
   await writeKustomization(`k8s/overlays/${env}/kustomization.yaml`, { ...options, name, env, ports, bases, secrets })
 
   // Write supporting files - these aren't strictly required, but highly encouraged defaults
