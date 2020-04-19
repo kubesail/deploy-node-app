@@ -34,7 +34,7 @@ program
   .option('--no-prompts', 'Use default values whenever possible')
   .parse(process.argv)
 
-deployNodeApp(env || 'production', action || 'deploy', {
+deployNodeApp(env, action, {
   language: program.language || null,
   action: action || 'deploy',
   write: program.write || false,

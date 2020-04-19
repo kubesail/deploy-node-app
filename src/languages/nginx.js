@@ -6,7 +6,6 @@ const npmPackages = ['webpack', 'react']
 
 module.exports = {
   name: 'nginx',
-  image: 'nginx',
   detect: async (options) => {
     // Look for common node.js based frontend packages
     let looksLikeFrontend = false
@@ -30,7 +29,7 @@ module.exports = {
         {
           name: 'useNginx',
           type: 'confirm',
-          message: 'This project looks like it might be a static site, would you like to use nginx?\n'
+          message: 'This project looks like it might be a static site, would you like to use nginx?'
         }
       ])
       return useNginx
@@ -38,7 +37,13 @@ module.exports = {
 
     return false
   },
-  dockerfile: ({ entrypoint }) => 'FROM nginx\n\nCOPY . /usr/share/html/',
+  dockerfile: ({ entrypoint }) => {
+    return [
+      'FROM nginxinc/nginx-unprivileged',
+      `COPY ${path.dirname(entrypoint)} /usr/share/nginx/html`
+    ].join('\n')
+  },
+  suggestedPorts: [8080],
   writeConfig: async function (config, options) {
     const packageJson = await readConfig()
     packageJson['deploy-node-app'] = config

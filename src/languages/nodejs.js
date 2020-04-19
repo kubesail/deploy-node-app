@@ -7,7 +7,6 @@ const readFile = util.promisify(fs.readFile)
 
 module.exports = {
   name: 'nodejs',
-  image: 'node',
   command: 'node',
 
   detect: async (options) => {

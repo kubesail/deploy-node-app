@@ -81,17 +81,20 @@ async function promptForEntrypoint (options) {
   const suggestedDefaultPaths = ['src/index.js', 'index.js', 'index.py', 'src/index.py', 'public/index.html', 'main.py', 'server.py', 'index.html']
   const invalidPaths = ['.', 'LICENSE', 'README', 'package-lock.json', 'node_modules', 'yarn.lock', 'yarn-error.log', 'package.json', 'Dockerfile', '.log', '.json', '.lock', '.css', '.svg', '.md', '.png', '.disabled', '.ico', '.txt']
   process.stdout.write('\n')
+  const defaultValue = suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p)))
   const { entrypoint } = await inquirer.prompt([{
     name: 'entrypoint',
     type: 'fuzzypath',
     message: 'What command or file starts your application? (eg: "npm run server", "index.html", "bin/start.sh")',
-    default: suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p))),
+    default: defaultValue,
     excludePath: filepath => invalidPaths.find(p => filepath.endsWith(p)),
     itemType: 'file',
     rootPath: options.target,
     suggestOnly: true
   }])
-  return entrypoint.replace(/\\/g, '/').replace(options.target, '.')
+  const response = entrypoint.replace(/\\/g, '/').replace(options.target, '.')
+  if (!response) return defaultValue
+  else return response
 }
 
 async function promptForImageName (projectName, existingName) {
@@ -108,14 +111,14 @@ async function promptForImageName (projectName, existingName) {
 }
 
 // Promps user for project ports and attempts to suggest best practices
-async function promptForPorts (existingPorts = []) {
+async function promptForPorts (existingPorts = [], language) {
   process.stdout.write('\n')
   const { newPorts } = await inquirer.prompt([
     {
       name: 'newPorts',
       type: 'input',
       message: 'Does your app listen on any ports? If so, please enter them comma separated',
-      default: existingPorts.length > 0 ? existingPorts.join(', ') : '8000',
+      default: existingPorts.length > 0 ? existingPorts.join(', ') : (language.suggestedPorts || [8000]).join(', '),
       validate: input => {
         if (!input) return true
         const ports = input.replace(/ /g, '').split(',')
@@ -346,7 +349,7 @@ async function init (env = 'production', language, config, options = { update: f
   // Container ports:
   let ports = config.ports || options.ports
   if (!ports || ports === 'none') ports = []
-  if (ports.length === 0 && !config.ports) ports = await promptForPorts(config.ports)
+  if (ports.length === 0 && !config.ports) ports = await promptForPorts(config.ports, language)
 
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
   let uri = options.address || envConfig.uri || ''
@@ -437,6 +440,11 @@ async function init (env = 'production', language, config, options = { update: f
 }
 
 module.exports = async function DeployNodeApp (env, action, options) {
+  if (!env) env = 'production'
+  if (!action) {
+    if (env === 'dev' || env === 'development') action = 'dev'
+    else action = 'deploy'
+  }
   const skaffoldPath = await ensureBinaries(options)
   const config = await readConfig(options)
 
