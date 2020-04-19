@@ -15,7 +15,7 @@ client.connect().then(() => {
   app.listen(8000, () => process.stdout.write('A simple Node.js example app with Postgres!!\n'))
 }).catch(err => {
   console.error('Failed to connect to postgres! Retrying...', err.code)
-  setTimeout(() => { process.exit(1) }, 3000)
+  setTimeout(() => { process.exit(2) }, 3000)
 })
 
 app.get('/', (_req, res) => {

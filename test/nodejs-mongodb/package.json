@@ -1,10 +1,29 @@
 {
-  "name": "dna-mongodb-test-app",
+  "name": "nodejs-mongodb",
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
-    "mongodb": "^3.5.6",
-    "express": "^4.17.1"
+    "express": "^4.17.1",
+    "mongodb": "^3.5.6"
+  },
+  "scripts": {
+    "dev": "nodemon src/index.js"
+  },
+  "deploy-node-app": {
+    "language": "nodejs",
+    "ports": [
+      8000
+    ],
+    "envs": {
+      "dev": {
+        "uri": "",
+        "image": "seand/nodejs-mongodb",
+        "entrypoint": "npm run dev"
+      }
+    }
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.3"
   }
 }

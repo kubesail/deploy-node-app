@@ -12,10 +12,12 @@ module.exports = {
   },
   ports: [27017],
   envs: {
-    MONGO_INITDB_ROOT_USERNAME: promptUserForValue({
-      name: 'MONGO_INITDB_ROOT_USERNAME',
+    MONGO_INITDB_ROOT_USERNAME: promptUserForValue('MONGO_INITDB_ROOT_USERNAME', {
       defaultToProjectName: true
     }),
-    MONGO_INITDB_ROOT_PASSWORD: generateRandomStr()
+    MONGO_INITDB_ROOT_PASSWORD: generateRandomStr(),
+    MONGO_INITDB_DATABASE: promptUserForValue('MONGO_INITDB_DATABASE', {
+      defaultToProjectName: true
+    })
   }
 }

@@ -26,6 +26,9 @@ module.exports = {
   },
 
   dockerfile: ({ entrypoint, ports }) => {
+    if (!entrypoint.startsWith('npm') && !entrypoint.startsWith('node')) {
+      entrypoint = 'node ' + entrypoint
+    }
     return [
       `FROM node:${process.versions.node.split('.')[0]}`,
       'USER node',
