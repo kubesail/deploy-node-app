@@ -467,7 +467,10 @@ module.exports = async function DeployNodeApp (env, action, options) {
     if (!options.force && !process.env.CI) await sleep(1000) // Give administrators a chance to exit!
   }
 
-  if (action === 'init') options.write = true
+  if (action === 'init') {
+    options.write = true
+    options.update = true
+  }
   await init(env, language, config, options)
 
   if (action === 'init') {

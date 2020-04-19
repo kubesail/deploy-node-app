@@ -68,7 +68,7 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
       await inquirer.prompt({
         name: 'update',
         type: 'expand',
-        message: `Would you like to update "${filePath}"?\n`,
+        message: `Would you like to update "${filePath}"?`,
         choices: [
           { key: 'Y', value: YES_TEXT },
           { key: 'N', value: NO_TEXT },

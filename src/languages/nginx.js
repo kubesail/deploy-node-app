@@ -1,11 +1,12 @@
 const fs = require('fs')
 const path = require('path')
 const inquirer = require('inquirer')
-const { confirmWriteFile, readConfig } = require('../util')
 const npmPackages = ['webpack', 'react']
 
 module.exports = {
   name: 'nginx',
+  suggestedPorts: [8080],
+
   detect: async (options) => {
     // Look for common node.js based frontend packages
     let looksLikeFrontend = false
@@ -37,19 +38,11 @@ module.exports = {
 
     return false
   },
+
   dockerfile: ({ entrypoint }) => {
     return [
       'FROM nginxinc/nginx-unprivileged',
       `COPY ${path.dirname(entrypoint)} /usr/share/nginx/html`
     ].join('\n')
-  },
-  suggestedPorts: [8080],
-  writeConfig: async function (config, options) {
-    const packageJson = await readConfig()
-    packageJson['deploy-node-app'] = config
-    await confirmWriteFile('./package.json', JSON.stringify(packageJson, null, 2) + '\n', {
-      ...options,
-      update: true
-    })
   }
 }

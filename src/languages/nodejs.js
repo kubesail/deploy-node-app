@@ -1,13 +1,12 @@
 const fs = require('fs')
 const util = require('util')
 const path = require('path')
-const { confirmWriteFile, readConfig, writeTextLine } = require('../util')
+const { writeTextLine } = require('../util')
 
 const readFile = util.promisify(fs.readFile)
 
 module.exports = {
   name: 'nodejs',
-  command: 'node',
 
   detect: async (options) => {
     const pkgPath = path.join(options.target, './package.json')
@@ -52,17 +51,11 @@ module.exports = {
     }
   },
 
-  writeConfig: async function (config, options) {
-    const packageJson = await readConfig()
-    packageJson['deploy-node-app'] = config
-    await confirmWriteFile('./package.json', JSON.stringify(packageJson, null, 2) + '\n', {
-      ...options,
-      update: true
-    })
-  },
-
   matchModules: async function (modules, options) {
-    const packageJson = JSON.parse(await readFile(path.join(options.target, './package.json')))
+    let packageJson = {}
+    try {
+      packageJson = JSON.parse(await readFile(path.join(options.target, './package.json')))
+    } catch (err) {}
     const dependencies = Object.keys(packageJson.dependencies || [])
     // Don't bother loading module dependencies if we have no dependencies
     if (dependencies.length === 0) return []
