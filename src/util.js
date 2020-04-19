@@ -103,8 +103,10 @@ const mkdir = async (filePath, options) => {
   const created = await mkdirp(fullPath)
   if (created) {
     const dirParts = filePath.replace('./', '').split('/')
-    for (let i = dirParts.length; i > 0; i--) {
-      dirsWritten.push(path.join(options.target, dirParts.slice(0, i).join(path.sep)))
+    if (!options.dontPrune) {
+      for (let i = dirParts.length; i > 0; i--) {
+        dirsWritten.push(path.join(options.target, dirParts.slice(0, i).join(path.sep)))
+      }
     }
   }
   return created
@@ -188,6 +190,7 @@ async function ensureBinaries (options) {
 
 function promptUserForValue (name, { message, validate, defaultValue, type = 'input', defaultToProjectName }) {
   return async (existing, options) => {
+    if (existing && !options.update) return existing
     defaultValue = defaultValue || existing
     if (defaultToProjectName) defaultValue = options.name
     if (!message) message = `Module "${options.name}" needs a setting: ${name}`

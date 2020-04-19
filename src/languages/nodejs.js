@@ -27,21 +27,27 @@ module.exports = {
   },
 
   dockerfile: ({ entrypoint, ports }) => {
-    return `FROM node:${process.versions.node.split('.')[0]}
-WORKDIR /app
+    return [
+      `FROM node:${process.versions.node.split('.')[0]}`,
+      'USER node',
+      'RUN mkdir /home/node/app',
+      'WORKDIR /home/node/app',
+      ports.length > 0 ? `EXPOSE ${ports.join(' ')}` : '',
+      'ARG ENV=production',
+      'ENV NODE_ENV $ENV',
+      'COPY --chown=node:node package.json yarn.loc[k] .npmr[c] ./',
+      'RUN yarn install',
+      'COPY --chown=node:node . .',
+      `CMD ["${entrypoint}"]`
+    ].join('\n')
+  },
 
-RUN useradd nodejs && chown -R nodejs /app
-
-COPY package.json yarn.loc[k] .npmr[c] ./
-RUN yarn install --production
-
-COPY --chown=nodejs . ./
-
-${ports.length > 0 ? `EXPOSE ${ports.join(' ')}` : ''}
-
-USER nodejs
-
-CMD ["node", "${entrypoint}"]`
+  artifact: (env, { image }) => {
+    return {
+      image,
+      sync: {},
+      docker: { buildArgs: { ENV: env } }
+    }
   },
 
   writeConfig: async function (config, options) {

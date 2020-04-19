@@ -83,7 +83,7 @@ async function promptForEntrypoint (options) {
   const { entrypoint } = await inquirer.prompt([{
     name: 'entrypoint',
     type: 'fuzzypath',
-    message: 'What is your application\'s entrypoint?',
+    message: 'What command or file starts your application? (eg: "npm run server", "index.html", "bin/start.sh")',
     default: suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p))),
     excludePath: filepath => invalidPaths.find(p => filepath.endsWith(p)),
     itemType: 'file',
@@ -281,11 +281,15 @@ async function writeSecret (path, options = { force: false, update: false }) {
   const { envs } = options
   const lines = []
   const existingSecrets = {}
-  await mkdir(`k8s/overlays/${options.env}/secrets`, options)
+  await mkdir(`k8s/overlays/${options.env}/secrets`, { ...options, dontPrune: true })
   if (fs.existsSync(path)) {
     const lines = fs.readFileSync(path).toString().split('\n').filter(Boolean)
-    lines.forEach(line => {
-      existingSecrets[line.slice(0, line.indexOf('='))] = JSON.parse(line.slice(line.indexOf('=') + 1, line.length))
+    lines.forEach((line, i) => {
+      try {
+        existingSecrets[line.slice(0, line.indexOf('='))] = line.slice(line.indexOf('=') + 1, line.length)
+      } catch (err) {
+        log(`${WARNING} Failed to parse secret from "${path}", line ${i + 1}`)
+      }
     })
   }
   for (const key in envs) {
@@ -293,19 +297,39 @@ async function writeSecret (path, options = { force: false, update: false }) {
       ? envs[key](existingSecrets[key], options)
       : envs[key]
     if (value instanceof Promise) value = await value
-    lines.push(`${key}="${value}"`)
+    lines.push(`${key}=${value}`)
   }
-  await confirmWriteFile(path, lines.join('\n') + '\n', options)
+  await confirmWriteFile(path, lines.join('\n') + '\n', { ...options, dontPrune: true })
 }
 
 async function writeSkaffold (path, envs, options = { force: false, update: false }) {
-  const { image } = options
+  const { image, language } = options
   await confirmWriteFile(path, loadAndMergeYAML(path, {
-    apiVersion: 'skaffold/v2alpha4',
+    apiVersion: 'skaffold/v2beta2',
     kind: 'Config',
-    build: { artifacts: [{ image, context: '.', docker: { dockerfile: 'Dockerfile' }, sync: {} }] },
     portForward: [],
-    profiles: Object.keys(envs).map(env => { return { name: env, deploy: { kustomize: { paths: [`k8s/overlays/${env}`] } } } })
+    build: { artifacts: [{ image }] },
+    profiles: Object.keys(envs).map(env => {
+      return {
+        name: env,
+        deploy: { kustomize: { paths: [`k8s/overlays/${env}`] } },
+        build: {
+          artifacts: [
+            language.artifact
+              ? language.artifact(env, options)
+              : {
+                image,
+                sync: {
+                  manual: [
+                    { src: 'src/**/*.js', dest: '.' }
+                  ]
+                },
+                docker: { buildArgs: { ENV: env } }
+              }
+          ]
+        }
+      }
+    })
   }), options)
 }
 
@@ -356,21 +380,6 @@ async function init (env = 'production', language, config, options = { update: f
   // Resources track resources added by this project, which will go into our base kustomization.yaml file
   const resources = ['./deployment.yaml']
 
-  // Write Dockerfile based on our language
-  await confirmWriteFile('Dockerfile', language.dockerfile({ ...options, entrypoint, name, env, ports }), options)
-
-  // Write a Kubernetes Deployment object
-  await writeDeployment('k8s/base/deployment.yaml', name, image, ports, secrets, { ...options, name, env, ports })
-
-  if (ports.length > 0) {
-    await writeService('k8s/base/service.yaml', name, ports, { ...options, name, env, ports })
-    resources.push('./service.yaml')
-    if (uri) {
-      await writeIngress('k8s/base/ingress.yaml', name, uri, ports[0], { ...options, name, env, ports })
-      resources.push('./ingress.yaml')
-    }
-  }
-
   // Find service modules we support
   const matchedModules = language.matchModules ? await language.matchModules(metaModules, options) : []
 
@@ -392,14 +401,30 @@ async function init (env = 'production', language, config, options = { update: f
     bases.push(base)
   }
 
+  // Write Dockerfile based on our language
+  await confirmWriteFile('Dockerfile', language.dockerfile({ ...options, entrypoint, name, env, ports }), options)
+
+  // Write a Kubernetes Deployment object
+  await writeDeployment('k8s/base/deployment.yaml', name, image, ports, secrets, { ...options, name, env, ports })
+
+  if (ports.length > 0) {
+    await writeService('k8s/base/service.yaml', name, ports, { ...options, name, env, ports })
+    resources.push('./service.yaml')
+    if (uri) {
+      await writeIngress('k8s/base/ingress.yaml', name, uri, ports[0], { ...options, name, env, ports })
+      resources.push('./ingress.yaml')
+    }
+  }
+
   // Write Kustomization and Skaffold configuration
-  await writeSkaffold('skaffold.yaml', config.envs, { ...options, name, image, env, ports })
+  await writeSkaffold('skaffold.yaml', config.envs, { ...options, language, name, image, env, ports })
   await writeKustomization('k8s/base/kustomization.yaml', { ...options, name, env, ports, resources, secrets: [] })
   await writeKustomization(`k8s/overlays/${env}/kustomization.yaml`, { ...options, name, env, ports, bases, secrets })
 
-  // Write supporting files - these aren't strictly required, but highly encouraged defaults
-  await writeTextLine('.gitignore', 'k8s/overlays/*/secrets/*', { ...options, append: true })
-  await writeTextLine('.dockerignore', 'k8s', { ...options, append: true })
+  // Write supporting files - note that it's very important that users ignore secrets!!!
+  // TODO: We don't really offer any sort of solution for secrets management (git-crypt probably fits best)
+  await writeTextLine('.gitignore', 'k8s/overlays/*/secrets/*', { ...options, append: true, dontPrune: true })
+  await writeTextLine('.dockerignore', 'k8s', { ...options, append: true, dontPrune: true })
 
   // Finally, let's write out the result of all the questions asked to the package.json file
   // Next time deploy-node-app is run, we shouldn't need to ask the user anything!
