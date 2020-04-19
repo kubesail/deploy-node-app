@@ -159,30 +159,6 @@ describe('Deploy-node-app init', function () {
       })
     })
 
-    describe('kafka', function () {
-      const path = 'test/nodejs-kafka'
-      const opts = {
-        language: 'nodejs',
-        name: 'nodejs-kafka',
-        uri: 'nodejs-kafka.test',
-        image: 'kubesail/nodejs-kafka-test',
-        entrypoint: 'src/index.js',
-        context: 'test',
-        ports: [8005]
-      }
-      it('Runs init without exception', () => {
-        execSyncWithEnv(`${cmd} init production \
-              -t ${path} --config=kubeconfig.yaml --update --force \
-              --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
-              --ports=${opts.ports.join(',')} --address=${opts.uri} \
-              --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
-        expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
-        expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
-        expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
-        wrotePkgJsonProperly(path, opts)
-      })
-    })
-
     describe('mongodb', function () {
       const path = 'test/nodejs-mongodb'
       const opts = {

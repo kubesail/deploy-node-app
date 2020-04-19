@@ -14,6 +14,9 @@ module.exports = {
   envs: {
     'discovery.type': 'single-node',
     ES_JAVA_OPTS: '-Xms256m -Xmx256m',
-    TZ: promptUserForValue({ name: 'Timezone (TZ)', defaultValue: 'America/Los_Angeles' })
+    TZ: promptUserForValue({
+      name: 'Timezone (TZ)',
+      defaultValue: 'America/Los_Angeles'
+    })
   }
 }
