@@ -341,10 +341,6 @@ async function init (env = 'production', language, config, options = { update: f
 
   // Entrypoint:
   let entrypoint = envConfig.entrypoint || options.entrypoint
-  if (entrypoint && !fs.existsSync(path.join(options.target, entrypoint))) {
-    log(`${WARNING} The entrypoint "${entrypoint}" doesn't exist!`)
-    entrypoint = undefined
-  }
   if (!entrypoint) entrypoint = await promptForEntrypoint(options)
 
   // Container ports:
@@ -354,7 +350,7 @@ async function init (env = 'production', language, config, options = { update: f
 
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
   let uri = options.address || envConfig.uri || ''
-  if (ports.length > 0 && !uri) uri = await promptForIngress(config.name)
+  if (ports.length > 0 && uri === undefined) uri = await promptForIngress(config.name)
 
   // Container image:
   const image = options.image ? options.image : (envConfig.image ? envConfig.image : await promptForImageName(name, envConfig.image))

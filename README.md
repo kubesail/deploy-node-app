@@ -39,25 +39,28 @@ With `deploy-node-app`, any codebase can have:
 ## Usage and examples
 
 ```
-Usage: deploy-node-app [action] [env]
+Usage: deploy-node-app [env] [action]
 
 Options:
-  -V, --version                           output the version number
-  -w, --write                             Write files to project (writes out Dockerfile, skaffold.yaml, etc) (default: false)
-  -u, --update                            Update existing files (default: false)
-  -f, --force                             Dont prompt if possible (implies --write and --update) (default: false)
-  -l, --label [foo=bar,tier=service]      Add labels to created Kubernetes resources
-  -d, --directory <path/to/project>       Target project directory (default: ".")
-  -c, --config <path/to/kubeconfig>       Kubernetes configuration file (default: "~/.kube/config")
-  -m, --modules <redis,postgres,mongodb>  Explicitly add modules
-  -h, --help                              display help for command
+  -V, --version                        output the version number
+  -w, --write                          Write files to project (writes out Dockerfile, skaffold.yaml, etc)
+  -u, --update                         Update existing files (default: false)
+  -f, --force                          Dont prompt if possible (default: false)
+  -l, --label [foo=bar,tier=service]   Add labels to created Kubernetes resources
+  -t, --target <path/to/project>       Target project directory (default: ".")
+  -c, --config <path/to/kubeconfig>    Kubernetes configuration file (default: "~/.kube/config")
+  -m, --modules <redis,postgres>       Explicitly add modules
 ```
 
-By default, `deploy-node-app` will write a few files to your directory, and by default files won't be touched if they've been modified.
+By default, `deploy-node-app` will write a few files to your directory, and by default files won't be touched if they've been modified. `deploy-node-app` by itself is the same as `deploy-node-app production deploy`
 
 Simply run `npx deploy-node-app` in your repository. The tool will attempt to prompt you when it needs answers to questions, and do it's best to bootstrap your application. Take a look at [supported languages](https://github.com/kubesail/deploy-node-app/tree/master/src/languages) - we're always looking to add more!
 
-# Dependencies
+## Tests-as-examples
+
+Take a look at [/test](https://github.com/kubesail/deploy-node-app/tree/master/test) for a growing list of examples!
+
+## Dependencies
 
 `deploy-node-app` knows about dependencies! For example, if you install a redis or postgres driver for Node.js, Python, Ruby [and more](https://github.com/kubesail/deploy-node-app/tree/master/src/languages), `deploy-node-app` will automatically create Redis or Postgres deployments that work with your app!
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const USAGE = '[action] [env]'
+const USAGE = '[env] [action]'
 
 const program = require('commander')
 const deployNodeApp = require('./deployNodeApp')
@@ -14,7 +14,7 @@ program
   .arguments(USAGE)
   .usage(USAGE)
   .version(dnaPackageJson.version)
-  .action((_action, _env) => {
+  .action((_env, _action) => {
     env = _env
     action = _action
   })

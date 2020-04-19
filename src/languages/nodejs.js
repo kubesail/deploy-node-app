@@ -38,7 +38,7 @@ module.exports = {
       'COPY --chown=node:node package.json yarn.loc[k] .npmr[c] ./',
       'RUN yarn install',
       'COPY --chown=node:node . .',
-      `CMD ["${entrypoint}"]`
+      `CMD [${entrypoint.split(' ').map(e => `"${e}"`).join(', ')}]`
     ].join('\n')
   },
 
