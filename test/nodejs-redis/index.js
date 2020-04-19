@@ -8,7 +8,7 @@ const redis = Redis.createClient({ host: 'redis' })
 app.get('/', (_req, res) => {
   redis.get('nodejs-counter', (err, reply) => {
     if (err) {
-      console.error(err)
+      console.error('Failed to connect to Redis!', err.code)
       return res.sendStatus(500)
     }
     res.send(`Hello World from redis! Hit count: "${reply || 0}"`)
