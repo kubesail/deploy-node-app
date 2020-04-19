@@ -19,7 +19,6 @@ const WARNING = `${style.yellow.open}!!${style.yellow.close}`
 
 // Load meta-modules! These match dependency packages to files in ./modules - these files in turn build out Kubernetes resources!
 const metaModules = [
-  require('./modules/redis'),
   require('./modules/mongodb'),
   require('./modules/postgres'),
   require('./modules/redis')
@@ -28,7 +27,6 @@ const metaModules = [
 const languages = [
   require('./languages/nginx'),
   require('./languages/nodejs'),
-  require('./languages/php'),
   require('./languages/python'),
   require('./languages/ruby')
 ]
