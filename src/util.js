@@ -63,6 +63,7 @@ async function confirmWriteFile (filePath, content, options = { update: false, f
     const YES_TEXT = 'Yes (update)'
     const NO_TEXT = 'No, dont touch'
     const SHOWDIFF_TEXT = 'Show diff'
+    process.stdout.write('\n')
     const confirmUpdate = (
       await inquirer.prompt({
         name: 'update',
@@ -190,10 +191,11 @@ async function ensureBinaries (options) {
 
 function promptUserForValue (name, { message, validate, defaultValue, type = 'input', defaultToProjectName }) {
   return async (existing, options) => {
-    if (existing && !options.update) return existing
     defaultValue = defaultValue || existing
     if (defaultToProjectName) defaultValue = options.name
+    if (defaultValue && !options.update) return defaultValue
     if (!message) message = `Module "${options.name}" needs a setting: ${name}`
+    process.stdout.write('\n')
     const values = await inquirer.prompt([{ name, type, message, validate, default: defaultValue }])
     return values[name]
   }

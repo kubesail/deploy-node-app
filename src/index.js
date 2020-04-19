@@ -31,7 +31,6 @@ program
   .option('--image <image>', 'Answer the image address question')
   .option('--ports <ports>', 'Answer the ports question')
   .option('--address <address>', 'Answer the ingress address question')
-  .option('--context <context>', 'Answer the kube-context question')
   .option('--no-prompts', 'Use default values whenever possible')
   .parse(process.argv)
 
@@ -50,6 +49,5 @@ deployNodeApp(env || 'production', action || 'deploy', {
   image: program.image || false,
   ports: program.ports ? program.ports.split(',').map(p => parseInt(p, 10)).filter(Boolean) : null,
   address: program.address || false,
-  context: program.context || false,
   prompts: program.prompts || true
 })

@@ -16,7 +16,6 @@ inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
 const { fatal, log, debug, mkdir, cleanupWrittenFiles, readConfig, ensureBinaries, writeTextLine, execSyncWithEnv, confirmWriteFile } = require('./util')
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const WARNING = `${style.yellow.open}!!${style.yellow.close}`
-const KUBESAIL_NEW_NAMESPACE_TEXT = 'Create a free Namespace on KubeSail.com'
 
 // Load meta-modules! These match dependency packages to files in ./modules - these files in turn build out Kubernetes resources!
 const metaModules = [
@@ -37,7 +36,7 @@ const languages = [
 // Only allow projects that are valid dns components - we will prompt the user for a different name if this is name matched
 const validProjectNameRegex = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/i
 
-// Read local .kube configuration to see if the user has an existing kube context they want to use
+// Read local .kube configuration
 function readLocalKubeConfig (configPathOption) {
   const configPath = configPathOption || path.join(os.homedir(), '.kube', 'config')
   debug(`Using kube config ${configPath}`)
@@ -62,6 +61,7 @@ async function promptForPackageName (packageName = '', force = false) {
     const newName = packageName.replace(/[^a-z0-9]/gi, '')
     if (force) return newName
     else {
+      process.stdout.write('\n')
       const { name } = await inquirer.prompt([
         {
           name: 'name',
@@ -80,6 +80,7 @@ async function promptForEntrypoint (options) {
   // TODO: suggestedDefaultPaths should probably be informed by Language
   const suggestedDefaultPaths = ['src/index.js', 'index.js', 'index.py', 'src/index.py', 'public/index.html', 'main.py', 'server.py', 'index.html']
   const invalidPaths = ['.', 'LICENSE', 'README', 'package-lock.json', 'node_modules', 'yarn.lock', 'yarn-error.log', 'package.json', 'Dockerfile', '.log', '.json', '.lock', '.css', '.svg', '.md', '.png', '.disabled', '.ico', '.txt']
+  process.stdout.write('\n')
   const { entrypoint } = await inquirer.prompt([{
     name: 'entrypoint',
     type: 'fuzzypath',
@@ -88,17 +89,18 @@ async function promptForEntrypoint (options) {
     excludePath: filepath => invalidPaths.find(p => filepath.endsWith(p)),
     itemType: 'file',
     rootPath: options.target,
-    suggestOnly: false
+    suggestOnly: true
   }])
   return entrypoint.replace(/\\/g, '/').replace(options.target, '.')
 }
 
 async function promptForImageName (projectName, existingName) {
+  process.stdout.write('\n')
   const { imageName } = await inquirer.prompt([{
     name: 'imageName',
     type: 'input',
     message:
-        'What is the image name for our project? To use docker hub, try username/projectname.\n Note: Make sure this is marked private, or it may be automatically created as a public image!\n',
+        'What is the image name for our project? To use docker hub, try username/projectname. Note: Make sure this is marked private, or it may be automatically created as a public image!',
     default: existingName || `${os.userInfo().username}/${projectName}`
   }
   ])
@@ -107,11 +109,12 @@ async function promptForImageName (projectName, existingName) {
 
 // Promps user for project ports and attempts to suggest best practices
 async function promptForPorts (existingPorts = []) {
+  process.stdout.write('\n')
   const { newPorts } = await inquirer.prompt([
     {
       name: 'newPorts',
       type: 'input',
-      message: 'Does your app listen on any ports? If so, please enter them comma separated\n',
+      message: 'Does your app listen on any ports? If so, please enter them comma separated',
       default: existingPorts.length > 0 ? existingPorts.join(', ') : '8000',
       validate: input => {
         if (!input) return true
@@ -134,11 +137,12 @@ async function promptForPorts (existingPorts = []) {
 }
 
 async function promptForIngress (defaultDomain) {
+  process.stdout.write('\n')
   const { ingressUri } = await inquirer.prompt([{
     name: 'ingressUri',
     type: 'input',
     message:
-        'Is this an HTTP service? If so, what URI should be used to access it? (Will not be exposed to the internet if left blank)\n',
+        'Is this an HTTP service? If so, what URI should be used to access it? (Will not be exposed to the internet if left blank)',
     default: defaultDomain && isFQDN(defaultDomain) ? defaultDomain : null,
     validate: input => {
       if (input && !isFQDN(input)) return 'Either leave blank, or input a valid DNS name (ie: my.example.com)'
@@ -148,31 +152,18 @@ async function promptForIngress (defaultDomain) {
   return ingressUri
 }
 
-// Asks the user for the desired kube context. This is a fairly "sticky" point of code.
-//  - Sticky reason 1: We assume different users have similarly named contexts.
-//    For example, if one user registers "production" to mean a context called "production-1"
-//    We should probably handle missing context names a bit better. For now, assume users are naming their contexts consistently :(
-//  - Stick reason 2: This is where we inject our "advertisement" of creating a free KubeSail.com namespace.
-async function promptForKubeContext (context, kubeConfig) {
-  const contexts = kubeConfig.contexts || []
-  if (context && contexts.find(c => c.name === context)) {
-    return context
-  } else {
-    if (context) process.stdout.write(`${WARNING} This environment is configured to use the context "${context}", but that wasn't found in your Kube config!\n\n`)
-    const kubeContexts = contexts.map(c => c.name)
-    if (!kubeConfig.clusters || !kubeConfig.clusters.find(c => c.cluster.server.endsWith('kubesail.com'))) {
-      kubeContexts.push(KUBESAIL_NEW_NAMESPACE_TEXT)
-    }
-    let { newContext } = await inquirer.prompt([{
-      name: 'newContext',
-      type: 'list',
-      message: 'Which Kubernetes context do you want to deploy to?\n',
-      default: kubeContexts[0],
-      choices: kubeContexts
+// Asks the user if they'd like to create a KubeSail.com context, if they have none.
+async function promptForCreateKubeContext (kubeConfig) {
+  if (!kubeConfig.clusters || !kubeConfig.clusters.length) {
+    process.stdout.write('\n')
+    const { createKubeSailContext } = await inquirer.prompt([{
+      name: 'createKubeSailContext',
+      type: 'confirm',
+      message: 'It looks like you have no Kubernetes cluster configured. Would you like to create a free Kubernetes namespace on KubeSail.com?\n'
     }])
     // getKubesailConfig will pop the users browser and return with a new valid context if the user signs up.
-    if (newContext === KUBESAIL_NEW_NAMESPACE_TEXT) newContext = await getKubesailConfig()
-    return newContext
+    if (createKubeSailContext) return await getKubesailConfig()
+    fatal('You\'ll need a Kubernetes config before continuing!')
   }
 }
 
@@ -368,8 +359,8 @@ async function init (env = 'production', language, config, options = { update: f
   // Container image:
   const image = options.image ? options.image : (envConfig.image ? envConfig.image : await promptForImageName(name, envConfig.image))
 
-  // Kubernetes Context (Cluster and User):
-  const context = options.context ? options.context : await promptForKubeContext(envConfig.context, readLocalKubeConfig(options.config))
+  // If create a kube config if none already exists
+  await promptForCreateKubeContext(readLocalKubeConfig(options.config))
 
   // Secrets will track secrets created by our dependencies which need to be written out to Kubernetes Secrets
   let secrets = []
@@ -441,7 +432,7 @@ async function init (env = 'production', language, config, options = { update: f
     language: language.name,
     ports,
     envs: Object.assign({}, (packageJson['deploy-node-app'] || {}).envs, {
-      [env]: Object.assign({}, (packageJson['deploy-node-app'] || {})[env], { uri, context, image, entrypoint })
+      [env]: Object.assign({}, (packageJson['deploy-node-app'] || {})[env], { uri, image, entrypoint })
     })
   })
   packageJson.name = name
