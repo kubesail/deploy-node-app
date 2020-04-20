@@ -7,14 +7,18 @@ const readFile = util.promisify(fs.readFile)
 
 module.exports = {
   name: 'nodejs',
+  suggestedPorts: [8000],
 
-  detect: async (options) => {
+  detect: async function (options) {
     const pkgPath = path.join(options.target, './package.json')
     let looksLikeNode = false
     if (fs.existsSync(pkgPath)) {
       try {
         const packageJson = JSON.parse(fs.readFileSync(pkgPath))
-        if (packageJson && packageJson.name && packageJson.version) looksLikeNode = true
+        if (packageJson) {
+          if (packageJson.name && packageJson.version) looksLikeNode = true
+          if (packageJson.scripts && packageJson.scripts.start === 'react-scripts start') this.suggestedPorts = [3000]
+        }
       } catch {}
     }
     if (looksLikeNode) {
@@ -29,17 +33,18 @@ module.exports = {
       entrypoint = 'node ' + entrypoint
     }
     return [
-      `FROM node:${process.versions.node.split('.')[0]}`,
+      `FROM node:${process.versions.node.split('.')[0]}\n`,
       'USER node',
       'RUN mkdir /home/node/app',
-      'WORKDIR /home/node/app',
-      ports.length > 0 ? `EXPOSE ${ports.join(' ')}` : '',
+      'WORKDIR /home/node/app\n',
+      ports.length > 0 ? `EXPOSE ${ports.join(' ')}\n` : null,
       'ARG ENV=production',
       'ENV NODE_ENV $ENV',
+      'ENV CI=true\n',
       'COPY --chown=node:node package.json yarn.loc[k] .npmr[c] ./',
       'RUN yarn install',
-      'COPY --chown=node:node . .',
-      `CMD [${entrypoint.split(' ').map(e => `"${e}"`).join(', ')}]`
+      'COPY --chown=node:node . .\n',
+      `CMD [${entrypoint.split(' ').filter(Boolean).map(e => `"${e}"`).join(', ')}]`
     ].join('\n')
   },
 

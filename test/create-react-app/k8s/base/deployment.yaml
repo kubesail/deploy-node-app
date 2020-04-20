@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: create-react-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: create-react-app
+  template:
+    metadata:
+      labels:
+        app: create-react-app
+    spec:
+      containers:
+        - name: create-react-app
+          image: seand/create-react-app
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: 50m
+              memory: 100Mi
+            limits:
+              cpu: '2'
+              memory: 1500Mi
+

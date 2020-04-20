@@ -1,0 +1,20 @@
+apiVersion: skaffold/v2beta2
+kind: Config
+portForward: []
+build:
+  artifacts:
+    - image: seand/create-react-app
+profiles:
+  - name: dev
+    deploy:
+      kustomize:
+        paths:
+          - k8s/overlays/dev
+    build:
+      artifacts:
+        - image: seand/create-react-app
+          sync: {}
+          docker:
+            buildArgs:
+              ENV: dev
+
