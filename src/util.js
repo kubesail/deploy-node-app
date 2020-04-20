@@ -213,14 +213,13 @@ function generateRandomStr (length = 16) {
   }
 }
 
-async function readConfig (options) {
+async function readPackageJson (options) {
   let packageJson = {}
   try {
     packageJson = JSON.parse(await readFile(path.join(options.target, './package.json')))
   } catch (_err) {}
-  const config = packageJson['deploy-node-app'] || {}
-  if (!config.name) config.name = packageJson.name
-  return config
+  packageJson['deploy-node-app'] = packageJson['deploy-node-app'] || {}
+  return packageJson
 }
 
 // Idempotently writes a line of text to a file
@@ -247,6 +246,6 @@ module.exports = {
   confirmWriteFile,
   writeTextLine,
   execSyncWithEnv,
-  readConfig,
+  readPackageJson,
   promptUserForValue
 }

@@ -1,24 +1,15 @@
 const fs = require('fs')
 const path = require('path')
 const inquirer = require('inquirer')
-const npmPackages = ['webpack', 'react']
 
 module.exports = {
   name: 'nginx',
   suggestedPorts: [8080],
+  suggestedEntrypoints: ['index.html', 'index.htm'],
 
   detect: async (options) => {
     // Look for common node.js based frontend packages
     let looksLikeFrontend = false
-    const pkgPath = path.join(options.target, './package.json')
-    if (fs.existsSync(pkgPath)) {
-      try {
-        const packageJson = JSON.parse(fs.readFileSync(pkgPath))
-        looksLikeFrontend = !!npmPackages.find(pkg => {
-          return Object.keys(packageJson.dependencies).includes(pkg)
-        })
-      } catch {}
-    }
 
     // If there is a /public folder, they may just want to deploy that (completely static site, with no build pipeline?)
     if (fs.existsSync('./public/index.html') || fs.existsSync('./public/index.htm')) {

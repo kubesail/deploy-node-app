@@ -13,7 +13,7 @@ const merge = require('lodash/merge')
 const style = require('ansi-styles')
 const getKubesailConfig = require('get-kubesail-config')
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
-const { fatal, log, debug, mkdir, cleanupWrittenFiles, readConfig, ensureBinaries, writeTextLine, execSyncWithEnv, confirmWriteFile } = require('./util')
+const { fatal, log, debug, mkdir, cleanupWrittenFiles, readPackageJson, ensureBinaries, writeTextLine, execSyncWithEnv, confirmWriteFile } = require('./util')
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const WARNING = `${style.yellow.open}!!${style.yellow.close}`
 
@@ -25,10 +25,10 @@ const metaModules = [
 ]
 
 const languages = [
-  require('./languages/nginx'),
   require('./languages/nodejs'),
   require('./languages/python'),
-  require('./languages/ruby')
+  require('./languages/ruby'),
+  require('./languages/nginx') // It's important that Nginx is last - plenty of other projects will include static html files
 ]
 
 // Only allow projects that are valid dns components - we will prompt the user for a different name if this is name matched
@@ -74,9 +74,23 @@ async function promptForPackageName (packageName = '', force = false) {
   }
 }
 
-async function promptForEntrypoint (options) {
-  // TODO: suggestedDefaultPaths should probably be informed by Language
-  const suggestedDefaultPaths = ['src/index.js', 'index.js', 'index.py', 'src/index.py', 'public/index.html', 'main.py', 'server.py', 'index.html']
+async function promptForEntrypoint (language, packageJson, options) {
+  if (packageJson.scripts) {
+    const choices = Object.keys(packageJson.scripts).map(k => `npm ${k}`)
+    const chooseFile = 'Choose a file instead'
+    choices.push(chooseFile)
+    const defaultValue = choices.includes('start') ? 'start' : choices[0]
+    const { entrypoint } = await inquirer.prompt([{
+      name: 'entrypoint',
+      type: 'list',
+      message: 'Which command starts your application? (From package.json)',
+      default: defaultValue,
+      choices
+    }])
+    if (entrypoint && entrypoint !== chooseFile) return entrypoint
+  }
+
+  const suggestedDefaultPaths = language.suggestedEntrypoints || ['src/index.js', 'index.js', 'index.py', 'src/index.py', 'public/index.html', 'main.py', 'server.py', 'index.html']
   const invalidPaths = ['.', 'LICENSE', 'README', 'package-lock.json', 'node_modules', 'yarn.lock', 'yarn-error.log', 'package.json', 'Dockerfile', '.log', '.json', '.lock', '.css', '.svg', '.md', '.png', '.disabled', '.ico', '.txt']
   process.stdout.write('\n')
   const defaultValue = suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p)))
@@ -325,7 +339,8 @@ async function writeSkaffold (path, envs, options = { force: false, update: fals
   }), options)
 }
 
-async function init (env = 'production', language, config, options = { update: false, force: false }) {
+async function init (env = 'production', language, packageJson, options = { update: false, force: false }) {
+  const config = packageJson['deploy-node-app']
   if (!config.envs || !config.envs[env]) config.envs = { [env]: {} }
   if (!validProjectNameRegex.test(env)) return fatal(`Invalid env "${env}" provided!`)
   const envConfig = config.envs[env]
@@ -342,7 +357,7 @@ async function init (env = 'production', language, config, options = { update: f
 
   // Entrypoint:
   let entrypoint = envConfig.entrypoint || options.entrypoint
-  if (!entrypoint) entrypoint = await promptForEntrypoint(options)
+  if (!entrypoint) entrypoint = await promptForEntrypoint(language, packageJson, options)
 
   // Container ports:
   let ports = config.ports || options.ports
@@ -416,15 +431,6 @@ async function init (env = 'production', language, config, options = { update: f
 
   // Finally, let's write out the result of all the questions asked to the package.json file
   // Next time deploy-node-app is run, we shouldn't need to ask the user anything!
-  let packageJson = {}
-  const packageJsonPath = path.join(options.target, 'package.json')
-  if (fs.existsSync(packageJsonPath)) {
-    try {
-      packageJson = JSON.parse((await readFile(packageJsonPath)).toString())
-    } catch (_err) {
-      log(`${WARNING} Failed to parse your ./package.json file!`)
-    }
-  }
   packageJson['deploy-node-app'] = Object.assign({}, packageJson['deploy-node-app'], {
     language: language.name,
     ports,
@@ -444,7 +450,8 @@ module.exports = async function DeployNodeApp (env, action, options) {
     else action = 'deploy'
   }
   const skaffoldPath = await ensureBinaries(options)
-  const config = await readConfig(options)
+  const packageJson = await readPackageJson(options)
+  const config = packageJson['deploy-node-app']
 
   let language
   for (let i = 0; i < languages.length; i++) {
@@ -454,6 +461,7 @@ module.exports = async function DeployNodeApp (env, action, options) {
       (!options.language && await languages[i].detect(options))
     ) {
       language = languages[i]
+      break
     }
   }
   if (!language) {
@@ -471,7 +479,7 @@ module.exports = async function DeployNodeApp (env, action, options) {
     options.write = true
     options.update = true
   }
-  await init(env, language, config, options)
+  await init(env, language, packageJson, options)
 
   if (action === 'init') {
     // Already done!
