@@ -149,7 +149,7 @@ const execSyncWithEnv = (cmd, options = {}) => {
     output = execSync(cmd, mergedOpts)
   } catch (err) {
     if (mergedOpts.catchErr) {
-      fatal(`Command "${cmd}" failed to run`)
+      fatal(`Command "${cmd}" failed to run: "${err.message}"`)
       process.exit(1)
     } else {
       throw err
