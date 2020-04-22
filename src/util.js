@@ -193,7 +193,7 @@ function promptUserForValue (name, { message, validate, defaultValue, type = 'in
   return async (existing, options) => {
     defaultValue = defaultValue || existing
     if (defaultToProjectName) defaultValue = options.name
-    if (defaultValue && !options.update) return defaultValue
+    if (defaultValue && (!options.update || !options.prompts)) return defaultValue
     if (!message) message = `Module "${options.name}" needs a setting: ${name}`
     process.stdout.write('\n')
     const values = await inquirer.prompt([{ name, type, message, validate, default: defaultValue }])

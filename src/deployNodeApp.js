@@ -164,7 +164,7 @@ async function promptForIngress () {
       else return true
     }
   }])
-  return ingressUri
+  return ingressUri || ''
 }
 
 // Asks the user if they'd like to create a KubeSail.com context, if they have none.
@@ -184,6 +184,7 @@ async function promptForCreateKubeContext (kubeConfig) {
 
 // Asks the user if there are additional artifacts they'd like to add to their configuration
 async function promptForAdditionalArtifacts (options) {
+  if (!options.prompts) return false
   process.stdout.write('\n')
   const { additionalArtifacts } = await inquirer.prompt([{
     name: 'additionalArtifacts',
@@ -384,7 +385,7 @@ async function generateArtifact (env = 'production', envConfig, language, config
   if (ports.length === 0 && !artifact.ports) ports = await promptForPorts(artifact.ports, language)
 
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
-  let uri = options.address || artifact.uri || ''
+  let uri = options.address || artifact.uri
   if (ports.length > 0 && uri === undefined) uri = await promptForIngress()
 
   // Secrets will track secrets created by our dependencies which need to be written out to Kubernetes Secrets

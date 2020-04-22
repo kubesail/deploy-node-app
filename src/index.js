@@ -32,7 +32,7 @@ program
   .option('--image <image>', 'Answer the image address question')
   .option('--ports <ports>', 'Answer the ports question')
   .option('--address <address>', 'Answer the ingress address question')
-  .option('--no-prompts', 'Use default values whenever possible')
+  .option('--no-prompts', 'Use default values whenever possible, implies --update and --force', false)
   .parse(process.argv)
 
 deployNodeApp(env, action, {
@@ -51,5 +51,5 @@ deployNodeApp(env, action, {
   image: program.image || false,
   ports: program.ports ? program.ports.split(',').map(p => parseInt(p, 10)).filter(Boolean) : null,
   address: program.address || false,
-  prompts: program.prompts || true
+  prompts: program.prompts
 })

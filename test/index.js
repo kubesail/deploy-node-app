@@ -5,24 +5,22 @@ const { execSyncWithEnv } = require('../src/util')
 const describe = global.describe
 const it = global.it
 const cmd = 'node ./src/index.js'
-const debug = false
+const debug = false // Turns on execSyncWithEnv printouts
 
-function wrotePkgJsonProperly (path, { language, uri, image, entrypoint, context, ports }) {
-  const packageJson = JSON.parse(fs.readFileSync(`${path}/package.json`))
-  const cfg = packageJson['deploy-node-app']
-  expect(cfg.language).to.equal(language)
-  expect(cfg.envs.production).to.be.an('Object')
-  expect(cfg.envs.production.uri).to.equal(uri)
-  expect(cfg.envs.production.image).to.equal(image)
-  expect(cfg.envs.production.entrypoint).to.equal(entrypoint)
-  expect(cfg.envs.production.context).to.equal(context)
-  expect(cfg.ports).to.have.members(ports)
+function wroteDNAConfigProperly (path, { language, uri, image, entrypoint, context, ports }) {
+  const cfg = JSON.parse(fs.readFileSync(`${path}/.dna.json`))
+  expect(cfg.envs.production[0].language).to.equal(language)
+  expect(cfg.envs.production[0]).to.be.an('Object')
+  expect(cfg.envs.production[0].uri).to.equal(uri)
+  expect(cfg.envs.production[0].image).to.equal(image)
+  expect(cfg.envs.production[0].entrypoint).to.equal(entrypoint)
+  expect(cfg.envs.production[0].ports).to.have.members(ports)
 }
 
-function wroteYamlStructureProperly (path, env = 'production') {
-  expect(fs.existsSync(`${path}/k8s/base/deployment.yaml`), 'deployment.yaml').to.equal(true)
+function wroteYamlStructureProperly (path, name, env = 'production') {
+  expect(fs.existsSync(`${path}/k8s/base/${name}/deployment.yaml`), 'deployment.yaml').to.equal(true)
 
-  expect(fs.existsSync(`${path}/k8s/base/kustomization.yaml`), 'kustomization.yaml').to.equal(true)
+  expect(fs.existsSync(`${path}/k8s/base/${name}/kustomization.yaml`), 'kustomization.yaml').to.equal(true)
   expect(fs.existsSync(`${path}/k8s/overlays/${env}/kustomization.yaml`), `overlays/${env}/kustomization.yaml`).to.equal(true)
   expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
   expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
@@ -43,21 +41,21 @@ describe('Deploy-node-app init', function () {
       }
 
       it('Runs init without writing anything except the package.json', () => {
-        execSyncWithEnv(`${cmd} init production \
-          -t ${path} --config=kubeconfig.yaml \
+        execSyncWithEnv(`${cmd} production init \
+          --no-prompts -t ${path} --config=kubeconfig.yaml \
           --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
           --ports=${opts.ports.join(',')} --address=${opts.uri} \
-          --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+          --image=${opts.image}`, { catchErr: false, debug })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
       })
 
-      it('Updates package.json properly', () => {
-        wroteYamlStructureProperly(path)
-        wrotePkgJsonProperly(path, opts)
-        expect(fs.existsSync(`${path}/k8s/base/ingress.yaml`), 'ingress.yaml').to.equal(true)
-        expect(fs.existsSync(`${path}/k8s/base/service.yaml`), 'service.yaml').to.equal(true)
+      it('Updates DNA Config properly', () => {
+        wroteYamlStructureProperly(path, opts.name)
+        wroteDNAConfigProperly(path, opts)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/ingress.yaml`), 'ingress.yaml').to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/service.yaml`), 'service.yaml').to.equal(true)
       })
     })
   })
@@ -75,15 +73,21 @@ describe('Deploy-node-app init', function () {
         ports: [8001]
       }
       it('Runs init without exception', () => {
-        execSyncWithEnv(`${cmd} init production \
-            -t ${path} --config=kubeconfig.yaml --update --force \
+        execSyncWithEnv(`${cmd} production init \
+            --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
             --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
             --ports=${opts.ports.join(',')} --address=${opts.uri} \
-            --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+            --image=${opts.image}`, { catchErr: false, debug })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
-        wrotePkgJsonProperly(path, opts)
+        wroteDNAConfigProperly(path, opts)
+      })
+      it('Updates DNA Config properly', () => {
+        wroteYamlStructureProperly(path, opts.name)
+        wroteDNAConfigProperly(path, opts)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/ingress.yaml`), 'ingress.yaml').to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/service.yaml`), 'service.yaml').to.equal(true)
       })
     })
 
@@ -99,15 +103,21 @@ describe('Deploy-node-app init', function () {
         ports: [8002]
       }
       it('Runs init without exception', () => {
-        execSyncWithEnv(`${cmd} init production \
-            -t ${path} --config=kubeconfig.yaml --update --force \
+        execSyncWithEnv(`${cmd} production init \
+            --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
             --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
             --ports=${opts.ports.join(',')} --address=${opts.uri} \
-            --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+            --image=${opts.image}`, { catchErr: false, debug })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
-        wrotePkgJsonProperly(path, opts)
+        wroteDNAConfigProperly(path, opts)
+      })
+      it('Updates DNA Config properly', () => {
+        wroteYamlStructureProperly(path, opts.name)
+        wroteDNAConfigProperly(path, opts)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/ingress.yaml`), 'ingress.yaml').to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/service.yaml`), 'service.yaml').to.equal(true)
       })
     })
 
@@ -123,15 +133,21 @@ describe('Deploy-node-app init', function () {
         ports: [8003]
       }
       it('Runs init without exception', () => {
-        execSyncWithEnv(`${cmd} init production \
-            -t ${path} --config=kubeconfig.yaml --update --force \
+        execSyncWithEnv(`${cmd} production init \
+            --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
             --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
             --ports=${opts.ports.join(',')} --address=${opts.uri} \
-            --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+            --image=${opts.image}`, { catchErr: false, debug })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
-        wrotePkgJsonProperly(path, opts)
+        wroteDNAConfigProperly(path, opts)
+      })
+      it('Updates DNA Config properly', () => {
+        wroteYamlStructureProperly(path, opts.name)
+        wroteDNAConfigProperly(path, opts)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/ingress.yaml`), 'ingress.yaml').to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/service.yaml`), 'service.yaml').to.equal(true)
       })
     })
 
@@ -147,15 +163,21 @@ describe('Deploy-node-app init', function () {
         ports: [8005]
       }
       it('Runs init without exception', () => {
-        execSyncWithEnv(`${cmd} init production \
-              -t ${path} --config=kubeconfig.yaml --update --force \
+        execSyncWithEnv(`${cmd} production init \
+              --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
-              --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+              --image=${opts.image}`, { catchErr: false, debug })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
-        wrotePkgJsonProperly(path, opts)
+        wroteDNAConfigProperly(path, opts)
+      })
+      it('Updates DNA Config properly', () => {
+        wroteYamlStructureProperly(path, opts.name)
+        wroteDNAConfigProperly(path, opts)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/ingress.yaml`), 'ingress.yaml').to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/service.yaml`), 'service.yaml').to.equal(true)
       })
     })
 
@@ -172,15 +194,21 @@ describe('Deploy-node-app init', function () {
           ports: [8005]
         }
         it('Runs init without exception', () => {
-          execSyncWithEnv(`${cmd} init production \
-                -t ${path} --config=kubeconfig.yaml --update --force \
+          execSyncWithEnv(`${cmd} production init \
+                --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
                 --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
                 --ports=${opts.ports.join(',')} --address=${opts.uri} \
-                --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+                --image=${opts.image}`, { catchErr: false, debug })
           expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
           expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
           expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
-          wrotePkgJsonProperly(path, opts)
+          wroteDNAConfigProperly(path, opts)
+        })
+        it('Updates DNA Config properly', () => {
+          wroteYamlStructureProperly(path, opts.name)
+          wroteDNAConfigProperly(path, opts)
+          expect(fs.existsSync(`${path}/k8s/base/${opts.name}/ingress.yaml`), 'ingress.yaml').to.equal(true)
+          expect(fs.existsSync(`${path}/k8s/base/${opts.name}/service.yaml`), 'service.yaml').to.equal(true)
         })
       })
 
@@ -196,15 +224,21 @@ describe('Deploy-node-app init', function () {
           ports: [8005]
         }
         it('Runs init without exception', () => {
-          execSyncWithEnv(`${cmd} init production \
-                -t ${path} --config=kubeconfig.yaml --update --force \
+          execSyncWithEnv(`${cmd} production init \
+                --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
                 --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
                 --ports=${opts.ports.join(',')} --address=${opts.uri} \
-                --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+                --image=${opts.image}`, { catchErr: false, debug })
           expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
           expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
           expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
-          wrotePkgJsonProperly(path, opts)
+          wroteDNAConfigProperly(path, opts)
+        })
+        it('Updates DNA Config properly', () => {
+          wroteYamlStructureProperly(path, opts.name)
+          wroteDNAConfigProperly(path, opts)
+          expect(fs.existsSync(`${path}/k8s/base/${opts.name}/ingress.yaml`), 'ingress.yaml').to.equal(true)
+          expect(fs.existsSync(`${path}/k8s/base/${opts.name}/service.yaml`), 'service.yaml').to.equal(true)
         })
       })
     })
@@ -223,15 +257,21 @@ describe('Deploy-node-app init', function () {
         ports: [8080]
       }
       it('Runs init without exception', () => {
-        execSyncWithEnv(`${cmd} init production \
-              -t ${path} --config=kubeconfig.yaml --update --force \
+        execSyncWithEnv(`${cmd} production init \
+              --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
-              --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+              --image=${opts.image}`, { catchErr: false, debug })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
-        wrotePkgJsonProperly(path, opts)
+        wroteDNAConfigProperly(path, opts)
+      })
+      it('Updates DNA Config properly', () => {
+        wroteYamlStructureProperly(path, opts.name)
+        wroteDNAConfigProperly(path, opts)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/ingress.yaml`), 'ingress.yaml').to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/service.yaml`), 'service.yaml').to.equal(true)
       })
     })
 
@@ -247,15 +287,21 @@ describe('Deploy-node-app init', function () {
         ports: [8080]
       }
       it('Runs init without exception', () => {
-        execSyncWithEnv(`${cmd} init production \
-              -t ${path} --config=kubeconfig.yaml --update --force \
+        execSyncWithEnv(`${cmd} production init \
+              --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
-              --image=${opts.image} --context=${opts.context}`, { catchErr: false, debug })
+              --image=${opts.image}`, { catchErr: false, debug })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
-        wrotePkgJsonProperly(path, opts)
+        wroteDNAConfigProperly(path, opts)
+      })
+      it('Updates DNA Config properly', () => {
+        wroteYamlStructureProperly(path, opts.name)
+        wroteDNAConfigProperly(path, opts)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/ingress.yaml`), 'ingress.yaml').to.equal(true)
+        expect(fs.existsSync(`${path}/k8s/base/${opts.name}/service.yaml`), 'service.yaml').to.equal(true)
       })
     })
   })
