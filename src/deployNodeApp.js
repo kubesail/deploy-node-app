@@ -93,7 +93,7 @@ async function promptForEntrypoint (language, options) {
   }
 
   const suggestedDefaultPaths = language.suggestedEntrypoints || ['src/index.js', 'index.js', 'index.py', 'src/index.py', 'public/index.html', 'main.py', 'server.py', 'index.html']
-  const invalidPaths = ['.', 'LICENSE', 'README', 'package-lock.json', 'node_modules', 'yarn.lock', 'yarn-error.log', 'package.json', 'Dockerfile', '.log', '.json', '.lock', '.css', '.svg', '.md', '.png', '.disabled', '.ico', '.txt']
+  const invalidPaths = ['LICENSE', 'README', 'package-lock.json', 'node_modules', 'yarn.lock', 'yarn-error.log', 'package.json', 'Dockerfile', '.log', '.json', '.lock', '.css', '.svg', '.md', '.png', '.disabled', '.ico', '.txt']
   process.stdout.write('\n')
   const defaultValue = suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p)))
   const { entrypoint } = await inquirer.prompt([{
