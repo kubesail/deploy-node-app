@@ -50,7 +50,7 @@ function readLocalKubeConfig (configPathOption) {
 
 // promptForPackageName tries to get a URI-able name out of a project using validProjectNameRegex
 // This ensures a DNS-valid name for Kuberentes as well as for container registries, etc.
-async function promptForPackageName (packageName = '', force = false) {
+async function promptForPackageName (packageName = '', force = false, message = 'What should we name this project?\n') {
   const sanitizedName = packageName.split('.')[0]
   if (force && validProjectNameRegex.test(sanitizedName)) {
     process.stdout.write(`${WARNING} Using project name ${chalk.green.bold(sanitizedName)}...\n\n`)
@@ -64,7 +64,7 @@ async function promptForPackageName (packageName = '', force = false) {
         {
           name: 'name',
           type: 'input',
-          message: 'What should we name this project?\n',
+          message,
           default: newName,
           validate: input => (validProjectNameRegex.test(input) ? true : 'Invalid name!')
         }
@@ -117,8 +117,7 @@ async function promptForImageName (projectName, existingName) {
     message:
         'What is the image name for our project? To use docker hub, try username/projectname. Note: Make sure this is marked private, or it may be automatically created as a public image!',
     default: existingName || `${os.userInfo().username}/${projectName}`
-  }
-  ])
+  }])
   return imageName
 }
 
@@ -341,35 +340,37 @@ async function writeSkaffold (path, envs, options = { force: false, update: fals
 
 async function init (env = 'production', language, packageJson, options = { update: false, force: false }) {
   const config = packageJson['deploy-node-app']
-  if (!config.envs || !config.envs[env]) config.envs = { [env]: {} }
+  if (!config.envs || !config.envs[env]) config.envs = { [env]: [] }
   if (!validProjectNameRegex.test(env)) return fatal(`Invalid env "${env}" provided!`)
   const envConfig = config.envs[env]
-
-  // Create directory structure
-  await mkdir('k8s/base', options)
-  await mkdir(`k8s/overlays/${env}`, options)
+  if (!envConfig[0]) envConfig[0] = {}
 
   // Ask some questions if we have missing info in our package.json 'deploy-node-app' configuration:
-  let name = options.name || config.name
+  let name = options.name || envConfig.name
   const baseDirName = path.basename(process.cwd())
   if (validProjectNameRegex.test(baseDirName)) name = baseDirName
   if (!name || !validProjectNameRegex.test(name)) name = await promptForPackageName(baseDirName, options.force)
 
   // Entrypoint:
-  let entrypoint = envConfig.entrypoint || options.entrypoint
-  if (!entrypoint) entrypoint = await promptForEntrypoint(language, packageJson, options)
+  const entrypoint = options.entrypoint || envConfig[0].entrypoint || await promptForEntrypoint(language, packageJson, options)
+  let artifact = envConfig.find(e => e.entrypoint === entrypoint) || {}
+
+  // If there is another artifact in this env with the same name but a different entrypoint, let's ask the user for a different name
+  while (envConfig.find(e => e.name === name) && envConfig.find(e => e.name === name).entrypoint !== entrypoint) {
+    name = await promptForPackageName(baseDirName, options.force, 'It looks like that name is already used! Pick a different name for this artifact:\n')
+  }
 
   // Container ports:
-  let ports = config.ports || options.ports
+  let ports = config.ports || artifact.ports
   if (!ports || ports === 'none') ports = []
   if (ports.length === 0 && !config.ports) ports = await promptForPorts(config.ports, language)
 
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
-  let uri = options.address || envConfig.uri || ''
+  let uri = options.address || artifact.uri || ''
   if (ports.length > 0 && uri === undefined) uri = await promptForIngress(config.name)
 
   // Container image:
-  const image = options.image ? options.image : (envConfig.image ? envConfig.image : await promptForImageName(name, envConfig.image))
+  const image = options.image ? options.image : (artifact.image ? artifact.image : await promptForImageName(name, artifact.image))
 
   // If create a kube config if none already exists
   await promptForCreateKubeContext(readLocalKubeConfig(options.config))
@@ -378,10 +379,10 @@ async function init (env = 'production', language, packageJson, options = { upda
   let secrets = []
 
   // Bases is an array of Kustomization directories - this always includes our base structure and also any supported dependencies
-  const bases = ['../../base']
+  const bases = []
 
   // Resources track resources added by this project, which will go into our base kustomization.yaml file
-  const resources = ['./deployment.yaml']
+  const resources = []
 
   // Find service modules we support
   const matchedModules = language.matchModules ? await language.matchModules(metaModules, options) : []
@@ -396,6 +397,13 @@ async function init (env = 'production', language, packageJson, options = { upda
   }
   if (matchedModules.length > 0) debug(`Adding configuration for submodules: "${matchedModules.join(', ')}"`)
 
+  // Create directory structure
+  await mkdir(`k8s/overlays/${env}`, options)
+  for (let i = 0; i < envConfig.length; i++) {
+    mkdir(`k8s/base/${envConfig[i].name}`, options)
+    bases.push(`../../base/${envConfig[i].name}`)
+  }
+
   // Add matched modules to our Kustomization file
   for (let i = 0; i < matchedModules.length; i++) {
     const matched = matchedModules[i]
@@ -408,34 +416,38 @@ async function init (env = 'production', language, packageJson, options = { upda
   await confirmWriteFile('Dockerfile', language.dockerfile({ ...options, entrypoint, name, env, ports }), options)
 
   // Write a Kubernetes Deployment object
-  await writeDeployment('k8s/base/deployment.yaml', name, image, ports, secrets, { ...options, name, env, ports })
+  await writeDeployment(`k8s/base/${name}/deployment.yaml`, name, image, ports, secrets, { ...options, name, env, ports })
+  resources.push('./deployment.yaml')
 
   if (ports.length > 0) {
-    await writeService('k8s/base/service.yaml', name, ports, { ...options, name, env, ports })
+    await writeService(`k8s/base/${name}/service.yaml`, name, ports, { ...options, name, env, ports })
     resources.push('./service.yaml')
     if (uri) {
-      await writeIngress('k8s/base/ingress.yaml', name, uri, ports[0], { ...options, name, env, ports })
+      await writeIngress(`k8s/base/${name}/ingress.yaml`, name, uri, ports[0], { ...options, name, env, ports })
       resources.push('./ingress.yaml')
     }
   }
 
   // Write Kustomization and Skaffold configuration
   await writeSkaffold('skaffold.yaml', config.envs, { ...options, language, name, image, env, ports })
-  await writeKustomization('k8s/base/kustomization.yaml', { ...options, name, env, ports, resources, secrets: [] })
+  await writeKustomization(`k8s/base/${name}/kustomization.yaml`, { ...options, name, env, ports, resources, secrets: [] })
   await writeKustomization(`k8s/overlays/${env}/kustomization.yaml`, { ...options, name, env, ports, bases, secrets })
 
   // Write supporting files - note that it's very important that users ignore secrets!!!
   // TODO: We don't really offer any sort of solution for secrets management (git-crypt probably fits best)
-  await writeTextLine('.gitignore', 'k8s/overlays/*/secrets/*', { ...options, append: true, dontPrune: true })
-  await writeTextLine('.dockerignore', 'k8s', { ...options, append: true, dontPrune: true })
+  await writeTextLine('.gitignore', 'k8s/overlays/*/secrets/*', { ...options, append: true, dontPrune: true, force: true })
+  await writeTextLine('.dockerignore', 'k8s', { ...options, append: true, dontPrune: true, force: true })
 
   // Finally, let's write out the result of all the questions asked to the package.json file
   // Next time deploy-node-app is run, we shouldn't need to ask the user anything!
+  artifact = Object.assign({}, artifact, { name, uri, image, entrypoint, ports, language: language.name })
+  if (!envConfig.find(a => a.entrypoint === artifact.entrypoint)) envConfig.push(artifact)
   packageJson['deploy-node-app'] = Object.assign({}, packageJson['deploy-node-app'], {
-    language: language.name,
-    ports,
     envs: Object.assign({}, (packageJson['deploy-node-app'] || {}).envs, {
-      [env]: Object.assign({}, (packageJson['deploy-node-app'] || {})[env], { uri, image, entrypoint })
+      [env]: envConfig.map(a => {
+        if (a.entrypoint === artifact.entrypoint) return Object.assign({}, a, artifact)
+        else return a
+      })
     })
   })
   packageJson.name = name
