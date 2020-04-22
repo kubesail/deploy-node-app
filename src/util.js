@@ -10,7 +10,6 @@ const diff = require('diff')
 const mkdirp = require('mkdirp')
 const inquirer = require('inquirer')
 const style = require('ansi-styles')
-const commandExists = require('command-exists')
 const got = require('got')
 
 const pipeline = util.promisify(stream.pipeline)
@@ -149,8 +148,8 @@ const execSyncWithEnv = (cmd, options = {}) => {
     output = execSync(cmd, mergedOpts)
   } catch (err) {
     if (mergedOpts.catchErr) {
-      fatal(`Command "${cmd}" failed to run: "${err.message}"`)
-      process.exit(1)
+      debug('execSync failure:', { stdout: err.stdout.toString(), stderr: err.stderr.toString(), path: process.env.PATH })
+      return fatal(`Command "${cmd}" failed to run: "${err.message}"`)
     } else {
       throw err
     }
@@ -162,31 +161,25 @@ const execSyncWithEnv = (cmd, options = {}) => {
 async function ensureBinaries (options) {
   const nodeModulesPath = path.join(options.target, 'node_modules/.bin/skaffold')
   const existsInNodeModules = fs.existsSync(nodeModulesPath)
-  const existsInPath = commandExists.sync('skaffold')
+  const existsInPath = execSyncWithEnv('which skaffold')
+  debug('ensureBinaries skaffold:', existsInPath)
   if (!existsInNodeModules && !existsInPath) {
-    const { downloadSkaffold } = await inquirer.prompt([
-      {
-        name: 'downloadSkaffold',
-        type: 'confirm',
-        message: 'Can\'t find a local "skaffold" installed - Try to download one automatically?'
-      }
-    ])
-    if (!downloadSkaffold) return fatal('Please install skaffold manually - see https://skaffold.dev/docs/install/')
     let skaffoldUri = ''
+    const skaffoldVersion = 'v1.8.0'
     switch (process.platform) {
       case 'darwin':
-        skaffoldUri = 'https://storage.googleapis.com/skaffold/releases/latest/skaffold-darwin-amd64'; break
+        skaffoldUri = `https://storage.googleapis.com/skaffold/releases/${skaffoldVersion}/skaffold-darwin-amd64`; break
       case 'linux':
-        skaffoldUri = 'https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64'; break
+        skaffoldUri = `https://storage.googleapis.com/skaffold/releases/${skaffoldVersion}/skaffold-linux-amd64`; break
       case 'win32':
-        skaffoldUri = 'https://storage.googleapis.com/skaffold/releases/latest/skaffold-windows-amd64.exe'; break
+        skaffoldUri = `https://storage.googleapis.com/skaffold/releases/${skaffoldVersion}/skaffold-windows-amd64.exe`; break
       default:
         return fatal('Can\'t determine platform! Please download skaffold manually - see https://skaffold.dev/docs/install/')
     }
     if (skaffoldUri) await pipeline(got.stream(skaffoldUri), fs.createWriteStream(nodeModulesPath))
   }
 
-  return existsInPath ? execSyncWithEnv('which skaffold') : nodeModulesPath
+  return existsInPath || nodeModulesPath
 }
 
 function promptUserForValue (name, { message, validate, defaultValue, type = 'input', defaultToProjectName }) {

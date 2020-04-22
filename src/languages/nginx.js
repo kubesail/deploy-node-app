@@ -5,7 +5,7 @@ const inquirer = require('inquirer')
 module.exports = {
   name: 'nginx',
   suggestedPorts: [8080],
-  suggestedEntrypoints: ['index.html', 'index.htm'],
+  suggestedEntrypoints: ['index.html', 'index.htm', 'public/index.html'],
 
   detect: async (options) => {
     // Look for common node.js based frontend packages
