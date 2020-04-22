@@ -28,10 +28,14 @@ module.exports = {
     return looksLikeNode
   },
 
-  dockerfile: ({ entrypoint, ports }) => {
+  entrypoint: (entrypoint) => {
     if (!entrypoint.startsWith('npm') && !entrypoint.startsWith('node')) {
       entrypoint = 'node ' + entrypoint
     }
+    return entrypoint
+  },
+
+  dockerfile: () => {
     return [
       `FROM node:${process.versions.node.split('.')[0]}\n`,
       '# We\'ll install a few common requirements here - if you have no native modules, you can safely remove the following RUN command',
@@ -41,14 +45,13 @@ module.exports = {
       'USER node',
       'RUN mkdir /home/node/app',
       'WORKDIR /home/node/app\n',
-      ports.length > 0 ? `EXPOSE ${ports.join(' ')}\n` : null,
       'ARG ENV=production',
       'ENV NODE_ENV $ENV',
       'ENV CI=true\n',
       'COPY --chown=node:node package.json yarn.loc[k] .npmr[c] ./',
       'RUN yarn install',
       'COPY --chown=node:node . .\n',
-      `CMD [${entrypoint.split(' ').filter(Boolean).map(e => `"${e}"`).join(', ')}]`
+      'CMD ["node"]'
     ].join('\n')
   },
 

@@ -16,7 +16,6 @@ module.exports = {
     return [
       'FROM python:3',
       'WORKDIR /app',
-      ports.length > 0 ? `EXPOSE ${ports.join(' ')}` : '',
       'ARG ENV=production',
       'RUN apt-get update && apt-get install -yqq inotify-tools',
       'COPY requirements.txt ./',

@@ -50,13 +50,13 @@ function readLocalKubeConfig (configPathOption) {
 
 // promptForPackageName tries to get a URI-able name out of a project using validProjectNameRegex
 // This ensures a DNS-valid name for Kuberentes as well as for container registries, etc.
-async function promptForPackageName (packageName = '', force = false, message = 'What should we name this project?\n') {
+async function promptForPackageName (packageName = '', force = false, message = 'What should we name this service?\n') {
   const sanitizedName = packageName.split('.')[0]
   if (force && validProjectNameRegex.test(sanitizedName)) {
     process.stdout.write(`${WARNING} Using project name ${chalk.green.bold(sanitizedName)}...\n\n`)
     return sanitizedName
   } else {
-    const newName = packageName.replace(/[^a-z0-9]/gi, '')
+    const newName = packageName.replace(/[^a-z0-9-]/gi, '')
     if (force) return newName
     else {
       process.stdout.write('\n')
@@ -76,7 +76,7 @@ async function promptForPackageName (packageName = '', force = false, message = 
 
 async function promptForEntrypoint (language, packageJson, options) {
   if (packageJson.scripts) {
-    const choices = Object.keys(packageJson.scripts).map(k => `npm ${k}`)
+    const choices = Object.keys(packageJson.scripts).map(k => `npm run ${k}`)
     const chooseFile = 'Choose a file instead'
     choices.push(chooseFile)
     const defaultValue = choices.includes('start') ? 'start' : choices[0]
@@ -180,6 +180,18 @@ async function promptForCreateKubeContext (kubeConfig) {
   }
 }
 
+// Asks the user if there are additional artifacts they'd like to add to their configuration
+async function promptForAdditionalArtifacts (options) {
+  process.stdout.write('\n')
+  const { additionalArtifacts } = await inquirer.prompt([{
+    name: 'additionalArtifacts',
+    type: 'confirm',
+    default: false,
+    message: 'Would you like to add an additional entrypoint? (ie: Is this a mono-repo?)\n'
+  }])
+  return additionalArtifacts
+}
+
 // Write out the Kustomization files for a meta-module
 async function writeModuleConfiguration (
   env = 'production',
@@ -202,26 +214,31 @@ async function writeModuleConfiguration (
     await writeSecret(`k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod, env })
     secrets.push({ name: mod.name, path: `secrets/${mod.name}.env` })
   }
-  await writeDeployment(`${modPath}/${deploymentFile}`, mod.name, mod.image, mod.ports, secrets, options)
+  await writeDeployment(`${modPath}/${deploymentFile}`, { ...options, ...mod, secrets })
   return { base: `../../../${modPath}`, secrets }
 }
 
 function loadAndMergeYAML (path, newData) {
+  if (!newData) throw new Error('loadAndMergeYAML handed null newData')
   let yamlStr = ''
   if (fs.existsSync(path)) {
     const existing = yaml.safeLoad(fs.readFileSync(path))
     merge(existing, newData)
+    if (typeof existing !== 'object') throw new Error('loadAndMergeYAML null existing')
     yamlStr = yaml.safeDump(existing)
   } else yamlStr = yaml.safeDump(newData)
   return yamlStr + '\n'
 }
 
 // Writes a simple Kubernetes Deployment object
-async function writeDeployment (path, name, image, ports = [], secrets = [], options = { force: false, update: false }) {
+async function writeDeployment (path, options = { force: false, update: false }) {
+  const { name, entrypoint, image, ports = [], secrets = [] } = options
   const resources = { requests: { cpu: '50m', memory: '100Mi' }, limits: { cpu: '2', memory: '1500Mi' } }
   const containerPorts = ports.map(port => { return { containerPort: port } })
 
   const container = { name, image, ports: containerPorts, resources }
+  if (entrypoint) container.command = entrypoint.split(' ').filter(Boolean)
+
   if (secrets.length > 0) {
     container.envFrom = secrets.map(secret => {
       return { secretRef: { name: secret.name } }
@@ -312,7 +329,9 @@ async function writeSkaffold (path, envs, options = { force: false, update: fals
     apiVersion: 'skaffold/v2beta2',
     kind: 'Config',
     portForward: [],
-    build: { artifacts: envNames.map(e => { return { image: envs[e].image } }) },
+    build: {
+      artifacts: envNames.map(e => envs[e].map(a => { return { image: a.image } })).flat()
+    },
     profiles: envNames.map(envName => {
       const env = envs[envName]
       return {
@@ -340,20 +359,22 @@ async function generateArtifact (env = 'production', envConfig, language, packag
   // Ask some questions if we have missing info in our package.json 'deploy-node-app' configuration:
   let name = options.name || envConfig.name
   const baseDirName = path.basename(process.cwd())
-  if (validProjectNameRegex.test(baseDirName)) name = baseDirName
-  if (!name || !validProjectNameRegex.test(name)) name = await promptForPackageName(baseDirName, options.force)
+  if (!name && validProjectNameRegex.test(baseDirName)) name = baseDirName
+  if (options.forceNew || !name || !validProjectNameRegex.test(name)) name = await promptForPackageName(envConfig.find(e => e.name === name) ? `${baseDirName}-new` : baseDirName, options.force)
+  // If there is another artifact in this env with the same name but a different entrypoint, let's ask the user for a different name
+  if (options.forceNew) {
+    while (envConfig.find(e => e.name === name)) {
+      name = await promptForPackageName(`${baseDirName}-new`, options.force, 'It looks like that name is already used! Pick a different name for this artifact:\n')
+    }
+  }
 
   // If create a kube config if none already exists
   await promptForCreateKubeContext(readLocalKubeConfig(options.config))
 
   // Entrypoint:
-  const entrypoint = options.entrypoint || envConfig[0].entrypoint || await promptForEntrypoint(language, packageJson, options)
+  let entrypoint = options.entrypoint || (envConfig[0] && envConfig[0].entrypoint) || await promptForEntrypoint(language, packageJson, options)
+  if (options.forceNew) entrypoint = await promptForEntrypoint(language, packageJson, options)
   let artifact = envConfig.find(e => e.entrypoint === entrypoint) || {}
-
-  // If there is another artifact in this env with the same name but a different entrypoint, let's ask the user for a different name
-  while (envConfig.find(e => e.name === name) && envConfig.find(e => e.name === name).entrypoint !== entrypoint) {
-    name = await promptForPackageName(baseDirName, options.force, 'It looks like that name is already used! Pick a different name for this artifact:\n')
-  }
 
   // Container ports:
   let ports = options.ports || artifact.ports
@@ -384,10 +405,11 @@ async function generateArtifact (env = 'production', envConfig, language, packag
   }
 
   // Write Dockerfile based on our language
-  await confirmWriteFile('Dockerfile', language.dockerfile({ ...options, entrypoint, name, env, ports }), options)
+  await confirmWriteFile('Dockerfile', language.dockerfile({ ...options, entrypoint, name, env }), options)
 
   // Write a Kubernetes Deployment object
-  await writeDeployment(`k8s/base/${name}/deployment.yaml`, name, image, ports, secrets, { ...options, name, env, ports })
+  await mkdir(`k8s/base/${name}`, options)
+  await writeDeployment(`k8s/base/${name}/deployment.yaml`, { ...options, name, entrypoint, image, ports, secrets })
   resources.push('./deployment.yaml')
 
   if (ports.length > 0) {
@@ -445,7 +467,23 @@ async function init (env = 'production', language, packageJson, options = { upda
     bases.push(base)
   }
 
-  envConfig = await generateArtifact(env, envConfig, language, packageJson, options)
+  const numberOfArtifacts = envConfig.length
+  for (let i = 0; i < envConfig.length; i++) {
+    envConfig = await generateArtifact(env, envConfig, language, packageJson, { ...options, ...envConfig[i] })
+  }
+
+  if (numberOfArtifacts === 0 || options.update) {
+    while (await promptForAdditionalArtifacts(options)) {
+      const newConfig = await generateArtifact(env, envConfig, language, packageJson, { ...options, forceNew: true })
+      envConfig = envConfig.map(e => {
+        if (newConfig.name === e.name) return newConfig
+        return e
+      })
+    }
+  }
+
+  envConfig.forEach(e => bases.push(`../../base/${e.name}`))
+
   const envs = Object.assign({}, (packageJson['deploy-node-app'] || {}).envs, { [env]: envConfig })
   packageJson['deploy-node-app'] = Object.assign({}, packageJson['deploy-node-app'], { envs })
 
