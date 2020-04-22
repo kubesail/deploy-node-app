@@ -52,7 +52,7 @@ module.exports = {
     ].join('\n')
   },
 
-  artifact: (env, { image }) => {
+  artifact: (env, image) => {
     return {
       image,
       sync: {},
