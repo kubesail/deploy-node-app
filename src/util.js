@@ -213,13 +213,12 @@ function generateRandomStr (length = 16) {
   }
 }
 
-async function readPackageJson (options) {
-  let packageJson = {}
+async function readDNAConfig (options) {
+  let dnaConfig = {}
   try {
-    packageJson = JSON.parse(await readFile(path.join(options.target, './package.json')))
+    dnaConfig = JSON.parse(await readFile(path.join(options.target, '.dna.json')))
   } catch (_err) {}
-  packageJson['deploy-node-app'] = packageJson['deploy-node-app'] || {}
-  return packageJson
+  return dnaConfig
 }
 
 // Idempotently writes a line of text to a file
@@ -246,6 +245,6 @@ module.exports = {
   confirmWriteFile,
   writeTextLine,
   execSyncWithEnv,
-  readPackageJson,
+  readDNAConfig,
   promptUserForValue
 }

@@ -4,7 +4,6 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const readFile = require('util').promisify(fs.readFile)
 const chalk = require('chalk')
 const inquirer = require('inquirer')
 const { isFQDN } = require('validator')
@@ -13,7 +12,7 @@ const merge = require('lodash/merge')
 const style = require('ansi-styles')
 const getKubesailConfig = require('get-kubesail-config')
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
-const { fatal, log, debug, mkdir, cleanupWrittenFiles, readPackageJson, ensureBinaries, writeTextLine, execSyncWithEnv, confirmWriteFile } = require('./util')
+const { fatal, log, debug, mkdir, cleanupWrittenFiles, readDNAConfig, ensureBinaries, writeTextLine, execSyncWithEnv, confirmWriteFile } = require('./util')
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const WARNING = `${style.yellow.open}!!${style.yellow.close}`
 
@@ -74,20 +73,23 @@ async function promptForPackageName (packageName = '', force = false, message = 
   }
 }
 
-async function promptForEntrypoint (language, packageJson, options) {
-  if (packageJson.scripts) {
-    const choices = Object.keys(packageJson.scripts).map(k => `npm run ${k}`)
-    const chooseFile = 'Choose a file instead'
-    choices.push(chooseFile)
-    const defaultValue = choices.includes('start') ? 'start' : choices[0]
-    const { entrypoint } = await inquirer.prompt([{
-      name: 'entrypoint',
-      type: 'list',
-      message: 'Which command starts your application? (From package.json)',
-      default: defaultValue,
-      choices
-    }])
-    if (entrypoint && entrypoint !== chooseFile) return entrypoint
+async function promptForEntrypoint (language, options) {
+  if (fs.existsSync('./package.json')) {
+    const packageJson = JSON.parse(fs.readFileSync('./package.json'))
+    if (packageJson.scripts) {
+      const choices = Object.keys(packageJson.scripts).map(k => `npm run ${k}`)
+      const chooseFile = 'Choose a file instead'
+      choices.push(chooseFile)
+      const defaultValue = choices.includes('start') ? 'start' : choices[0]
+      const { entrypoint } = await inquirer.prompt([{
+        name: 'entrypoint',
+        type: 'list',
+        message: 'Which command starts your application? (From package.json)',
+        default: defaultValue,
+        choices
+      }])
+      if (entrypoint && entrypoint !== chooseFile) return entrypoint
+    }
   }
 
   const suggestedDefaultPaths = language.suggestedEntrypoints || ['src/index.js', 'index.js', 'index.py', 'src/index.py', 'public/index.html', 'main.py', 'server.py', 'index.html']
@@ -355,8 +357,8 @@ async function writeSkaffold (path, envs, options = { force: false, update: fals
   }), options)
 }
 
-async function generateArtifact (env = 'production', envConfig, language, packageJson, options = { update: false, force: false }) {
-  // Ask some questions if we have missing info in our package.json 'deploy-node-app' configuration:
+async function generateArtifact (env = 'production', envConfig, language, config, options = { update: false, force: false }) {
+  // Ask some questions if we have missing info in our 'deploy-node-app' configuration:
   let name = options.name || envConfig.name
   const baseDirName = path.basename(process.cwd())
   if (!name && validProjectNameRegex.test(baseDirName)) name = baseDirName
@@ -372,8 +374,8 @@ async function generateArtifact (env = 'production', envConfig, language, packag
   await promptForCreateKubeContext(readLocalKubeConfig(options.config))
 
   // Entrypoint:
-  let entrypoint = options.entrypoint || (envConfig[0] && envConfig[0].entrypoint) || await promptForEntrypoint(language, packageJson, options)
-  if (options.forceNew) entrypoint = await promptForEntrypoint(language, packageJson, options)
+  let entrypoint = options.entrypoint || (envConfig[0] && envConfig[0].entrypoint) || await promptForEntrypoint(language, options)
+  if (options.forceNew) entrypoint = await promptForEntrypoint(language, options)
   let artifact = envConfig.find(e => e.entrypoint === entrypoint) || {}
 
   // Container ports:
@@ -384,9 +386,6 @@ async function generateArtifact (env = 'production', envConfig, language, packag
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
   let uri = options.address || artifact.uri || ''
   if (ports.length > 0 && uri === undefined) uri = await promptForIngress()
-
-  // Container image:
-  const image = options.image ? options.image : (artifact.image ? artifact.image : await promptForImageName(name, artifact.image))
 
   // Secrets will track secrets created by our dependencies which need to be written out to Kubernetes Secrets
   const secrets = []
@@ -409,7 +408,7 @@ async function generateArtifact (env = 'production', envConfig, language, packag
 
   // Write a Kubernetes Deployment object
   await mkdir(`k8s/base/${name}`, options)
-  await writeDeployment(`k8s/base/${name}/deployment.yaml`, { ...options, name, entrypoint, image, ports, secrets })
+  await writeDeployment(`k8s/base/${name}/deployment.yaml`, { ...options, name, entrypoint, ports, secrets })
   resources.push('./deployment.yaml')
 
   if (ports.length > 0) {
@@ -424,24 +423,19 @@ async function generateArtifact (env = 'production', envConfig, language, packag
   // Write Kustomization configuration
   await writeKustomization(`k8s/base/${name}/kustomization.yaml`, { ...options, env, ports, resources, secrets: [] })
 
-  // Finally, let's write out the result of all the questions asked to the package.json file
-  // Next time deploy-node-app is run, we shouldn't need to ask the user anything!
-  artifact = Object.assign({}, artifact, { name, uri, image, entrypoint, ports, language: language.name })
-
+  // Return the new, full configuration for this environment
+  artifact = Object.assign({}, artifact, { name, uri, image: options.image, entrypoint, ports, language: language.name })
   if (!envConfig.find(a => a.entrypoint === artifact.entrypoint)) envConfig.push(artifact)
-
   return envConfig.map(a => {
     if (a.entrypoint === artifact.entrypoint) return Object.assign({}, a, artifact)
     else return a
   })
 }
 
-async function init (env = 'production', language, packageJson, options = { update: false, force: false }) {
-  const config = packageJson['deploy-node-app']
+async function init (env = 'production', language, config, options = { update: false, force: false }) {
   if (!config.envs || !config.envs[env]) config.envs = { [env]: [] }
   if (!validProjectNameRegex.test(env)) return fatal(`Invalid env "${env}" provided!`)
   let envConfig = config.envs[env]
-  if (!envConfig[0]) envConfig[0] = {}
 
   // Find service modules we support
   const matchedModules = language.matchModules ? await language.matchModules(metaModules, options) : []
@@ -459,6 +453,10 @@ async function init (env = 'production', language, packageJson, options = { upda
   const bases = []
   let secrets = []
 
+  // Container image (Note that we assume one Docker image per project, even if there are multiple entrypoints / artifacts)
+  // Users with multi-language mono-repos probably should eject and design their own Skaffold configuration :)
+  const image = options.image ? options.image : (envConfig[0] && envConfig[0].image ? envConfig[0].image : await promptForImageName(path.basename(process.cwd())))
+
   // Add matched modules to our Kustomization file
   for (let i = 0; i < matchedModules.length; i++) {
     const matched = matchedModules[i]
@@ -467,14 +465,19 @@ async function init (env = 'production', language, packageJson, options = { upda
     bases.push(base)
   }
 
-  const numberOfArtifacts = envConfig.length
+  // Re-generate our artifacts
+  const numberOfArtifactsAtStart = parseInt(envConfig.length, 10) // De-reference
   for (let i = 0; i < envConfig.length; i++) {
-    envConfig = await generateArtifact(env, envConfig, language, packageJson, { ...options, ...envConfig[i] })
+    envConfig = await generateArtifact(env, envConfig, language, config, { ...options, ...envConfig[i], image })
   }
-
-  if (numberOfArtifacts === 0 || options.update) {
+  // Always generateArtifact if there are no artifacts
+  if (numberOfArtifactsAtStart === 0) {
+    envConfig = await generateArtifact(env, envConfig, language, config, { ...options, image })
+  }
+  // If we're writing our very first artifact, or if we've explictly called --add
+  if (numberOfArtifactsAtStart === 0 || options.add) {
     while (await promptForAdditionalArtifacts(options)) {
-      const newConfig = await generateArtifact(env, envConfig, language, packageJson, { ...options, forceNew: true })
+      const newConfig = await generateArtifact(env, envConfig, language, config, { ...options, image, forceNew: true })
       envConfig = envConfig.map(e => {
         if (newConfig.name === e.name) return newConfig
         return e
@@ -483,9 +486,8 @@ async function init (env = 'production', language, packageJson, options = { upda
   }
 
   envConfig.forEach(e => bases.push(`../../base/${e.name}`))
-
-  const envs = Object.assign({}, (packageJson['deploy-node-app'] || {}).envs, { [env]: envConfig })
-  packageJson['deploy-node-app'] = Object.assign({}, packageJson['deploy-node-app'], { envs })
+  const envs = Object.assign({}, config.envs, { [env]: envConfig })
+  config = Object.assign({}, config, { envs })
 
   // Write supporting files - note that it's very important that users ignore secrets!!!
   // TODO: We don't really offer any sort of solution for secrets management (git-crypt probably fits best)
@@ -494,7 +496,7 @@ async function init (env = 'production', language, packageJson, options = { upda
 
   await writeKustomization(`k8s/overlays/${env}/kustomization.yaml`, { ...options, env, bases, secrets })
   await writeSkaffold('skaffold.yaml', envs, options)
-  await confirmWriteFile('package.json', JSON.stringify(packageJson, null, 2) + '\n', { ...options, update: true, force: options.force || options.write, dontPrune: true })
+  await confirmWriteFile('.dna.json', JSON.stringify(config, null, 2) + '\n', { ...options, update: true, force: true, dontPrune: true })
 }
 
 module.exports = async function DeployNodeApp (env, action, options) {
@@ -504,8 +506,7 @@ module.exports = async function DeployNodeApp (env, action, options) {
     else action = 'deploy'
   }
   const skaffoldPath = await ensureBinaries(options)
-  const packageJson = await readPackageJson(options)
-  const config = packageJson['deploy-node-app']
+  const config = await readDNAConfig(options)
 
   let language
   for (let i = 0; i < languages.length; i++) {
@@ -533,7 +534,7 @@ module.exports = async function DeployNodeApp (env, action, options) {
     options.write = true
     options.update = true
   }
-  await init(env, language, packageJson, options)
+  await init(env, language, config, options)
 
   if (action === 'init') {
     // Already done!

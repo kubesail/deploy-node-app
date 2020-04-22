@@ -25,6 +25,7 @@ program
   .option('-t, --target <path/to/project>', 'Target project directory', '.')
   .option('-c, --config <path/to/kubeconfig>', 'Kubernetes configuration file', '~/.kube/config')
   .option('-m, --modules <redis,postgres,mongodb>', 'Explicitly add modules')
+  .option('--add', 'Add an additional build target')
   .option('--language <name>', 'Override language detection')
   .option('--project-name <name>', 'Answer the project name question')
   .option('--entrypoint <entrypoint>', 'Answer the entrypoint question')
@@ -42,6 +43,7 @@ deployNodeApp(env, action, {
   force: program.force || false,
   config: program.config === '~/.kube/config' ? null : program.config,
   modules: (program.modules || '').split(',').filter(Boolean),
+  add: program.add || false,
   target: program.target || '.',
   labels: (program.label || '').split(',').map(k => k.split('=').filter(Boolean)).filter(Boolean),
   name: program.projectName,
