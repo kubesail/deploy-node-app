@@ -78,7 +78,7 @@ async function promptForEntrypoint (language, options) {
     const packageJson = JSON.parse(fs.readFileSync('./package.json'))
     if (packageJson.scripts) {
       const choices = Object.keys(packageJson.scripts).map(k => `npm run ${k}`)
-      const chooseFile = 'Choose a file instead'
+      const chooseFile = 'Choose a file or command instead'
       choices.push(chooseFile)
       const defaultValue = choices.includes('start') ? 'start' : choices[0]
       const { entrypoint } = await inquirer.prompt([{
@@ -434,7 +434,8 @@ async function generateArtifact (env = 'production', envConfig, language, config
 }
 
 async function init (env = 'production', language, config, options = { update: false, force: false }) {
-  if (!config.envs || !config.envs[env]) config.envs = { [env]: [] }
+  if (!config.envs) config.envs = []
+  if (!config.envs[env]) config.envs[env] = []
   if (!validProjectNameRegex.test(env)) return fatal(`Invalid env "${env}" provided!`)
   let envConfig = config.envs[env]
 
@@ -487,8 +488,7 @@ async function init (env = 'production', language, config, options = { update: f
   }
 
   envConfig.forEach(e => bases.push(`../../base/${e.name}`))
-  const envs = Object.assign({}, config.envs, { [env]: envConfig })
-  config = Object.assign({}, config, { envs })
+  config.envs[env] = envConfig
 
   // Write supporting files - note that it's very important that users ignore secrets!!!
   // TODO: We don't really offer any sort of solution for secrets management (git-crypt probably fits best)
@@ -496,7 +496,7 @@ async function init (env = 'production', language, config, options = { update: f
   await writeTextLine('.dockerignore', 'k8s', { ...options, append: true, dontPrune: true, force: true })
 
   await writeKustomization(`k8s/overlays/${env}/kustomization.yaml`, { ...options, env, bases, secrets })
-  await writeSkaffold('skaffold.yaml', envs, options)
+  await writeSkaffold('skaffold.yaml', config.envs, options)
   await confirmWriteFile('.dna.json', JSON.stringify(config, null, 2) + '\n', { ...options, update: true, force: true, dontPrune: true })
 }
 
@@ -535,6 +535,7 @@ module.exports = async function DeployNodeApp (env, action, options) {
     options.write = true
     options.update = true
   }
+  if (action === 'add') options.update = true
   await init(env, language, config, options)
 
   if (action === 'init') {
