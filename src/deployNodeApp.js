@@ -169,7 +169,7 @@ async function promptForIngress () {
 
 // Asks the user if they'd like to create a KubeSail.com context, if they have none.
 async function promptForCreateKubeContext (kubeConfig) {
-  if (!kubeConfig.clusters || !kubeConfig.clusters.length) {
+  if (!kubeConfig || !kubeConfig.clusters || !kubeConfig.clusters.length) {
     process.stdout.write('\n')
     const { createKubeSailContext } = await inquirer.prompt([{
       name: 'createKubeSailContext',
@@ -358,7 +358,7 @@ async function writeSkaffold (path, envs, options = { force: false, update: fals
   }), options)
 }
 
-async function generateArtifact (env = 'production', envConfig, language, config, options = { update: false, force: false }) {
+async function generateArtifact (env = 'production', envConfig, language, options = { update: false, force: false }) {
   // Ask some questions if we have missing info in our 'deploy-node-app' configuration:
   let name = options.name || envConfig.name
   const baseDirName = path.basename(process.cwd())
@@ -372,7 +372,9 @@ async function generateArtifact (env = 'production', envConfig, language, config
   }
 
   // If create a kube config if none already exists
-  await promptForCreateKubeContext(readLocalKubeConfig(options.config))
+  if (options.prompts) {
+    await promptForCreateKubeContext(readLocalKubeConfig(options.config))
+  }
 
   // Entrypoint:
   let entrypoint = options.entrypoint || (envConfig[0] && envConfig[0].entrypoint) || await promptForEntrypoint(language, options)
@@ -470,16 +472,16 @@ async function init (env = 'production', language, config, options = { update: f
   // Re-generate our artifacts
   const numberOfArtifactsAtStart = parseInt(envConfig.length, 10) // De-reference
   for (let i = 0; i < envConfig.length; i++) {
-    envConfig = await generateArtifact(env, envConfig, language, config, { ...options, ...envConfig[i], image })
+    envConfig = await generateArtifact(env, envConfig, language, { ...options, ...envConfig[i], image })
   }
   // Always generateArtifact if there are no artifacts
   if (numberOfArtifactsAtStart === 0) {
-    envConfig = await generateArtifact(env, envConfig, language, config, { ...options, image })
+    envConfig = await generateArtifact(env, envConfig, language, { ...options, image })
   }
   // If we're writing our very first artifact, or if we've explictly called --add
   if (numberOfArtifactsAtStart === 0 || options.add) {
     while (await promptForAdditionalArtifacts(options)) {
-      const newConfig = await generateArtifact(env, envConfig, language, config, { ...options, image, forceNew: true })
+      const newConfig = await generateArtifact(env, envConfig, language, { ...options, image, forceNew: true })
       envConfig = envConfig.map(e => {
         if (newConfig.name === e.name) return newConfig
         return e
