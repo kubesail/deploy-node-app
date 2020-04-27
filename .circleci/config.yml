@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: kubesail/dna-test:12
+      - image: kubesail/dna-test:13
     working_directory: ~/repo
     steps:
       - checkout
