@@ -5,12 +5,13 @@ const { execSyncWithEnv } = require('../src/util')
 const describe = global.describe
 const it = global.it
 const cmd = 'node ./src/index.js'
-const debug = false // Turns on execSyncWithEnv printouts
+const debug = process.env.DNA_DEBUG // Turns on execSyncWithEnv printouts
 
-function wroteDNAConfigProperly (path, { language, uri, image, entrypoint, context, ports }) {
+function wroteDNAConfigProperly (path, { language, uri, image, entrypoint, ports }) {
   const cfg = JSON.parse(fs.readFileSync(`${path}/.dna.json`))
-  expect(cfg.envs.production[0].language).to.equal(language)
+  console.log(`${path}/.dna.json`, { cfg })
   expect(cfg.envs.production[0]).to.be.an('Object')
+  expect(cfg.envs.production[0].language).to.equal(language)
   expect(cfg.envs.production[0].uri).to.equal(uri)
   expect(cfg.envs.production[0].image).to.equal(image)
   expect(cfg.envs.production[0].entrypoint).to.equal(entrypoint)
@@ -19,7 +20,6 @@ function wroteDNAConfigProperly (path, { language, uri, image, entrypoint, conte
 
 function wroteYamlStructureProperly (path, name, env = 'production') {
   expect(fs.existsSync(`${path}/k8s/base/${name}/deployment.yaml`), 'deployment.yaml').to.equal(true)
-
   expect(fs.existsSync(`${path}/k8s/base/${name}/kustomization.yaml`), 'kustomization.yaml').to.equal(true)
   expect(fs.existsSync(`${path}/k8s/overlays/${env}/kustomization.yaml`), `overlays/${env}/kustomization.yaml`).to.equal(true)
   expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
@@ -36,7 +36,6 @@ describe('Deploy-node-app init', function () {
         uri: 'nginx-simple.test',
         image: 'kubesail/nginx-simple-test',
         entrypoint: 'public/index.html',
-        context: 'test',
         ports: [8000]
       }
 
@@ -69,7 +68,6 @@ describe('Deploy-node-app init', function () {
         uri: 'nodejs-simple.test',
         image: 'kubesail/nodejs-simple-test',
         entrypoint: 'index.js',
-        context: 'test',
         ports: [8001]
       }
       it('Runs init without exception', () => {
@@ -99,7 +97,6 @@ describe('Deploy-node-app init', function () {
         uri: 'nodejs-postgres.test',
         image: 'kubesail/nodejs-postgres-test',
         entrypoint: 'index.js',
-        context: 'test',
         ports: [8002]
       }
       it('Runs init without exception', () => {
@@ -129,7 +126,6 @@ describe('Deploy-node-app init', function () {
         uri: 'nodejs-redis.test',
         image: 'kubesail/nodejs-redis-test',
         entrypoint: 'index.js',
-        context: 'test',
         ports: [8003]
       }
       it('Runs init without exception', () => {
@@ -159,7 +155,6 @@ describe('Deploy-node-app init', function () {
         uri: 'nodejs-mongodb.test',
         image: 'kubesail/nodejs-mongodb-test',
         entrypoint: 'src/index.js',
-        context: 'test',
         ports: [8005]
       }
       it('Runs init without exception', () => {
@@ -190,7 +185,6 @@ describe('Deploy-node-app init', function () {
           uri: 'python-simple.test',
           image: 'kubesail/python-simple-test',
           entrypoint: 'server.py',
-          context: 'test',
           ports: [8005]
         }
         it('Runs init without exception', () => {
@@ -220,7 +214,6 @@ describe('Deploy-node-app init', function () {
           uri: 'python-redis.test',
           image: 'kubesail/python-redis-test',
           entrypoint: 'server.py',
-          context: 'test',
           ports: [8005]
         }
         it('Runs init without exception', () => {
@@ -253,7 +246,6 @@ describe('Deploy-node-app init', function () {
         uri: 'ruby-simple.test',
         image: 'kubesail/ruby-simple-test',
         entrypoint: 'index.rb',
-        context: 'test',
         ports: [8080]
       }
       it('Runs init without exception', () => {
@@ -283,7 +275,6 @@ describe('Deploy-node-app init', function () {
         uri: 'ruby-redis.test',
         image: 'kubesail/ruby-redis-test',
         entrypoint: 'app/index.rb',
-        context: 'test',
         ports: [8080]
       }
       it('Runs init without exception', () => {

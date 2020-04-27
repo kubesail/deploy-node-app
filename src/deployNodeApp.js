@@ -434,7 +434,7 @@ async function generateArtifact (env = 'production', envConfig, language, config
 }
 
 async function init (env = 'production', language, config, options = { update: false, force: false }) {
-  if (!config.envs) config.envs = []
+  if (!config.envs) config.envs = {}
   if (!config.envs[env]) config.envs[env] = []
   if (!validProjectNameRegex.test(env)) return fatal(`Invalid env "${env}" provided!`)
   let envConfig = config.envs[env]
@@ -494,7 +494,6 @@ async function init (env = 'production', language, config, options = { update: f
   // TODO: We don't really offer any sort of solution for secrets management (git-crypt probably fits best)
   await writeTextLine('.gitignore', 'k8s/overlays/*/secrets/*', { ...options, append: true, dontPrune: true, force: true })
   await writeTextLine('.dockerignore', 'k8s', { ...options, append: true, dontPrune: true, force: true })
-
   await writeKustomization(`k8s/overlays/${env}/kustomization.yaml`, { ...options, env, bases, secrets })
   await writeSkaffold('skaffold.yaml', config.envs, options)
   await confirmWriteFile('.dna.json', JSON.stringify(config, null, 2) + '\n', { ...options, update: true, force: true, dontPrune: true })

@@ -8,5 +8,5 @@ function finish {
 trap finish ERR
 
 bash ./bin/clean.sh
-./node_modules/.bin/mocha ./test/index.js
+./node_modules/.bin/mocha ./test/index.js --bail
 bash ./bin/clean.sh
