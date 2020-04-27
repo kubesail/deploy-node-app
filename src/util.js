@@ -148,11 +148,6 @@ const execSyncWithEnv = (cmd, options = {}) => {
     output = execSync(cmd, mergedOpts)
   } catch (err) {
     if (mergedOpts.catchErr) {
-      debug('execSync failure:', {
-        stdout: (err.stdout || '').toString(),
-        stderr: (err.stderr || '').toString(),
-        path: process.env.PATH
-      })
       return fatal(`Command "${cmd}" failed to run: "${err.message}"`)
     } else {
       throw err
@@ -220,14 +215,13 @@ async function readDNAConfig (options) {
 
 // Idempotently writes a line of text to a file
 async function writeTextLine (file, line, options = { update: false, force: false, append: false }) {
+  if (!options.write) return
   let existingContent
   try {
-    existingContent = (await readFile(file)).toString()
+    existingContent = (await readFile(path.join(options.target, file))).toString()
   } catch (_err) {}
   if (!existingContent || (existingContent && existingContent.indexOf(line) === -1 && options.append)) {
-    await confirmWriteFile(file, [existingContent, line].filter(Boolean).join('\n'), {
-      ...options, force: filesWritten.includes(file) || options.force
-    })
+    await confirmWriteFile(file, [existingContent, line].filter(Boolean).join('\n'), options)
   }
 }
 

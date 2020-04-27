@@ -9,7 +9,6 @@ const debug = process.env.DNA_DEBUG // Turns on execSyncWithEnv printouts
 
 function wroteDNAConfigProperly (path, { language, uri, image, entrypoint, ports }) {
   const cfg = JSON.parse(fs.readFileSync(`${path}/.dna.json`))
-  console.log(`${path}/.dna.json`, { cfg })
   expect(cfg.envs.production[0]).to.be.an('Object')
   expect(cfg.envs.production[0].language).to.equal(language)
   expect(cfg.envs.production[0].uri).to.equal(uri)
@@ -39,15 +38,18 @@ describe('Deploy-node-app init', function () {
         ports: [8000]
       }
 
-      it('Runs init without writing anything except the package.json', () => {
+      it('Runs init and writes out supporting config', () => {
         execSyncWithEnv(`${cmd} production init \
           --no-prompts -t ${path} --config=kubeconfig.yaml \
           --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
           --ports=${opts.ports.join(',')} --address=${opts.uri} \
-          --image=${opts.image}`, { catchErr: false, debug })
+          --image=${opts.image}`, { catchErr: false, debug, stdio: 'inherit' })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
+        expect(fs.existsSync(`${path}/.dna.json`, '.dna.json')).to.equal(true)
+        expect(fs.existsSync(`${path}/.dockerignore`, '.dockerignore')).to.equal(true)
+        expect(fs.existsSync(`${path}/.gitignore`, '.gitignore')).to.equal(true)
       })
 
       it('Updates DNA Config properly', () => {
@@ -75,7 +77,7 @@ describe('Deploy-node-app init', function () {
             --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
             --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
             --ports=${opts.ports.join(',')} --address=${opts.uri} \
-            --image=${opts.image}`, { catchErr: false, debug })
+            --image=${opts.image}`, { catchErr: false, debug, stdio: 'inherit' })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
@@ -104,7 +106,7 @@ describe('Deploy-node-app init', function () {
             --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
             --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
             --ports=${opts.ports.join(',')} --address=${opts.uri} \
-            --image=${opts.image}`, { catchErr: false, debug })
+            --image=${opts.image}`, { catchErr: false, debug, stdio: 'inherit' })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
@@ -133,7 +135,7 @@ describe('Deploy-node-app init', function () {
             --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
             --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
             --ports=${opts.ports.join(',')} --address=${opts.uri} \
-            --image=${opts.image}`, { catchErr: false, debug })
+            --image=${opts.image}`, { catchErr: false, debug, stdio: 'inherit' })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
@@ -162,7 +164,7 @@ describe('Deploy-node-app init', function () {
               --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
-              --image=${opts.image}`, { catchErr: false, debug })
+              --image=${opts.image}`, { catchErr: false, debug, stdio: 'inherit' })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
@@ -192,7 +194,7 @@ describe('Deploy-node-app init', function () {
                 --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
                 --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
                 --ports=${opts.ports.join(',')} --address=${opts.uri} \
-                --image=${opts.image}`, { catchErr: false, debug })
+                --image=${opts.image}`, { catchErr: false, debug, stdio: 'inherit' })
           expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
           expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
           expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
@@ -221,7 +223,7 @@ describe('Deploy-node-app init', function () {
                 --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
                 --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
                 --ports=${opts.ports.join(',')} --address=${opts.uri} \
-                --image=${opts.image}`, { catchErr: false, debug })
+                --image=${opts.image}`, { catchErr: false, debug, stdio: 'inherit' })
           expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
           expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
           expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
@@ -253,7 +255,7 @@ describe('Deploy-node-app init', function () {
               --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
-              --image=${opts.image}`, { catchErr: false, debug })
+              --image=${opts.image}`, { catchErr: false, debug, stdio: 'inherit' })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
@@ -282,7 +284,7 @@ describe('Deploy-node-app init', function () {
               --no-prompts -t ${path} --config=kubeconfig.yaml --update --force \
               --language=${opts.language} --project-name=${opts.name} --entrypoint=${opts.entrypoint} \
               --ports=${opts.ports.join(',')} --address=${opts.uri} \
-              --image=${opts.image}`, { catchErr: false, debug })
+              --image=${opts.image}`, { catchErr: false, debug, stdio: 'inherit' })
         expect(fs.existsSync(`${path}/k8s`), 'k8s/').to.equal(true)
         expect(fs.existsSync(`${path}/Dockerfile`, 'Dockerfile')).to.equal(true)
         expect(fs.existsSync(`${path}/skaffold.yaml`, 'skaffold.yaml')).to.equal(true)
