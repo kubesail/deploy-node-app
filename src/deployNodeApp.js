@@ -158,8 +158,11 @@ async function promptForIngress () {
     name: 'ingressUri',
     type: 'input',
     message:
-        'Is this an HTTP service? If so, what URI should be used to access it? (Will not be exposed to the internet if left blank)',
+        'Is this an HTTP service? If so, what public URI will be used to access it? (Will not be exposed to the internet if left blank)',
     validate: input => {
+      if (input && (input.startsWith('http://') || input.startsWith('https://'))) {
+        input = input.replace(/^https?:\/\//, '')
+      }
       if (input && !isFQDN(input)) return 'Either leave blank, or input a valid DNS name (ie: my.example.com)'
       else return true
     }
