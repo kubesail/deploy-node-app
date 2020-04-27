@@ -165,7 +165,7 @@ const execSyncWithEnv = (cmd, options = {}) => {
 async function ensureBinaries (options) {
   const nodeModulesPath = path.join(options.target, 'node_modules/.bin/skaffold')
   const existsInNodeModules = fs.existsSync(nodeModulesPath)
-  const existsInPath = execSyncWithEnv('which skaffold')
+  const existsInPath = execSyncWithEnv('which skaffold', { catchErr: true })
   debug('ensureBinaries skaffold:', existsInPath)
   if (!existsInNodeModules && !existsInPath) {
     let skaffoldUri = ''
