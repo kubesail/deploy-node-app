@@ -176,7 +176,10 @@ async function ensureBinaries (options) {
       default:
         return fatal('Can\'t determine platform! Please download skaffold manually - see https://skaffold.dev/docs/install/')
     }
-    if (skaffoldUri) await pipeline(got.stream(skaffoldUri), fs.createWriteStream(nodeModulesPath))
+    if (skaffoldUri) {
+      await pipeline(got.stream(skaffoldUri), fs.createWriteStream(nodeModulesPath))
+      fs.chmodSync(nodeModulesPath, 0o775)
+    }
   }
 
   return existsInPath || nodeModulesPath
