@@ -7,7 +7,7 @@ const readFile = util.promisify(fs.readFile)
 
 module.exports = {
   name: 'nodejs',
-  suggestedPorts: [8000],
+  suggestedPorts: [3000],
 
   detect: async function (options) {
     const pkgPath = path.join(options.target, './package.json')
