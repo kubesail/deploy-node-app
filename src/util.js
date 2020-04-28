@@ -148,7 +148,8 @@ const execSyncWithEnv = (cmd, options = {}) => {
     output = execSync(cmd, mergedOpts)
   } catch (err) {
     if (mergedOpts.catchErr) {
-      return fatal(`Command "${cmd}" failed to run: "${err.message}"`)
+      debug(`Command "${cmd}" failed to run: "${err.message}"`)
+      return false
     } else {
       throw err
     }
@@ -160,7 +161,7 @@ const execSyncWithEnv = (cmd, options = {}) => {
 async function ensureBinaries (options) {
   const nodeModulesPath = path.join(options.target, 'node_modules/.bin/skaffold')
   const existsInNodeModules = fs.existsSync(nodeModulesPath)
-  const existsInPath = execSyncWithEnv('which skaffold', { catchErr: true })
+  const existsInPath = execSyncWithEnv('which skaffold')
   debug('ensureBinaries skaffold:', existsInPath)
   if (!existsInNodeModules && !existsInPath) {
     let skaffoldUri = ''

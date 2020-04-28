@@ -543,11 +543,11 @@ module.exports = async function DeployNodeApp (env, action, options) {
     // Already done!
   } else if (action === 'deploy') {
     await deployMessage()
-    execSyncWithEnv(`${skaffoldPath} run --profile=${env}`, { stdio: 'inherit' })
+    execSyncWithEnv(`${skaffoldPath} run --profile=${env}`, { stdio: 'inherit', catchErr: false })
   } else if (action === 'dev') {
-    execSyncWithEnv(`${skaffoldPath} dev --profile=${env} --port-forward`, { stdio: 'inherit' })
+    execSyncWithEnv(`${skaffoldPath} dev --profile=${env} --port-forward`, { stdio: 'inherit', catchErr: false })
   } else if (['build'].includes(action)) {
-    execSyncWithEnv(`${skaffoldPath} ${action} --profile=${env}`, { stdio: 'inherit' })
+    execSyncWithEnv(`${skaffoldPath} ${action} --profile=${env}`, { stdio: 'inherit', catchErr: false })
   } else {
     process.stderr.write(`No such action "${action}"!\n`)
     process.exit(1)
