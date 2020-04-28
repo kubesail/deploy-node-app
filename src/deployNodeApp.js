@@ -161,7 +161,7 @@ async function promptForIngress () {
     const { context } = kubeConfig.contexts.find(c => c.name === kubeConfig['current-context'])
     const { cluster } = kubeConfig.clusters.find(c => c.name === context.cluster)
     if (cluster && cluster.server && cluster.server.indexOf('kubesail.com')) {
-      supportsAutogeneratingIngress = `${context.namespace}.${cluster.server.replace('https://', '')}`
+      supportsAutogeneratingIngress = true
     }
   }
 
@@ -169,17 +169,17 @@ async function promptForIngress () {
   const { ingressUri } = await inquirer.prompt([{
     name: 'ingressUri',
     type: 'input',
-    message: 'What domain will this use?',
-    default: supportsAutogeneratingIngress || '',
+    message: 'What domain will this use?' + (supportsAutogeneratingIngress ? ' (leave blank for auto-generate)' : ''),
     validate: input => {
       if (input && (input.startsWith('http://') || input.startsWith('https://'))) {
         input = input.replace(/^https?:\/\//, '')
       }
       if (input && !isFQDN(input)) return 'Please input a valid DNS name (ie: my.example.com)'
-      else return true
+      else return supportsAutogeneratingIngress
     }
   }])
-  return ingressUri || ''
+  if (!ingressUri && supportsAutogeneratingIngress) return true
+  else return ingressUri
 }
 
 async function promptForLanguage (options) {
@@ -309,15 +309,18 @@ async function writeService (path, name, ports, options = { force: false, update
 }
 
 // Writes a simple Kubernetes Ingress object
-async function writeIngress (path, name, host, port, options = { force: false, update: false }) {
+async function writeIngress (path, name, uri, port, options = { force: false, update: false }) {
+  const rule = { http: { paths: [{ path: '/', backend: { serviceName: name, servicePort: port } }] } }
+  const spec = { rules: [rule] }
+  if (typeof uri === 'string') {
+    spec.tls = [{ hosts: [uri], secretName: name }]
+    rule.host = uri
+  }
   await confirmWriteFile(path, loadAndMergeYAML(path, {
     apiVersion: 'networking.k8s.io/v1beta1',
     kind: 'Ingress',
     metadata: { name },
-    spec: {
-      tls: [{ hosts: [host], secretName: name }],
-      rules: [{ host, http: { paths: [{ path: '/', backend: { serviceName: name, servicePort: port } }] } }]
-    }
+    spec
   }), options)
 }
 
