@@ -547,7 +547,7 @@ module.exports = async function DeployNodeApp (env, action, options) {
     const context = kubeConfig.contexts.find(c => c.name === kubeConfig['current-context'])
     if (context.namespace) SKAFFOLD_NAMESPACE = context.namespace
   }
-  const execOptions = { stdio: 'inherit', catchErr: false, envs: { SKAFFOLD_NAMESPACE } }
+  const execOptions = { stdio: 'inherit', catchErr: false, env: { SKAFFOLD_NAMESPACE } }
 
   if (action === 'init') {
     // Already done!
