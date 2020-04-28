@@ -165,6 +165,7 @@ async function promptForIngress () {
     }
   }
 
+  process.stdout.write('\n')
   const { ingressUri } = await inquirer.prompt([{
     name: 'ingressUri',
     type: 'input',
