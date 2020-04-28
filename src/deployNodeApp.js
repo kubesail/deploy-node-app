@@ -219,7 +219,7 @@ async function writeModuleConfiguration (
     await writeSecret(`k8s/overlays/${env}/secrets/${mod.name}.env`, { ...options, ...mod, env })
     secrets.push({ name: mod.name, path: `secrets/${mod.name}.env` })
   }
-  await writeDeployment(`${modPath}/${deploymentFile}`, { ...options, ...mod, secrets })
+  await writeDeployment(`${modPath}/${deploymentFile}`, null, { ...options, ...mod, secrets })
   return { base: `../../../${modPath}`, secrets }
 }
 
@@ -236,13 +236,15 @@ function loadAndMergeYAML (path, newData) {
 }
 
 // Writes a simple Kubernetes Deployment object
-async function writeDeployment (path, options = { force: false, update: false }) {
+async function writeDeployment (path, language, options = { force: false, update: false }) {
   const { name, entrypoint, image, ports = [], secrets = [] } = options
   const resources = { requests: { cpu: '50m', memory: '100Mi' }, limits: { cpu: '2', memory: '1500Mi' } }
   const containerPorts = ports.map(port => { return { containerPort: port } })
 
   const container = { name, image, ports: containerPorts, resources }
   if (entrypoint) container.command = entrypoint.split(' ').filter(Boolean)
+  if (language && language.entrypoint) container.command = language.entrypoint(container.command)
+  if (!container.command) delete container.command
 
   if (secrets.length > 0) {
     container.envFrom = secrets.map(secret => {
@@ -414,7 +416,7 @@ async function generateArtifact (env = 'production', envConfig, language, option
 
   // Write a Kubernetes Deployment object
   await mkdir(`k8s/base/${name}`, options)
-  await writeDeployment(`k8s/base/${name}/deployment.yaml`, { ...options, name, entrypoint, ports, secrets })
+  await writeDeployment(`k8s/base/${name}/deployment.yaml`, language, { ...options, name, entrypoint, ports, secrets })
   resources.push('./deployment.yaml')
 
   if (ports.length > 0) {
@@ -430,7 +432,7 @@ async function generateArtifact (env = 'production', envConfig, language, option
   await writeKustomization(`k8s/base/${name}/kustomization.yaml`, { ...options, env, ports, resources, secrets: [] })
 
   // Return the new, full configuration for this environment
-  artifact = Object.assign({}, artifact, { name, uri, image: options.image, entrypoint, ports })
+  artifact = Object.assign({}, artifact, { name, uri, image: options.image, entrypoint, ports, language: language.name })
   if (!envConfig.find(a => a.entrypoint === artifact.entrypoint)) envConfig.push(artifact)
   return envConfig.map(a => {
     if (a.entrypoint === artifact.entrypoint) return Object.assign({}, a, artifact)
@@ -494,7 +496,6 @@ async function init (env = 'production', language, config, options = { update: f
 
   envConfig.forEach(e => bases.push(`../../base/${e.name}`))
   config.envs[env] = envConfig
-  config.language = language.name
 
   // Write supporting files - note that it's very important that users ignore secrets!!!
   // TODO: We don't really offer any sort of solution for secrets management (git-crypt probably fits best)
