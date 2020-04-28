@@ -430,7 +430,7 @@ async function generateArtifact (env = 'production', envConfig, language, option
   await writeKustomization(`k8s/base/${name}/kustomization.yaml`, { ...options, env, ports, resources, secrets: [] })
 
   // Return the new, full configuration for this environment
-  artifact = Object.assign({}, artifact, { name, uri, image: options.image, entrypoint, ports, language: language.name })
+  artifact = Object.assign({}, artifact, { name, uri, image: options.image, entrypoint, ports })
   if (!envConfig.find(a => a.entrypoint === artifact.entrypoint)) envConfig.push(artifact)
   return envConfig.map(a => {
     if (a.entrypoint === artifact.entrypoint) return Object.assign({}, a, artifact)
@@ -494,6 +494,7 @@ async function init (env = 'production', language, config, options = { update: f
 
   envConfig.forEach(e => bases.push(`../../base/${e.name}`))
   config.envs[env] = envConfig
+  config.language = language.name
 
   // Write supporting files - note that it's very important that users ignore secrets!!!
   // TODO: We don't really offer any sort of solution for secrets management (git-crypt probably fits best)
@@ -544,9 +545,10 @@ module.exports = async function DeployNodeApp (env, action, options) {
 
   let SKAFFOLD_NAMESPACE = 'default'
   if (kubeConfig && kubeConfig['current-context'] && kubeConfig.contexts) {
-    const context = kubeConfig.contexts.find(c => c.name === kubeConfig['current-context'])
+    const { context } = kubeConfig.contexts.find(c => c.name === kubeConfig['current-context'])
     if (context.namespace) SKAFFOLD_NAMESPACE = context.namespace
   }
+
   const execOptions = {
     stdio: 'inherit',
     catchErr: false,
