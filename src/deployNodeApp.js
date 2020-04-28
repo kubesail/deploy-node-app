@@ -153,20 +153,46 @@ async function promptForPorts (existingPorts = [], language) {
 
 async function promptForIngress () {
   process.stdout.write('\n')
+  const { isHttp } = await inquirer.prompt([{ name: 'isHttp', type: 'confirm', default: true, message: 'Is this an HTTP service?' }])
+  if (!isHttp) return false
+
+  let supportsAutogeneratingIngress = false
+  if (kubeConfig && kubeConfig['current-context'] && kubeConfig.contexts) {
+    const { context } = kubeConfig.contexts.find(c => c.name === kubeConfig['current-context'])
+    const { cluster } = kubeConfig.clusters.find(c => c.name === context.cluster)
+    if (cluster && cluster.server && cluster.server.indexOf('kubesail.com')) {
+      supportsAutogeneratingIngress = `${context.namespace}.${cluster.server.replace('https://', '')}`
+    }
+  }
+
   const { ingressUri } = await inquirer.prompt([{
     name: 'ingressUri',
     type: 'input',
-    message:
-        'Is this an HTTP service? If so, what public URI will be used to access it? (Will not be exposed to the internet if left blank)',
+    message: 'What domain will this use?',
+    default: supportsAutogeneratingIngress || '',
     validate: input => {
       if (input && (input.startsWith('http://') || input.startsWith('https://'))) {
         input = input.replace(/^https?:\/\//, '')
       }
-      if (input && !isFQDN(input)) return 'Either leave blank, or input a valid DNS name (ie: my.example.com)'
+      if (input && !isFQDN(input)) return 'Please input a valid DNS name (ie: my.example.com)'
       else return true
     }
   }])
   return ingressUri || ''
+}
+
+async function promptForLanguage (options) {
+  if (options.language) {
+    const found = languages.find(l => l.name === options.language)
+    if (found) return found
+    else {
+      log(`No such language ${options.language}`)
+    }
+  }
+  for (let i = 0; i < languages.length; i++) {
+    if (await languages[i].detect(options)) return languages[i]
+  }
+  return fatal('Unable to determine what sort of project this is. If it\'s a real project, please let us know at https://github.com/kubesail/deploy-node-app/issues and we\'ll add support!')
 }
 
 // Asks the user if they'd like to create a KubeSail.com context, if they have none.
@@ -242,9 +268,10 @@ async function writeDeployment (path, language, options = { force: false, update
   const containerPorts = ports.map(port => { return { containerPort: port } })
 
   const container = { name, image, ports: containerPorts, resources }
-  if (entrypoint) container.command = entrypoint.split(' ').filter(Boolean)
+  if (entrypoint) container.command = entrypoint
   if (language && language.entrypoint) container.command = language.entrypoint(container.command)
   if (!container.command) delete container.command
+  else container.command.split(' ').filter(Boolean)
 
   if (secrets.length > 0) {
     container.envFrom = secrets.map(secret => {
@@ -362,7 +389,7 @@ async function writeSkaffold (path, envs, options = { force: false, update: fals
   }), options)
 }
 
-async function generateArtifact (env = 'production', envConfig, language, options = { update: false, force: false }) {
+async function generateArtifact (env = 'production', envConfig, options = { update: false, force: false }) {
   // Ask some questions if we have missing info in our 'deploy-node-app' configuration:
   let name = options.name || envConfig.name
   const baseDirName = path.basename(process.cwd())
@@ -375,11 +402,7 @@ async function generateArtifact (env = 'production', envConfig, language, option
     }
   }
 
-  // If create a kube config if none already exists
-  if (options.prompts) {
-    readLocalKubeConfig(options.config)
-    await promptForCreateKubeContext()
-  }
+  const language = await promptForLanguage(options)
 
   // Entrypoint:
   let entrypoint = options.entrypoint || (envConfig[0] && envConfig[0].entrypoint) || await promptForEntrypoint(language, options)
@@ -440,14 +463,54 @@ async function generateArtifact (env = 'production', envConfig, language, option
   })
 }
 
-async function init (env = 'production', language, config, options = { update: false, force: false }) {
+async function init (env = 'production', config, options = { update: false, force: false }) {
   if (!config.envs) config.envs = {}
   if (!config.envs[env]) config.envs[env] = []
   if (!validProjectNameRegex.test(env)) return fatal(`Invalid env "${env}" provided!`)
-  let envConfig = config.envs[env]
+  let artifacts = config.envs[env]
+  const bases = []
+  let secrets = []
 
-  // Find service modules we support
-  const matchedModules = language.matchModules ? await language.matchModules(metaModules, options) : []
+  // Container image (Note that we assume one Docker image per project, even if there are multiple entrypoints / artifacts)
+  // Users with multi-language mono-repos probably should eject and design their own Skaffold configuration :)
+  const image = options.image ? options.image : (artifacts[0] && artifacts[0].image ? artifacts[0].image : await promptForImageName(path.basename(process.cwd())))
+
+  // If create a kube config if none already exists
+  if (options.prompts) {
+    readLocalKubeConfig(options.config)
+    await promptForCreateKubeContext()
+  }
+
+  // Re-generate our artifacts
+  const numberOfArtifactsAtStart = parseInt(artifacts.length, 10) // De-reference
+  for (let i = 0; i < artifacts.length; i++) {
+    artifacts = await generateArtifact(env, artifacts, { ...options, ...artifacts[i], image })
+  }
+  // Always generateArtifact if there are no artifacts
+  if (numberOfArtifactsAtStart === 0) {
+    artifacts = await generateArtifact(env, artifacts, { ...options, image })
+  }
+  // If we're writing our very first artifact, or if we've explicitly called --add
+  if (numberOfArtifactsAtStart === 0 || options.add) {
+    while (await promptForAdditionalArtifacts(options)) {
+      const newConfig = await generateArtifact(env, artifacts, { ...options, image, forceNew: true })
+      artifacts = artifacts.map(e => {
+        if (newConfig.name === e.name) return newConfig
+        return e
+      })
+    }
+  }
+
+  const matchedModules = []
+  artifacts.forEach(async artifact => {
+    bases.push(`../../base/${artifact.name}`)
+    // Find service modules we support
+    if (artifact.language.matchModules) {
+      (await artifact.language.matchModules(metaModules, options).map(mod => {
+        if (!matchedModules.find(n => n === mod.name)) matchedModules.push(mod)
+      }))
+    }
+  })
 
   // Add explicitly chosen modules as well
   const chosenModules = [].concat(config.modules || [], options.modules).filter((v, i, s) => s.indexOf(v) === i)
@@ -459,13 +522,6 @@ async function init (env = 'production', language, config, options = { update: f
   }
   if (matchedModules.length > 0) debug(`Adding configuration for submodules: "${matchedModules.join(', ')}"`)
 
-  const bases = []
-  let secrets = []
-
-  // Container image (Note that we assume one Docker image per project, even if there are multiple entrypoints / artifacts)
-  // Users with multi-language mono-repos probably should eject and design their own Skaffold configuration :)
-  const image = options.image ? options.image : (envConfig[0] && envConfig[0].image ? envConfig[0].image : await promptForImageName(path.basename(process.cwd())))
-
   // Add matched modules to our Kustomization file
   for (let i = 0; i < matchedModules.length; i++) {
     const matched = matchedModules[i]
@@ -474,28 +530,7 @@ async function init (env = 'production', language, config, options = { update: f
     bases.push(base)
   }
 
-  // Re-generate our artifacts
-  const numberOfArtifactsAtStart = parseInt(envConfig.length, 10) // De-reference
-  for (let i = 0; i < envConfig.length; i++) {
-    envConfig = await generateArtifact(env, envConfig, language, { ...options, ...envConfig[i], image })
-  }
-  // Always generateArtifact if there are no artifacts
-  if (numberOfArtifactsAtStart === 0) {
-    envConfig = await generateArtifact(env, envConfig, language, { ...options, image })
-  }
-  // If we're writing our very first artifact, or if we've explictly called --add
-  if (numberOfArtifactsAtStart === 0 || options.add) {
-    while (await promptForAdditionalArtifacts(options)) {
-      const newConfig = await generateArtifact(env, envConfig, language, { ...options, image, forceNew: true })
-      envConfig = envConfig.map(e => {
-        if (newConfig.name === e.name) return newConfig
-        return e
-      })
-    }
-  }
-
-  envConfig.forEach(e => bases.push(`../../base/${e.name}`))
-  config.envs[env] = envConfig
+  config.envs[env] = artifacts
 
   // Write supporting files - note that it's very important that users ignore secrets!!!
   // TODO: We don't really offer any sort of solution for secrets management (git-crypt probably fits best)
@@ -515,21 +550,6 @@ module.exports = async function DeployNodeApp (env, action, options) {
   const skaffoldPath = await ensureBinaries(options)
   const config = await readDNAConfig(options)
 
-  let language
-  for (let i = 0; i < languages.length; i++) {
-    if (
-      (options.language && options.language === languages[i].name) ||
-      (config.language && config.language === languages[i].name) ||
-      (!options.language && await languages[i].detect(options))
-    ) {
-      language = languages[i]
-      break
-    }
-  }
-  if (!language) {
-    return fatal('Unable to determine what sort of project this is. If it\'s a real project, please let us know at https://github.com/kubesail/deploy-node-app/issues and we\'ll add support!')
-  }
-
   if (!options.write) process.on('beforeExit', () => cleanupWrittenFiles(options))
 
   async function deployMessage () {
@@ -542,7 +562,7 @@ module.exports = async function DeployNodeApp (env, action, options) {
     options.update = true
   }
   if (action === 'add') options.update = true
-  await init(env, language, config, options)
+  await init(env, config, options)
 
   let SKAFFOLD_NAMESPACE = 'default'
   if (kubeConfig && kubeConfig['current-context'] && kubeConfig.contexts) {
