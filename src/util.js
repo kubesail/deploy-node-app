@@ -162,7 +162,6 @@ async function ensureBinaries (options) {
   const nodeModulesPath = path.join(options.target, 'node_modules/.bin/skaffold')
   const existsInNodeModules = fs.existsSync(nodeModulesPath)
   const existsInPath = execSyncWithEnv('which skaffold')
-  debug('ensureBinaries skaffold:', existsInPath)
   if (!existsInNodeModules && !existsInPath) {
     let skaffoldUri = ''
     const skaffoldVersion = 'v1.8.0'
@@ -177,6 +176,7 @@ async function ensureBinaries (options) {
         return fatal('Can\'t determine platform! Please download skaffold manually - see https://skaffold.dev/docs/install/')
     }
     if (skaffoldUri) {
+      log(`Downloading skaffold ${skaffoldVersion} to ${nodeModulesPath}...`)
       await pipeline(got.stream(skaffoldUri), fs.createWriteStream(nodeModulesPath))
       fs.chmodSync(nodeModulesPath, 0o775)
     }
