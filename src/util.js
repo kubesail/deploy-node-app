@@ -159,8 +159,9 @@ const execSyncWithEnv = (cmd, options = {}) => {
 
 // Ensures other applications are installed (eg: skaffold)
 async function ensureBinaries (options) {
-  const nodeModulesPath = path.join(options.target, 'node_modules/.bin/skaffold')
-  const existsInNodeModules = fs.existsSync(nodeModulesPath)
+  const nodeModulesPath = `${options.target}/node_modules/.bin`
+  const skaffoldPath = `${nodeModulesPath}/skaffold`
+  const existsInNodeModules = fs.existsSync(skaffoldPath)
   const existsInPath = execSyncWithEnv('which skaffold')
   if (!existsInNodeModules && !existsInPath) {
     let skaffoldUri = ''
@@ -177,12 +178,13 @@ async function ensureBinaries (options) {
     }
     if (skaffoldUri) {
       log(`Downloading skaffold ${skaffoldVersion} to ${nodeModulesPath}...`)
-      await pipeline(got.stream(skaffoldUri), fs.createWriteStream(nodeModulesPath))
-      fs.chmodSync(nodeModulesPath, 0o775)
+      await mkdir(nodeModulesPath, options)
+      await pipeline(got.stream(skaffoldUri), fs.createWriteStream(skaffoldPath))
+      fs.chmodSync(skaffoldPath, 0o775)
     }
   }
 
-  return existsInPath || nodeModulesPath
+  return existsInPath || skaffoldPath
 }
 
 function promptUserForValue (name, { message, validate, defaultValue, type = 'input', defaultToProjectName }) {

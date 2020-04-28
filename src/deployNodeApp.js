@@ -34,17 +34,16 @@ const languages = [
 const validProjectNameRegex = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/i
 
 // Read local .kube configuration
+let kubeConfig = {}
 function readLocalKubeConfig (configPathOption) {
   const configPath = configPathOption || path.join(os.homedir(), '.kube', 'config')
   debug(`Using kube config ${configPath}`)
   if (!fs.existsSync(configPath)) return {}
-  let config = {}
   try {
-    config = yaml.safeLoad(fs.readFileSync(configPath))
+    kubeConfig = yaml.safeLoad(fs.readFileSync(configPath))
   } catch (err) {
     fatal(`It seems you have a Kubernetes config file at ${configPath}, but it is not valid yaml, or unreadable! Error: ${err.message}`)
   }
-  return config
 }
 
 // promptForPackageName tries to get a URI-able name out of a project using validProjectNameRegex
@@ -171,7 +170,7 @@ async function promptForIngress () {
 }
 
 // Asks the user if they'd like to create a KubeSail.com context, if they have none.
-async function promptForCreateKubeContext (kubeConfig) {
+async function promptForCreateKubeContext () {
   if (!kubeConfig || !kubeConfig.clusters || !kubeConfig.clusters.length) {
     process.stdout.write('\n')
     const { createKubeSailContext } = await inquirer.prompt([{
@@ -180,7 +179,7 @@ async function promptForCreateKubeContext (kubeConfig) {
       message: 'It looks like you have no Kubernetes cluster configured. Would you like to create a free Kubernetes namespace on KubeSail.com?\n'
     }])
     // getKubesailConfig will pop the users browser and return with a new valid context if the user signs up.
-    if (createKubeSailContext) return await getKubesailConfig()
+    if (createKubeSailContext) kubeConfig = await getKubesailConfig()
     fatal('You\'ll need a Kubernetes config before continuing!')
   }
 }
@@ -376,7 +375,8 @@ async function generateArtifact (env = 'production', envConfig, language, option
 
   // If create a kube config if none already exists
   if (options.prompts) {
-    await promptForCreateKubeContext(readLocalKubeConfig(options.config))
+    readLocalKubeConfig(options.config)
+    await promptForCreateKubeContext()
   }
 
   // Entrypoint:
@@ -542,15 +542,22 @@ module.exports = async function DeployNodeApp (env, action, options) {
   if (action === 'add') options.update = true
   await init(env, language, config, options)
 
+  let SKAFFOLD_NAMESPACE = 'default'
+  if (kubeConfig && kubeConfig['current-context'] && kubeConfig.contexts) {
+    const context = kubeConfig.contexts.find(c => c.name === kubeConfig['current-context'])
+    if (context.namespace) SKAFFOLD_NAMESPACE = context.namespace
+  }
+  const execOptions = { stdio: 'inherit', catchErr: false, envs: { SKAFFOLD_NAMESPACE } }
+
   if (action === 'init') {
     // Already done!
   } else if (action === 'deploy') {
     await deployMessage()
-    execSyncWithEnv(`${skaffoldPath} run --profile=${env}`, { stdio: 'inherit', catchErr: false })
+    execSyncWithEnv(`${skaffoldPath} run --profile=${env}`, execOptions)
   } else if (action === 'dev') {
-    execSyncWithEnv(`${skaffoldPath} dev --profile=${env} --port-forward`, { stdio: 'inherit', catchErr: false })
+    execSyncWithEnv(`${skaffoldPath} dev --profile=${env} --port-forward`, execOptions)
   } else if (['build'].includes(action)) {
-    execSyncWithEnv(`${skaffoldPath} ${action} --profile=${env}`, { stdio: 'inherit', catchErr: false })
+    execSyncWithEnv(`${skaffoldPath} ${action} --profile=${env}`, execOptions)
   } else {
     process.stderr.write(`No such action "${action}"!\n`)
     process.exit(1)
