@@ -7,6 +7,10 @@ module.exports = {
   suggestedPorts: [8080],
   suggestedEntrypoints: ['index.html', 'index.htm', 'public/index.html'],
 
+  entrypoint: () => {
+    return null
+  },
+
   detect: async (options) => {
     // Look for common node.js based frontend packages
     let looksLikeFrontend = false
