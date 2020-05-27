@@ -18,7 +18,11 @@ program
     env = _env
     action = _action
   })
-  .option('-w, --write', 'Write files to project (writes out Dockerfile, skaffold.yaml, etc)', false)
+  .option(
+    '-w, --write',
+    'Write files to project (writes out Dockerfile, skaffold.yaml, etc)',
+    false
+  )
   .option('-u, --update', 'Update existing files', false)
   .option('-f, --force', 'Dont prompt if possible', false)
   .option('-l, --label [foo=bar,tier=service]', 'Add labels to created Kubernetes resources')
@@ -32,7 +36,11 @@ program
   .option('--image <image>', 'Answer the image address question')
   .option('--ports <ports>', 'Answer the ports question')
   .option('--address <address>', 'Answer the ingress address question')
-  .option('--no-prompts', 'Use default values whenever possible, implies --update and --force', false)
+  .option(
+    '--no-prompts',
+    'Use default values whenever possible, implies --update and --force',
+    false
+  )
   .parse(process.argv)
 
 deployNodeApp(env, action, {
@@ -45,11 +53,19 @@ deployNodeApp(env, action, {
   modules: (program.modules || '').split(',').filter(Boolean),
   add: program.add || false,
   target: program.target || '.',
-  labels: (program.label || '').split(',').map(k => k.split('=').filter(Boolean)).filter(Boolean),
+  labels: (program.label || '')
+    .split(',')
+    .map(k => k.split('=').filter(Boolean))
+    .filter(Boolean),
   name: program.projectName,
   entrypoint: program.entrypoint || false,
   image: program.image || false,
-  ports: program.ports ? program.ports.split(',').map(p => parseInt(p, 10)).filter(Boolean) : null,
+  ports: program.ports
+    ? program.ports
+        .split(',')
+        .map(p => parseInt(p, 10))
+        .filter(Boolean)
+    : null,
   address: program.address || false,
   prompts: program.prompts
 })
