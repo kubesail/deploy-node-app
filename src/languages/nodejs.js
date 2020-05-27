@@ -17,7 +17,8 @@ module.exports = {
         const packageJson = JSON.parse(fs.readFileSync(pkgPath))
         if (packageJson) {
           if (packageJson.name && packageJson.version) looksLikeNode = true
-          if (packageJson.scripts && packageJson.scripts.start === 'react-scripts start') this.suggestedPorts = [3000]
+          if (packageJson.scripts && packageJson.scripts.start === 'react-scripts start')
+            this.suggestedPorts = [3000]
         }
       } catch {}
     }
@@ -28,7 +29,7 @@ module.exports = {
     return looksLikeNode
   },
 
-  entrypoint: (entrypoint) => {
+  entrypoint: entrypoint => {
     if (!entrypoint.startsWith('npm') && !entrypoint.startsWith('node')) {
       entrypoint = 'node ' + entrypoint
     }
@@ -38,7 +39,7 @@ module.exports = {
   dockerfile: () => {
     return [
       `FROM node:${process.versions.node.split('.')[0]}\n`,
-      '# We\'ll install a few common requirements here - if you have no native modules, you can safely remove the following RUN command',
+      "# We'll install a few common requirements here - if you have no native modules, you can safely remove the following RUN command",
       'RUN apt-get update && \\',
       '  apt-get install -yqq nginx automake build-essential curl && \\',
       '  rm -rf /var/lib/apt/lists/*\n',

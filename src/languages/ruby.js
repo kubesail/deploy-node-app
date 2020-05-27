@@ -6,7 +6,7 @@ module.exports = {
 
   dockerfile: ({ entrypoint }) => 'FROM nginx\n\nCOPY . /usr/share/html/',
 
-  detect: (options) => {
+  detect: options => {
     return fs.existsSync(path.join(options.target, 'Gemfile'))
   }
 }

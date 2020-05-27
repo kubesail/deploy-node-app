@@ -11,7 +11,7 @@ module.exports = {
     return null
   },
 
-  detect: async (options) => {
+  detect: async options => {
     // Look for common node.js based frontend packages
     let looksLikeFrontend = false
 

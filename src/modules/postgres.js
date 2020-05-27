@@ -1,4 +1,3 @@
-
 const { generateRandomStr, promptUserForValue } = require('../util')
 
 module.exports = {

@@ -7,7 +7,7 @@ const readFile = util.promisify(fs.readFile)
 module.exports = {
   name: 'python',
 
-  detect: (options) => {
+  detect: options => {
     return fs.existsSync(path.join(options.target, 'requirements.txt'))
   },
 
@@ -21,7 +21,10 @@ module.exports = {
       'COPY requirements.txt ./',
       'RUN pip install --no-cache-dir -r requirements.txt',
       'COPY . .',
-      `CMD [${entrypoint.split(' ').map(e => `"${e}"`).join(', ')}]`
+      `CMD [${entrypoint
+        .split(' ')
+        .map(e => `"${e}"`)
+        .join(', ')}]`
     ].join('\n')
   },
 
@@ -37,7 +40,9 @@ module.exports = {
     const matchedModules = []
     let requirementsFile = ''
     try {
-      requirementsFile = (await readFile(path.join(options.target, './requirements.txt'))).toString()
+      requirementsFile = (
+        await readFile(path.join(options.target, './requirements.txt'))
+      ).toString()
     } catch (err) {}
     const dependencies = requirementsFile.split('\n')
     for (let i = 0; i < dependencies.length; i++) {

@@ -21,23 +21,23 @@ const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
 const filesWritten = []
 const dirsWritten = []
 
-function debug () {
+function debug() {
   if (!process.env.DNA_DEBUG) return
   console.log(...arguments) // eslint-disable-line no-console
 }
 
-function log () {
+function log() {
   console.log(...arguments) // eslint-disable-line no-console
 }
 
 // Fatal is like log, but exits the process
-function fatal (message /*: string */) {
+function fatal(message /*: string */) {
   process.stderr.write(`${ERR_ARROWS} ${message}\n`)
   process.exit(1)
 }
 
 // Diffs two strings prettily to stdout
-function tryDiff (content /*: string */, existingData /*: string */) {
+function tryDiff(content /*: string */, existingData /*: string */) {
   const compare = diff.diffLines(existingData, content)
   compare.forEach(part =>
     process.stdout.write(
@@ -48,7 +48,7 @@ function tryDiff (content /*: string */, existingData /*: string */) {
 
 // Writes a file unless it already exists, then properly handles that
 // Can also diff before writing!
-async function confirmWriteFile (filePath, content, options = { update: false, force: false }) {
+async function confirmWriteFile(filePath, content, options = { update: false, force: false }) {
   const { update, force } = options
   const fullPath = path.join(options.target, filePath)
 
@@ -114,7 +114,7 @@ const mkdir = async (filePath, options) => {
 
 // Cleans up files written by confirmWriteFile and directories written by mkdir
 // Does not delete non-empty directories!
-const cleanupWrittenFiles = (options) => {
+const cleanupWrittenFiles = options => {
   if (options.write) return
   filesWritten.forEach(file => {
     debug(`Removing file "${file}"`)
@@ -158,7 +158,7 @@ const execSyncWithEnv = (cmd, options = {}) => {
 }
 
 // Ensures other applications are installed (eg: skaffold)
-async function ensureBinaries (options) {
+async function ensureBinaries(options) {
   const nodeModulesPath = `${options.target}/node_modules/.bin`
   const skaffoldPath = `${nodeModulesPath}/skaffold`
   const existsInNodeModules = fs.existsSync(skaffoldPath)
@@ -168,13 +168,18 @@ async function ensureBinaries (options) {
     const skaffoldVersion = 'v1.8.0'
     switch (process.platform) {
       case 'darwin':
-        skaffoldUri = `https://storage.googleapis.com/skaffold/releases/${skaffoldVersion}/skaffold-darwin-amd64`; break
+        skaffoldUri = `https://storage.googleapis.com/skaffold/releases/${skaffoldVersion}/skaffold-darwin-amd64`
+        break
       case 'linux':
-        skaffoldUri = `https://storage.googleapis.com/skaffold/releases/${skaffoldVersion}/skaffold-linux-amd64`; break
+        skaffoldUri = `https://storage.googleapis.com/skaffold/releases/${skaffoldVersion}/skaffold-linux-amd64`
+        break
       case 'win32':
-        skaffoldUri = `https://storage.googleapis.com/skaffold/releases/${skaffoldVersion}/skaffold-windows-amd64.exe`; break
+        skaffoldUri = `https://storage.googleapis.com/skaffold/releases/${skaffoldVersion}/skaffold-windows-amd64.exe`
+        break
       default:
-        return fatal('Can\'t determine platform! Please download skaffold manually - see https://skaffold.dev/docs/install/')
+        return fatal(
+          "Can't determine platform! Please download skaffold manually - see https://skaffold.dev/docs/install/"
+        )
     }
     if (skaffoldUri) {
       log(`Downloading skaffold ${skaffoldVersion} to ${nodeModulesPath}...`)
@@ -187,7 +192,10 @@ async function ensureBinaries (options) {
   return existsInPath || skaffoldPath
 }
 
-function promptUserForValue (name, { message, validate, defaultValue, type = 'input', defaultToProjectName }) {
+function promptUserForValue(
+  name,
+  { message, validate, defaultValue, type = 'input', defaultToProjectName }
+) {
   return async (existing, options) => {
     defaultValue = defaultValue || existing
     if (defaultToProjectName) defaultValue = options.name
@@ -199,7 +207,7 @@ function promptUserForValue (name, { message, validate, defaultValue, type = 'in
   }
 }
 
-function generateRandomStr (length = 16) {
+function generateRandomStr(length = 16) {
   return (existing, _options) => {
     if (existing) return existing
     return new Promise((resolve, reject) => {
@@ -211,7 +219,7 @@ function generateRandomStr (length = 16) {
   }
 }
 
-async function readDNAConfig (options) {
+async function readDNAConfig(options) {
   let dnaConfig = {}
   try {
     dnaConfig = JSON.parse(await readFile(path.join(options.target, '.dna.json')))
@@ -220,13 +228,16 @@ async function readDNAConfig (options) {
 }
 
 // Idempotently writes a line of text to a file
-async function writeTextLine (file, line, options = { update: false, force: false, append: false }) {
+async function writeTextLine(file, line, options = { update: false, force: false, append: false }) {
   if (!options.write) return
   let existingContent
   try {
     existingContent = (await readFile(path.join(options.target, file))).toString()
   } catch (_err) {}
-  if (!existingContent || (existingContent && existingContent.indexOf(line) === -1 && options.append)) {
+  if (
+    !existingContent ||
+    (existingContent && existingContent.indexOf(line) === -1 && options.append)
+  ) {
     await confirmWriteFile(file, [existingContent, line].filter(Boolean).join('\n'), options)
   }
 }
