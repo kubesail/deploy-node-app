@@ -1,6 +1,6 @@
 const fs = require('fs')
 const path = require('path')
-const inquirer = require('inquirer')
+const { prompt } = require('../util')
 
 module.exports = {
   name: 'nginx',
@@ -21,7 +21,7 @@ module.exports = {
     }
 
     if (looksLikeFrontend) {
-      const { useNginx } = await inquirer.prompt([
+      const { useNginx } = await prompt([
         {
           name: 'useNginx',
           type: 'confirm',

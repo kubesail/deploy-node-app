@@ -46,6 +46,20 @@ function tryDiff(content /*: string */, existingData /*: string */) {
   )
 }
 
+// A wrapper around prompt()
+function prompt(options) {
+  return new Promise((resolve, reject) => {
+    if (process.env.REPO_BUILDER_PROMPTS) {
+      process.stdout.write('KUBESAIL_REPO_BUILDER_PROMPTS\n')
+      setTimeout(() => {
+        process.exit(0)
+      }, 5 * 60 * 1000)
+    } else {
+      resolve(inquirer.prompt(options))
+    }
+  })
+}
+
 // Writes a file unless it already exists, then properly handles that
 // Can also diff before writing!
 async function confirmWriteFile(filePath, content, options = { update: false, force: false }) {
@@ -64,7 +78,7 @@ async function confirmWriteFile(filePath, content, options = { update: false, fo
     const SHOWDIFF_TEXT = 'Show diff'
     process.stdout.write('\n')
     const confirmUpdate = (
-      await inquirer.prompt({
+      await prompt({
         name: 'update',
         type: 'expand',
         message: `Would you like to update "${filePath}"?`,
@@ -202,7 +216,7 @@ function promptUserForValue(
     if (defaultValue && (!options.update || !options.prompts)) return defaultValue
     if (!message) message = `Module "${options.name}" needs a setting: ${name}`
     process.stdout.write('\n')
-    const values = await inquirer.prompt([{ name, type, message, validate, default: defaultValue }])
+    const values = await prompt([{ name, type, message, validate, default: defaultValue }])
     return values[name]
   }
 }
@@ -247,6 +261,7 @@ module.exports = {
   fatal,
   log,
   mkdir,
+  prompt,
   cleanupWrittenFiles,
   generateRandomStr,
   ensureBinaries,

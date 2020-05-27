@@ -17,6 +17,7 @@ const {
   log,
   debug,
   mkdir,
+  prompt,
   cleanupWrittenFiles,
   readDNAConfig,
   ensureBinaries,
@@ -75,7 +76,7 @@ async function promptForPackageName(
     if (force) return newName
     else {
       process.stdout.write('\n')
-      const { name } = await inquirer.prompt([
+      const { name } = await prompt([
         {
           name: 'name',
           type: 'input',
@@ -97,7 +98,7 @@ async function promptForEntrypoint(language, options) {
       const chooseFile = 'Choose a file or command instead'
       choices.push(chooseFile)
       const defaultValue = choices.includes('start') ? 'start' : choices[0]
-      const { entrypoint } = await inquirer.prompt([
+      const { entrypoint } = await prompt([
         {
           name: 'entrypoint',
           type: 'list',
@@ -142,7 +143,7 @@ async function promptForEntrypoint(language, options) {
   ]
   process.stdout.write('\n')
   const defaultValue = suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p)))
-  const { entrypoint } = await inquirer.prompt([
+  const { entrypoint } = await prompt([
     {
       name: 'entrypoint',
       type: 'fuzzypath',
@@ -162,7 +163,7 @@ async function promptForEntrypoint(language, options) {
 
 async function promptForImageName(projectName, existingName) {
   process.stdout.write('\n')
-  const { imageName } = await inquirer.prompt([
+  const { imageName } = await prompt([
     {
       name: 'imageName',
       type: 'input',
@@ -177,7 +178,7 @@ async function promptForImageName(projectName, existingName) {
 // Promps user for project ports and attempts to suggest best practices
 async function promptForPorts(existingPorts = [], language) {
   process.stdout.write('\n')
-  const { newPorts } = await inquirer.prompt([
+  const { newPorts } = await prompt([
     {
       name: 'newPorts',
       type: 'input',
@@ -214,7 +215,7 @@ async function promptForPorts(existingPorts = [], language) {
 
 async function promptForIngress() {
   process.stdout.write('\n')
-  const { isHttp } = await inquirer.prompt([
+  const { isHttp } = await prompt([
     { name: 'isHttp', type: 'confirm', default: true, message: 'Is this an HTTP service?' }
   ])
   if (!isHttp) return false
@@ -229,7 +230,7 @@ async function promptForIngress() {
   }
 
   process.stdout.write('\n')
-  const { ingressUri } = await inquirer.prompt([
+  const { ingressUri } = await prompt([
     {
       name: 'ingressUri',
       type: 'input',
@@ -269,7 +270,7 @@ async function promptForLanguage(options) {
 async function promptForCreateKubeContext() {
   if (!kubeConfig || !kubeConfig.clusters || !kubeConfig.clusters.length) {
     process.stdout.write('\n')
-    const { createKubeSailContext } = await inquirer.prompt([
+    const { createKubeSailContext } = await prompt([
       {
         name: 'createKubeSailContext',
         type: 'confirm',
@@ -287,7 +288,7 @@ async function promptForCreateKubeContext() {
 async function promptForAdditionalArtifacts(options) {
   if (!options.prompts) return false
   process.stdout.write('\n')
-  const { additionalArtifacts } = await inquirer.prompt([
+  const { additionalArtifacts } = await prompt([
     {
       name: 'additionalArtifacts',
       type: 'confirm',
