@@ -9,6 +9,7 @@ const chalk = require('chalk')
 const diff = require('diff')
 const mkdirp = require('mkdirp')
 const inquirer = require('inquirer')
+const readline = require('readline')
 const style = require('ansi-styles')
 const got = require('got')
 
@@ -54,6 +55,16 @@ function prompt(options) {
       setTimeout(() => {
         process.exit(0)
       }, 5 * 60 * 1000)
+    } else if (process.env.REPO_BUILDER_PROMPT_JSON) {
+      let question = options
+      if (Array.isArray(options)) {
+        question = options[0]
+      }
+      log(`KUBESAIL_REPO_BUILDER_PROMPT_JSON|${JSON.stringify(question)}`)
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+      rl.on('line', line => {
+        resolve({ [question.name]: line })
+      })
     } else {
       resolve(inquirer.prompt(options))
     }

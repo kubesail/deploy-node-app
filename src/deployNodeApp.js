@@ -156,6 +156,7 @@ async function promptForEntrypoint(language, options) {
       suggestOnly: true
     }
   ])
+  console.log('entrypoint', entrypoint)
   const response = entrypoint.replace(/\\/g, '/').replace(options.target, '.')
   if (!response) return defaultValue
   else return response
@@ -625,7 +626,7 @@ async function generateArtifact(
   })
 }
 
-async function init(env = 'production', config, options = { update: false, force: false }) {
+async function init(action, env = 'production', config, options = { update: false, force: false }) {
   if (!config.envs) config.envs = {}
   if (!config.envs[env]) config.envs[env] = []
   if (!validProjectNameRegex.test(env)) return fatal(`Invalid env "${env}" provided!`)
@@ -642,7 +643,7 @@ async function init(env = 'production', config, options = { update: false, force
     : await promptForImageName(path.basename(process.cwd()))
 
   // If create a kube config if none already exists
-  if (options.prompts) {
+  if (options.prompts && action === 'deploy') {
     readLocalKubeConfig(options.config)
     await promptForCreateKubeContext()
   }
@@ -749,7 +750,7 @@ module.exports = async function DeployNodeApp(env, action, options) {
     options.update = true
   }
   if (action === 'add') options.update = true
-  await init(env, config, options)
+  await init(action, env, config, options)
 
   let SKAFFOLD_NAMESPACE = 'default'
   if (kubeConfig && kubeConfig['current-context'] && kubeConfig.contexts) {
