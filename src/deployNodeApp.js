@@ -93,8 +93,11 @@ async function promptForPackageName(
 async function promptForEntrypoint(language, options) {
   if (fs.existsSync('./package.json')) {
     const packageJson = JSON.parse(fs.readFileSync('./package.json'))
+    const useYarn = fs.existsSync('./yarn.lock')
     if (packageJson.scripts) {
-      const choices = Object.keys(packageJson.scripts).map(k => `npm run ${k}`)
+      const choices = Object.keys(packageJson.scripts).map(k =>
+        useYarn ? `yarn ${k}` : `npm run ${k}`
+      )
       const chooseFile = 'Choose a file or command instead'
       choices.push(chooseFile)
       const defaultValue = choices.includes('start') ? 'start' : choices[0]
@@ -262,7 +265,7 @@ async function promptForLanguage(options) {
     if (await languages[i].detect(options)) return languages[i]
   }
   return fatal(
-    "Unable to determine what sort of project this is. If it's a real project, please let us know at https://github.com/kubesail/deploy-node-app/issues and we'll add support!"
+    "Unable to determine what sort of project this is. Please let us know what langauge this project is written in at https://github.com/kubesail/deploy-node-app/issues and we'll add support!"
   )
 }
 
