@@ -52,9 +52,16 @@ function prompt(options) {
   return new Promise((resolve, reject) => {
     if (process.env.REPO_BUILDER_PROMPTS) {
       process.stdout.write('KUBESAIL_REPO_BUILDER_PROMPTS\n')
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
+        log(
+          'Repo build timeout. Running with KUBESAIL_REPO_BUILDER_PROMPTS, questions must be answered in a separate process and this process resumed via SIGCONT.'
+        )
         process.exit(0)
-      }, 5 * 60 * 1000)
+      }, 30 * 60 * 1000)
+      process.on('SIGCONT', () => {
+        log('Received SIGCONT. Continuing repo build.')
+        clearTimeout(timeout)
+      })
     } else if (process.env.REPO_BUILDER_PROMPT_JSON) {
       let question = options
       if (Array.isArray(options)) {

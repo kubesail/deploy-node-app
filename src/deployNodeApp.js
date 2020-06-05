@@ -156,7 +156,6 @@ async function promptForEntrypoint(language, options) {
       suggestOnly: true
     }
   ])
-  console.log('entrypoint', entrypoint)
   const response = entrypoint.replace(/\\/g, '/').replace(options.target, '.')
   if (!response) return defaultValue
   else return response
