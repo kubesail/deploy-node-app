@@ -660,7 +660,7 @@ async function init(action, env = 'production', config, options = { update: fals
     artifacts = await generateArtifact(env, artifacts, { ...options, image })
   }
   // If we're writing our very first artifact, or if we've explicitly called --add
-  if (numberOfArtifactsAtStart === 0 || options.add) {
+  if (options.add) {
     while (await promptForAdditionalArtifacts(options)) {
       const newConfig = await generateArtifact(env, artifacts, {
         ...options,
@@ -768,6 +768,8 @@ module.exports = async function DeployNodeApp(env, action, options) {
 
   if (action === 'init') {
     // Already done!
+    log('Repo initialized')
+    process.exit(0)
   } else if (action === 'deploy') {
     await deployMessage()
     execSyncWithEnv(`${skaffoldPath} run --profile=${env}`, execOptions)

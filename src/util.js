@@ -59,7 +59,7 @@ function prompt(options) {
         process.exit(0)
       }, 30 * 60 * 1000)
       process.on('SIGCONT', () => {
-        log('Received SIGCONT. Continuing repo build.')
+        log('Prompts completed. Starting build...')
         clearTimeout(timeout)
       })
     } else if (process.env.REPO_BUILDER_PROMPT_JSON) {
