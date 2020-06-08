@@ -767,8 +767,10 @@ module.exports = async function DeployNodeApp(env, action, options) {
   }
 
   if (action === 'init') {
-    // Already done!
-    log('Repo initialized')
+    if (process.env.REPO_BUILDER_PROMPT_JSON) {
+      log(`KUBESAIL_REPO_BUILDER_INIT_OUTPUT|${JSON.stringify(config)}`)
+    }
+    log('Repo initialized2')
     process.exit(0)
   } else if (action === 'deploy') {
     await deployMessage()
