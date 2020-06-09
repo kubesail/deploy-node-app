@@ -93,8 +93,11 @@ async function promptForPackageName(
 async function promptForEntrypoint(language, options) {
   if (fs.existsSync('./package.json')) {
     const packageJson = JSON.parse(fs.readFileSync('./package.json'))
+    const useYarn = fs.existsSync('./yarn.lock')
     if (packageJson.scripts) {
-      const choices = Object.keys(packageJson.scripts).map(k => `npm run ${k}`)
+      const choices = Object.keys(packageJson.scripts).map(k =>
+        useYarn ? `yarn ${k}` : `npm run ${k}`
+      )
       const chooseFile = 'Choose a file or command instead'
       choices.push(chooseFile)
       const defaultValue = choices.includes('start') ? 'start' : choices[0]
@@ -262,7 +265,7 @@ async function promptForLanguage(options) {
     if (await languages[i].detect(options)) return languages[i]
   }
   return fatal(
-    "Unable to determine what sort of project this is. If it's a real project, please let us know at https://github.com/kubesail/deploy-node-app/issues and we'll add support!"
+    "Unable to determine what sort of project this is. Please let us know what langauge this project is written in at https://github.com/kubesail/deploy-node-app/issues and we'll add support!"
   )
 }
 
@@ -625,7 +628,7 @@ async function generateArtifact(
   })
 }
 
-async function init(env = 'production', config, options = { update: false, force: false }) {
+async function init(action, env = 'production', config, options = { update: false, force: false }) {
   if (!config.envs) config.envs = {}
   if (!config.envs[env]) config.envs[env] = []
   if (!validProjectNameRegex.test(env)) return fatal(`Invalid env "${env}" provided!`)
@@ -642,7 +645,7 @@ async function init(env = 'production', config, options = { update: false, force
     : await promptForImageName(path.basename(process.cwd()))
 
   // If create a kube config if none already exists
-  if (options.prompts) {
+  if (options.prompts && action === 'deploy') {
     readLocalKubeConfig(options.config)
     await promptForCreateKubeContext()
   }
@@ -657,7 +660,7 @@ async function init(env = 'production', config, options = { update: false, force
     artifacts = await generateArtifact(env, artifacts, { ...options, image })
   }
   // If we're writing our very first artifact, or if we've explicitly called --add
-  if (numberOfArtifactsAtStart === 0 || options.add) {
+  if (options.add) {
     while (await promptForAdditionalArtifacts(options)) {
       const newConfig = await generateArtifact(env, artifacts, {
         ...options,
@@ -749,7 +752,7 @@ module.exports = async function DeployNodeApp(env, action, options) {
     options.update = true
   }
   if (action === 'add') options.update = true
-  await init(env, config, options)
+  await init(action, env, config, options)
 
   let SKAFFOLD_NAMESPACE = 'default'
   if (kubeConfig && kubeConfig['current-context'] && kubeConfig.contexts) {
@@ -764,7 +767,11 @@ module.exports = async function DeployNodeApp(env, action, options) {
   }
 
   if (action === 'init') {
-    // Already done!
+    if (process.env.REPO_BUILDER_PROMPT_JSON) {
+      log(`KUBESAIL_REPO_BUILDER_INIT_OUTPUT|${JSON.stringify(config)}`)
+    }
+    log('Repo initialized')
+    process.exit(0)
   } else if (action === 'deploy') {
     await deployMessage()
     execSyncWithEnv(`${skaffoldPath} run --profile=${env}`, execOptions)

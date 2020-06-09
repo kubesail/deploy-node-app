@@ -9,6 +9,7 @@ const chalk = require('chalk')
 const diff = require('diff')
 const mkdirp = require('mkdirp')
 const inquirer = require('inquirer')
+const readline = require('readline')
 const style = require('ansi-styles')
 const got = require('got')
 
@@ -51,9 +52,26 @@ function prompt(options) {
   return new Promise((resolve, reject) => {
     if (process.env.REPO_BUILDER_PROMPTS) {
       process.stdout.write('KUBESAIL_REPO_BUILDER_PROMPTS\n')
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
+        log(
+          'Repo build timeout. Running with KUBESAIL_REPO_BUILDER_PROMPTS, questions must be answered in a separate process and this process resumed via SIGCONT.'
+        )
         process.exit(0)
-      }, 5 * 60 * 1000)
+      }, 30 * 60 * 1000)
+      process.on('SIGCONT', () => {
+        log('Prompts completed. Starting build...')
+        clearTimeout(timeout)
+      })
+    } else if (process.env.REPO_BUILDER_PROMPT_JSON) {
+      let question = options
+      if (Array.isArray(options)) {
+        question = options[0]
+      }
+      log(`KUBESAIL_REPO_BUILDER_PROMPT_JSON|${JSON.stringify(question)}`)
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+      rl.on('line', line => {
+        resolve({ [question.name]: line })
+      })
     } else {
       resolve(inquirer.prompt(options))
     }
