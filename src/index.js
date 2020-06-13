@@ -1,52 +1,71 @@
 #!/usr/bin/env node
-// @flow
 
-const USAGE = '[env]'
+const USAGE = '[env] [action]'
 
-const fs = require('fs')
 const program = require('commander')
+const deployNodeApp = require('./deployNodeApp')
+const dnaPackageJson = require(__dirname + '/../package.json') // eslint-disable-line
 
-const { fatal } = require('./util')
-const { deployNodeApp } = require('./deployNodeApp')
-// eslint-disable-next-line
-const dnaPackageJson = require(__dirname + '/../package.json')
-
-let packageJson
-try {
-  packageJson = JSON.parse(fs.readFileSync('package.json'))
-} catch (err) {
-  fatal('This doesn\'t appear to be a Node.js application. You may need to \'npm init\'.')
-}
-if (typeof packageJson.name !== 'string') {
-  fatal('Please add a name to your package.json and re-run')
-}
+let env
+let action
 
 program
-  .arguments('[env]')
+  .name('deploy-node-app')
+  .arguments(USAGE)
   .usage(USAGE)
   .version(dnaPackageJson.version)
+  .action((_env, _action) => {
+    env = _env
+    action = _action
+  })
   .option(
-    '--generate-default-env',
-    'Generates default environment variables, like database passwords'
+    '-w, --write',
+    'Write files to project (writes out Dockerfile, skaffold.yaml, etc)',
+    false
   )
+  .option('-u, --update', 'Update existing files', false)
+  .option('-f, --force', 'Dont prompt if possible', false)
+  .option('-l, --label [foo=bar,tier=service]', 'Add labels to created Kubernetes resources')
+  .option('-t, --target <path/to/project>', 'Target project directory', '.')
+  .option('-c, --config <path/to/kubeconfig>', 'Kubernetes configuration file', '~/.kube/config')
+  .option('-m, --modules <redis,postgres,mongodb>', 'Explicitly add modules')
+  .option('--add', 'Add an additional build target')
+  .option('--language <name>', 'Override language detection')
+  .option('--project-name <name>', 'Answer the project name question')
+  .option('--entrypoint <entrypoint>', 'Answer the entrypoint question')
+  .option('--image <image>', 'Answer the image address question')
+  .option('--ports <ports>', 'Answer the ports question')
+  .option('--address <address>', 'Answer the ingress address question')
   .option(
-    '--generate-local-ports-env',
-    'Generates environment variables for connecting to docker-compose services'
-  )
-  .option('-n, --no-build', 'Don\'t build and push docker container')
-  .option('-N, --no-confirm', 'Skip public docker hub confirmation prompt')
-  .option('-d, --no-push', 'Don\'t push to docker registry')
-  .option('-D, --no-deploy', 'Don\'t deploy to kubernetes')
-  .option('-O, --overwrite', 'Overwrite local files')
-  .option('-s, --skip metamodule', 'name of metamodule to skip')
-  .option('-i, --images', 'Images only - build and push, but only change local image tags, no other local changes')
-  .option('-f, --format [type]', 'Output config format [k8s|compose]', 'k8s')
-  .option(
-    '-o, --output [filename]',
-    'File for config output. "-" will write to stdout. Default is docker-compose.yaml or deployment.yaml depending on format'
+    '--no-prompts',
+    'Use default values whenever possible, implies --update and --force',
+    false
   )
   .parse(process.argv)
 
-// Default to production environment
-// TODO: Pass auto argument (and others) to DeployNodeApp
-deployNodeApp(packageJson, program.args[0] || 'prod', program)
+deployNodeApp(env, action, {
+  language: program.language || null,
+  action: action || 'deploy',
+  write: program.write || false,
+  update: program.update || false,
+  force: program.force || false,
+  config: program.config === '~/.kube/config' ? null : program.config,
+  modules: (program.modules || '').split(',').filter(Boolean),
+  add: program.add || false,
+  target: program.target || '.',
+  labels: (program.label || '')
+    .split(',')
+    .map(k => k.split('=').filter(Boolean))
+    .filter(Boolean),
+  name: program.projectName,
+  entrypoint: program.entrypoint || false,
+  image: program.image || false,
+  ports: program.ports
+    ? program.ports
+        .split(',')
+        .map(p => parseInt(p, 10))
+        .filter(Boolean)
+    : null,
+  address: program.address || false,
+  prompts: program.prompts
+})

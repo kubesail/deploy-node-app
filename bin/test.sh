@@ -7,16 +7,6 @@ function finish {
 }
 trap finish ERR
 
-WORKDIR=$(pwd)
-
-cd test
-yarn
-
-set -x
-
-${WORKDIR}/src/index.js --generate-default-env --overwrite
-${WORKDIR}/src/index.js --generate-local-ports-env --format compose --overwrite
-
-fgrep "REDIS_SERVICE_PORT=6379" .env
-fgrep "REDIS_SERVICE_HOST" .env
-
+bash ./bin/clean.sh
+./node_modules/.bin/mocha ./test/index.js --bail
+bash ./bin/clean.sh

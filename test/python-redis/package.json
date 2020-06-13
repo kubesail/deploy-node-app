@@ -1,0 +1,16 @@
+{
+  "deploy-node-app": {
+    "language": "python",
+    "ports": [
+      8000
+    ],
+    "envs": {
+      "dev": {
+        "uri": "",
+        "image": "example/python-redis",
+        "entrypoint": "./init.sh server.py"
+      }
+    }
+  },
+  "name": "python-redis"
+}

@@ -1,38 +1,188 @@
-// @flow
-
-const style = require('ansi-styles')
 const fs = require('fs')
 const path = require('path')
-const homedir = require('os').homedir()
-const yaml = require('js-yaml')
-const inquirer = require('inquirer')
+const readline = require('readline')
 // eslint-disable-next-line security/detect-child-process
 const execSync = require('child_process').execSync
-const commandExists = require('command-exists')
+const util = require('util')
+const crypto = require('crypto')
+const stream = require('stream')
 const chalk = require('chalk')
+const diff = require('diff')
+const mkdirp = require('mkdirp')
+const inquirer = require('inquirer')
+const style = require('ansi-styles')
+const got = require('got')
 
-const WARNING = `${style.green.open}!!${style.green.close}`
+const pipeline = util.promisify(stream.pipeline)
+const readFile = util.promisify(fs.readFile)
+const writeFile = util.promisify(fs.writeFile)
 const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
-const KUBE_CONFIG_PATH = path.join(homedir, '.kube', 'config')
-const NEW_KUBESAIL_CONTEXT = `KubeSail${style.gray.open} | Deploy on a free Kubernetes namespace${style.gray.close}`
 
-function fatal (message /*: string */) {
+// Tracks files written to during this process
+const filesWritten = []
+const dirsWritten = []
+let USABLE_SHELL = process.env.SHELL || '/bin/sh'
+
+function debug() {
+  if (!process.env.DNA_DEBUG) return
+  console.log(...arguments) // eslint-disable-line no-console
+}
+
+function log() {
+  console.log(...arguments) // eslint-disable-line no-console
+}
+
+// Fatal is like log, but exits the process
+function fatal(message /*: string */) {
   process.stderr.write(`${ERR_ARROWS} ${message}\n`)
   process.exit(1)
 }
 
-const execSyncWithEnv = (cmd, options = {}) => {
-  const mergedOpts = Object.assign({}, options, {
-    catchErr: true,
-    env: Object.assign({}, process.env, options.env)
+// Diffs two strings prettily to stdout
+function tryDiff(content /*: string */, existingData /*: string */) {
+  const compare = diff.diffLines(existingData, content)
+  compare.forEach(part =>
+    process.stdout.write(
+      part.added ? chalk.green(part.value) : part.removed ? chalk.red(part.value) : part.value
+    )
+  )
+}
+
+// A wrapper around prompt()
+function prompt(options) {
+  return new Promise((resolve, reject) => {
+    if (process.env.REPO_BUILDER_PROMPTS) {
+      process.stdout.write('KUBESAIL_REPO_BUILDER_PROMPTS\n')
+      const timeout = setTimeout(() => {
+        log(
+          'Repo build timeout. Running with KUBESAIL_REPO_BUILDER_PROMPTS, questions must be answered in a separate process and this process resumed via SIGCONT.'
+        )
+        process.exit(0)
+      }, 30 * 60 * 1000)
+      process.on('SIGCONT', () => {
+        log('Prompts completed. Starting build...')
+        clearTimeout(timeout)
+      })
+    } else if (process.env.REPO_BUILDER_PROMPT_JSON) {
+      let question = options
+      if (Array.isArray(options)) {
+        question = options[0]
+      }
+      log(`KUBESAIL_REPO_BUILDER_PROMPT_JSON|${JSON.stringify(question)}`)
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+      rl.on('line', line => {
+        resolve({ [question.name]: line })
+      })
+    } else {
+      resolve(inquirer.prompt(options))
+    }
   })
+}
+
+// Writes a file unless it already exists, then properly handles that
+// Can also diff before writing!
+async function confirmWriteFile(filePath, content, options = { update: false, force: false }) {
+  const { update, force } = options
+  const fullPath = path.join(options.target, filePath)
+
+  const exists = fs.existsSync(fullPath)
+  let doWrite = !exists
+  if (!update && exists) return false
+  else if (exists && update && !force) {
+    const existingData = (await readFile(fullPath)).toString()
+    if (content === existingData) return false
+
+    const YES_TEXT = 'Yes (update)'
+    const NO_TEXT = 'No, dont touch'
+    const SHOWDIFF_TEXT = 'Show diff'
+    process.stdout.write('\n')
+    const confirmUpdate = (
+      await prompt({
+        name: 'update',
+        type: 'expand',
+        message: `Would you like to update "${filePath}"?`,
+        choices: [
+          { key: 'Y', value: YES_TEXT },
+          { key: 'N', value: NO_TEXT },
+          { key: 'D', value: SHOWDIFF_TEXT }
+        ],
+        default: 0
+      })
+    ).update
+    if (confirmUpdate === YES_TEXT) doWrite = true
+    else if (confirmUpdate === SHOWDIFF_TEXT) {
+      tryDiff(content, existingData)
+      await confirmWriteFile(filePath, content, options)
+    }
+  } else if (force) {
+    doWrite = true
+  }
+
+  if (doWrite) {
+    try {
+      // Don't document writes to existing files - ie: never delete a users files!
+      if (!options.dontPrune && !fs.existsSync(fullPath)) filesWritten.push(fullPath)
+      await writeFile(fullPath, content)
+      debug(`Successfully wrote "${filePath}"`)
+    } catch (err) {
+      fatal(`Error writing ${filePath}: ${err.message}`)
+    }
+    return true
+  }
+}
+
+const mkdir = async (filePath, options) => {
+  const fullPath = path.join(options.target, filePath)
+  const created = await mkdirp(fullPath)
+  if (created) {
+    const dirParts = filePath.replace('./', '').split('/')
+    if (!options.dontPrune) {
+      for (let i = dirParts.length; i > 0; i--) {
+        dirsWritten.push(path.join(options.target, dirParts.slice(0, i).join(path.sep)))
+      }
+    }
+  }
+  return created
+}
+
+// Cleans up files written by confirmWriteFile and directories written by mkdir
+// Does not delete non-empty directories!
+const cleanupWrittenFiles = options => {
+  if (options.write) return
+  filesWritten.forEach(file => {
+    debug(`Removing file "${file}"`)
+    fs.unlinkSync(file)
+  })
+  const dirsToRemove = dirsWritten.filter((v, i, s) => s.indexOf(v) === i)
+  for (let i = 0; i < dirsToRemove.length; i++) {
+    const dir = dirsToRemove[i]
+    const dirParts = dir.replace('./', '').split(path.sep)
+    for (let i = dirParts.length; i >= 0; i--) {
+      const dirPart = dirParts.slice(0, i).join(path.sep)
+      if (!dirPart) continue
+      else if (fs.existsSync(dirPart) && fs.readdirSync(dirPart).length === 0) {
+        debug(`Removing directory "${dirPart}"`)
+        fs.rmdirSync(dirPart)
+      } else break
+    }
+  }
+}
+
+// Runs a shell command with our "process.env" - allows passing environment variables to skaffold, for example.
+const execSyncWithEnv = (cmd, options = {}) => {
+  const mergedOpts = Object.assign({ catchErr: true }, options, {
+    stdio: options.stdio || 'pipe',
+    cwd: process.cwd(),
+    shell: Object.prototype.hasOwnProperty.call(options, 'shell') ? options.shell : USABLE_SHELL
+  })
+  if (options.debug) log(`execSyncWithEnv: ${cmd}`)
   let output
   try {
     output = execSync(cmd, mergedOpts)
   } catch (err) {
     if (mergedOpts.catchErr) {
-      fatal(`Command "${cmd}" failed to run`)
-      process.exit(1)
+      debug(`Command "${cmd}" failed to run: "${err.message}"`)
+      return false
     } else {
       throw err
     }
@@ -40,175 +190,111 @@ const execSyncWithEnv = (cmd, options = {}) => {
   if (output) return output.toString().trim()
 }
 
-function ensureBinaries (format) {
-  if (!commandExists.sync('docker')) {
-    fatal('Error - Please install docker! https://www.docker.com/get-started')
+// Ensures other applications are installed (eg: skaffold)
+async function ensureBinaries(options) {
+  if (fs.existsSync('/bin/sh')) {
+    USABLE_SHELL = '/bin/sh'
+  } else if (fs.existsSync('/usr/bin/sh')) {
+    USABLE_SHELL = '/usr/bin/sh'
+  } else {
+    USABLE_SHELL = execSyncWithEnv('which sh', { shell: undefined })
   }
 
-  if (format === 'k8s') {
-    if (!commandExists.sync('kubectl')) {
-      fatal(
-        'Error - Please install kubectl! https://kubernetes.io/docs/tasks/tools/install-kubectl/'
-      )
-    }
-
-    try {
-      const {
-        clientVersion: { major, minor }
-      } = JSON.parse(execSyncWithEnv('kubectl version --client=true -o json'))
-
-      if (parseInt(major, 10) < 1 || parseInt(minor, 10) < 14) {
-        process.stdout.write(
-          `${style.red.open}>> deploy-node-app requires kubectl v1.14 or higher.${style.red.close}\n\n`
+  const nodeModulesPath = `${options.target}/node_modules/.bin`
+  const skaffoldPath = `${nodeModulesPath}/skaffold`
+  const existsInNodeModules = fs.existsSync(skaffoldPath)
+  const existsInPath = execSyncWithEnv('which skaffold')
+  if (!existsInNodeModules && !existsInPath) {
+    let skaffoldUri = ''
+    const skaffoldVersion = 'v1.8.0'
+    switch (process.platform) {
+      case 'darwin':
+        skaffoldUri = `https://storage.googleapis.com/skaffold/releases/${skaffoldVersion}/skaffold-darwin-amd64`
+        break
+      case 'linux':
+        skaffoldUri = `https://storage.googleapis.com/skaffold/releases/${skaffoldVersion}/skaffold-linux-amd64`
+        break
+      case 'win32':
+        skaffoldUri = `https://storage.googleapis.com/skaffold/releases/${skaffoldVersion}/skaffold-windows-amd64.exe`
+        break
+      default:
+        return fatal(
+          "Can't determine platform! Please download skaffold manually - see https://skaffold.dev/docs/install/"
         )
-        process.stdout.write('You can fix this ')
-
-        const install = chalk.cyan('brew install kubernetes-cli')
-        const upgrade = chalk.cyan('brew upgrade kubernetes-cli')
-        let cmd
-        switch (process.platform) {
-          case 'darwin':
-            cmd = `${install}\n\nor\n\n  ${upgrade}`
-            process.stdout.write(
-              `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-macos\n`
-            )
-            break
-          case 'linux':
-            cmd = `${style.cyan.open}sudo apt-get install kubectl${style.reset.open}`
-            process.stdout.write(
-              `by running\n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-linux\n`
-            )
-            break
-          case 'win32':
-            cmd = `${style.cyan.open}choco install kubernetes-cli${style.reset.open}`
-            process.stdout.write(
-              `by running \n\n  ${cmd}\n\nor by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-on-windows\n`
-            )
-            break
-          default:
-            process.stdout.write(
-              'by following the instructions at https://kubernetes.io/docs/tasks/tools/install-kubectl/'
-            )
-        }
-        process.exit(1)
-      }
-    } catch (_err) {
-      fatal('Could not determine kubectl version')
     }
+    if (skaffoldUri) {
+      log(`Downloading skaffold ${skaffoldVersion} to ${nodeModulesPath}...`)
+      await mkdir(nodeModulesPath, options)
+      await pipeline(got.stream(skaffoldUri), fs.createWriteStream(skaffoldPath))
+      fs.chmodSync(skaffoldPath, 0o775)
+    }
+  }
+
+  return existsInPath || skaffoldPath
+}
+
+function promptUserForValue(
+  name,
+  { message, validate, defaultValue, type = 'input', defaultToProjectName }
+) {
+  return async (existing, options) => {
+    defaultValue = defaultValue || existing
+    if (defaultToProjectName) defaultValue = options.name
+    if (defaultValue && (!options.update || !options.prompts)) return defaultValue
+    if (!message) message = `Module "${options.name}" needs a setting: ${name}`
+    process.stdout.write('\n')
+    const values = await prompt([{ name, type, message, validate, default: defaultValue }])
+    return values[name]
   }
 }
 
-async function getDeployTags (name, answers, shouldBuild) {
-  if (answers.name) name = answers.name
-  const tags = { name }
-  tags.shortHash = execSyncWithEnv('git rev-parse HEAD')
-    .toString()
-    .substr(0, 7)
-
-  tags.prefix = answers.registry
-  if (!answers.registryUsername && answers.registry.includes('docker.io') && shouldBuild) {
-    const { username } = await inquirer.prompt({
-      name: 'username',
-      type: 'input',
-      message: 'What is your docker hub username?',
-      validate: function (username) {
-        if (username.length <= 1) return 'Invalid username'
-        return true
-      }
+function generateRandomStr(length = 16) {
+  return (existing, _options) => {
+    if (existing) return existing
+    return new Promise((resolve, reject) => {
+      crypto.randomBytes(length, function (err, buff) {
+        if (err) throw err
+        resolve(buff.toString('hex'))
+      })
     })
-    answers.registryUsername = username
   }
-  if (answers.registry.includes('docker.io') && answers.registryUsername) {
-    tags.prefix = `${answers.registryUsername}/`
-  }
-
-  tags.image = `${tags.prefix}${name}`
-  tags.hash = `${tags.image}:${tags.shortHash}`
-  return tags
 }
 
-function readLocalKubeConfig () {
-  // Read local .kube configuration to see if the user has an existing kube context they want to use
-  let kubeContexts = []
-  if (fs.existsSync(KUBE_CONFIG_PATH)) {
-    try {
-      const kubeConfig = yaml.safeLoad(fs.readFileSync(KUBE_CONFIG_PATH))
-
-      kubeContexts = kubeContexts.concat(
-        kubeConfig.contexts
-          .map(
-            context =>
-              context.name || ((context.context && context.context.name) || context.context.cluster)
-          )
-          .filter(context => context)
-      )
-    } catch (err) {
-      fatal(
-        `It seems you have a Kubernetes config file at ${KUBE_CONFIG_PATH}, but it is not valid yaml, or unreadable!`
-      )
-    }
-  }
-
-  // TODO add minikube deployment context
-  if (kubeContexts.filter(context => context.startsWith('kubesail-')).length === 0) {
-    kubeContexts.push(NEW_KUBESAIL_CONTEXT)
-  }
-  return kubeContexts
-}
-
-function readKubeConfigNamespace (context) {
+async function readDNAConfig(options) {
+  let dnaConfig = {}
   try {
-    const kubeConfig = yaml.safeLoad(fs.readFileSync(KUBE_CONFIG_PATH))
-    const namespace = kubeConfig.contexts.find(({ name }) => name === context).context.namespace
-    return namespace
-  } catch (err) {
-    return null
-  }
+    dnaConfig = JSON.parse(await readFile(path.join(options.target, '.dna.json')))
+  } catch (_err) {}
+  return dnaConfig
 }
 
-function readLocalDockerConfig () {
-  // Read local .docker configuration to see if the user has container registries already
-  let containerRegistries = []
-  const dockerConfigPath = path.join(homedir, '.docker', 'config.json')
-  if (fs.existsSync(dockerConfigPath)) {
-    try {
-      const dockerConfig = JSON.parse(fs.readFileSync(dockerConfigPath))
-      if (!dockerConfig.auths) {
-        fatal(
-          `Your Docker config contains no registries. Try running ${chalk.cyan('docker login')}`
-        )
-        return
-      }
-      containerRegistries = containerRegistries.concat(Object.keys(dockerConfig.auths))
-    } catch (err) {
-      fatal(
-        `It seems you have a Docker config.json file at ${dockerConfigPath}, but it is not valid json, or unreadable!`
-      )
-    }
-  }
-
-  // TODO add KUBESAIL_REGISTRY
-  return containerRegistries
-}
-
-function shouldUseYarn () {
+// Idempotently writes a line of text to a file
+async function writeTextLine(file, line, options = { update: false, force: false, append: false }) {
+  if (!options.write) return
+  let existingContent
   try {
-    execSync('yarnpkg --version', { stdio: 'ignore' })
-    return true
-  } catch (e) {
-    return false
+    existingContent = (await readFile(path.join(options.target, file))).toString()
+  } catch (_err) {}
+  if (
+    !existingContent ||
+    (existingContent && existingContent.indexOf(line) === -1 && options.append)
+  ) {
+    await confirmWriteFile(file, [existingContent, line].filter(Boolean).join('\n'), options)
   }
 }
 
 module.exports = {
-  getDeployTags,
-  execSyncWithEnv,
-  readLocalKubeConfig,
-  readLocalDockerConfig,
-  readKubeConfigNamespace,
-  shouldUseYarn,
+  debug,
   fatal,
-  WARNING,
+  log,
+  mkdir,
+  prompt,
+  cleanupWrittenFiles,
+  generateRandomStr,
   ensureBinaries,
-  NEW_KUBESAIL_CONTEXT
+  confirmWriteFile,
+  writeTextLine,
+  execSyncWithEnv,
+  readDNAConfig,
+  promptUserForValue
 }

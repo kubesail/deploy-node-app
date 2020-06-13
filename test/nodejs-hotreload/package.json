@@ -1,0 +1,29 @@
+{
+  "name": "nodejs-hotreload",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "production": "node src/index.js",
+    "development": "nodemon src/index.js"
+  },
+  "deploy-node-app": {
+    "language": "nodejs",
+    "ports": [
+      8000
+    ],
+    "envs": {
+      "development": {
+        "uri": "",
+        "image": "example/hotreload",
+        "entrypoint": "npm run development"
+      }
+    }
+  },
+  "dependencies": {
+    "express": "^4.17.1"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.3"
+  }
+}

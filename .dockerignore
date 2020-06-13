@@ -10,4 +10,3 @@ test/*/*/skaffold.yaml
 test/*/*/.*
 test/nginx/simple/package.json
 kubeconfig.yaml
-test/*/.dna.json

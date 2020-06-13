@@ -1,25 +1,35 @@
 {
   "parser": "babel-eslint",
-  "extends": ["standard", "plugin:flowtype/recommended", "plugin:security/recommended"],
+  "extends": [
+    "standard",
+    "plugin:security/recommended",
+    "prettier"
+  ],
+  "plugins": ["standard", "security", "prettier"],
   "parserOptions": {
     "ecmaVersion": 7,
     "ecmaFeatures": {
-      "jsx": true,
       "modules": true
     }
   },
   "rules": {
-    "flowtype/require-valid-file-annotation": 0,
-    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "prettier/prettier": "error",
+    "no-console": [
+      "warn",
+      {
+        "allow": ["warn", "error"]
+      }
+    ],
     "no-return-assign": 0,
-    "require-await": ["error"],
-    "quotes": ["error", "single"],
+    "require-await": 0,
+    // "quotes": ["error", "single"],
     "no-return-await": 0,
     "no-unused-vars": [
       1,
       {
         "vars": "all",
-        "args": "none"
+        "args": "none",
+        "varsIgnorePattern": "^(React$|_)"
       }
     ],
     "standard/computed-property-even-spacing": 0,
@@ -27,8 +37,12 @@
     "object-curly-spacing": ["error", "always"],
     "security/detect-object-injection": 0,
     "security/detect-non-literal-fs-filename": 0,
-    "security/detect-unsafe-regex": 0
-  },
-  "plugins": ["flowtype", "prettier", "security"],
-  "settings": {}
+    "security/detect-unsafe-regex": 0,
+    "import/order": [
+      "warn",
+      {
+        "groups": ["builtin", "external", "internal"]
+      }
+    ]
+  }
 }

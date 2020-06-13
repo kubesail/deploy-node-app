@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: node:12
+      - image: kubesail/dna-test:13
     working_directory: ~/repo
     steps:
       - checkout
@@ -14,6 +14,10 @@ jobs:
       - run:
           name: Linting
           command: ./bin/lint.sh
+
+      - run:
+          name: set Kubeconfig
+          command: echo "$DNA_KUBECONFIG" | base64 -d > kubeconfig.yaml
 
       - run:
           name: Testing
