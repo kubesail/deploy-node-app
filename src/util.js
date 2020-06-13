@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+const readline = require('readline')
 // eslint-disable-next-line security/detect-child-process
 const execSync = require('child_process').execSync
 const util = require('util')
@@ -9,7 +10,6 @@ const chalk = require('chalk')
 const diff = require('diff')
 const mkdirp = require('mkdirp')
 const inquirer = require('inquirer')
-const readline = require('readline')
 const style = require('ansi-styles')
 const got = require('got')
 
@@ -173,7 +173,7 @@ const execSyncWithEnv = (cmd, options = {}) => {
   const mergedOpts = Object.assign({ catchErr: true }, options, {
     stdio: options.stdio || 'pipe',
     cwd: process.cwd(),
-    shell: options.hasOwnProperty('shell') ? options.shell : USABLE_SHELL
+    shell: Object.prototype.hasOwnProperty.call(options, 'shell') ? options.shell : USABLE_SHELL
   })
   if (options.debug) log(`execSyncWithEnv: ${cmd}`)
   let output
