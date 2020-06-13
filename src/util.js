@@ -21,6 +21,7 @@ const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
 // Tracks files written to during this process
 const filesWritten = []
 const dirsWritten = []
+let USABLE_SHELL = process.env.SHELL || '/bin/sh'
 
 function debug() {
   if (!process.env.DNA_DEBUG) return
@@ -172,7 +173,7 @@ const execSyncWithEnv = (cmd, options = {}) => {
   const mergedOpts = Object.assign({ catchErr: true }, options, {
     stdio: options.stdio || 'pipe',
     cwd: process.cwd(),
-    shell: process.env.SHELL || '/bin/sh'
+    shell: options.hasOwnProperty('shell') ? options.shell : USABLE_SHELL
   })
   if (options.debug) log(`execSyncWithEnv: ${cmd}`)
   let output
@@ -191,6 +192,14 @@ const execSyncWithEnv = (cmd, options = {}) => {
 
 // Ensures other applications are installed (eg: skaffold)
 async function ensureBinaries(options) {
+  if (fs.existsSync('/bin/sh')) {
+    USABLE_SHELL = '/bin/sh'
+  } else if (fs.existsSync('/usr/bin/sh')) {
+    USABLE_SHELL = '/usr/bin/sh'
+  } else {
+    USABLE_SHELL = execSyncWithEnv('which sh', { shell: undefined })
+  }
+
   const nodeModulesPath = `${options.target}/node_modules/.bin`
   const skaffoldPath = `${nodeModulesPath}/skaffold`
   const existsInNodeModules = fs.existsSync(skaffoldPath)
