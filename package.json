@@ -1,6 +1,6 @@
 {
   "name": "deploy-node-app",
-  "version": "2.0.12",
+  "version": "2.0.13",
   "description": "Develop and deploy Node.js apps with Kubernetes, with zero config!",
   "main": "src/index.js",
   "repository": "https://github.com/kubesail/deploy-node-app",
@@ -39,32 +39,32 @@
   "devDependencies": {
     "babel-eslint": "^10.1.0",
     "chai": "^4.2.0",
-    "eslint": "^6.8.0",
+    "eslint": "^7.2.0",
     "eslint-config-prettier": "^6.11.0",
     "eslint-config-standard": "^14.1.1",
-    "eslint-plugin-import": "^2.20.2",
+    "eslint-plugin-import": "^2.21.2",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-prettier": "^3.1.3",
     "eslint-plugin-promise": "^4.2.1",
     "eslint-plugin-security": "^1.4.0",
     "eslint-plugin-standard": "^4.0.1",
-    "mocha": "^7.1.1",
+    "mocha": "^8.0.1",
     "prettier": "^2.0.4",
-    "prettier-eslint": "^10.1.1",
+    "prettier-eslint": "^11.0.0",
     "prettier-eslint-cli": "^5.0.0"
   },
   "dependencies": {
     "ansi-styles": "^4.1.0",
-    "chalk": "^4.0.0",
+    "chalk": "^4.1.0",
     "commander": "^5.0.0",
     "diff": "^4.0.1",
     "get-kubesail-config": "^1.0.4",
-    "got": "^11.1.4",
+    "got": "^11.3.0",
     "inquirer": "^7.1.0",
     "inquirer-fuzzy-path": "^2.1.0",
     "js-yaml": "^3.13.1",
     "lodash": "^4.17.15",
     "mkdirp": "^1.0.4",
-    "validator": "^13.0.0"
+    "validator": "^13.1.1"
   }
 }
