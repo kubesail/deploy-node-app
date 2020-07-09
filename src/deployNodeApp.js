@@ -151,8 +151,7 @@ async function promptForEntrypoint(language, options) {
       const entrypointFromDocker = JSON.parse(entrypointFromDockerRaw[1])
       return entrypointFromDocker.join(' ')
     } catch (err) {}
-    defaultValue = entrypointFromDockerRaw[1].replace(/"/g, '')
-    return entrypoint
+    return entrypointFromDockerRaw[1].replace(/"/g, '')
   }
   if (options.dockerfileContents) return ''
 
