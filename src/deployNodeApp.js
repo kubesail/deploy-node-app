@@ -149,11 +149,12 @@ async function promptForEntrypoint(language, options) {
   if (entrypointFromDockerRaw) {
     try {
       const entrypointFromDocker = JSON.parse(entrypointFromDockerRaw[1])
-      if (!options.update) return entrypointFromDocker.join(' ')
+      return entrypointFromDocker.join(' ')
     } catch (err) {}
     defaultValue = entrypointFromDockerRaw[1].replace(/"/g, '')
-    if (!options.update) return entrypoint
+    return entrypoint
   }
+  if (options.dockerfileContents) return ''
 
   process.stdout.write('\n')
   const { entrypoint } = await prompt([
@@ -201,7 +202,7 @@ async function promptForPorts(existingPorts = [], language, options = {}) {
     const portsFromDockerfileRaw = (options.dockerfileContents || '').match(/^EXPOSE (.*)$/m)
     if (portsFromDockerfileRaw) {
       defaultValue = portsFromDockerfileRaw[1].split(' ')[0].replace(/\/.*$/, '')
-      if (!options.update) return defaultValue
+      return defaultValue
     }
   }
   process.stdout.write('\n')
@@ -211,6 +212,7 @@ async function promptForPorts(existingPorts = [], language, options = {}) {
       type: 'input',
       message: 'Does your app listen on any ports? If so, please enter them comma separated',
       default: defaultValue,
+
       validate: input => {
         if (!input) return true
         const ports = input.replace(/ /g, '').split(',')

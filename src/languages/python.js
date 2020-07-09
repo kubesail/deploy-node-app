@@ -21,10 +21,12 @@ module.exports = {
       'COPY requirements.txt ./',
       'RUN pip install --no-cache-dir -r requirements.txt',
       'COPY . .',
-      `CMD [${entrypoint
-        .split(' ')
-        .map(e => `"${e}"`)
-        .join(', ')}]`
+      entrypoint
+        ? `CMD [${entrypoint
+            .split(' ')
+            .map(e => `"${e}"`)
+            .join(', ')}]`
+        : ''
     ].join('\n')
   },
 
