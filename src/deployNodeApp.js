@@ -145,7 +145,7 @@ async function promptForEntrypoint(language, options) {
   ]
   const entrypointFromDockerRaw = (options.dockerfileContents || '').match(/^ENTRYPOINT (.*)$/m)
 
-  let defaultValue = suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p)))
+  const defaultValue = suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p)))
   if (entrypointFromDockerRaw) {
     try {
       const entrypointFromDocker = JSON.parse(entrypointFromDockerRaw[1])
