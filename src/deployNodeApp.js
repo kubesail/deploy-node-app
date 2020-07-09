@@ -113,7 +113,6 @@ async function promptForEntrypoint(language, options) {
       if (entrypoint && entrypoint !== chooseFile) return entrypoint
     }
   }
-
   const suggestedDefaultPaths = language.suggestedEntrypoints || [
     'src/index.js',
     'index.js',
@@ -144,16 +143,29 @@ async function promptForEntrypoint(language, options) {
     '.ico',
     '.txt'
   ]
-  process.stdout.write('\n')
+  const entrypointFromDockerRaw = (options.dockerfileContents || '').match(/^ENTRYPOINT (.*)$/m)
+
+  if (entrypointFromDockerRaw) {
+    try {
+      const entrypointFromDocker = JSON.parse(entrypointFromDockerRaw[1])
+      if (!options.update) return entrypointFromDocker.join(' ')
+    } catch (err) {}
+    if (!options.update) return entrypointFromDockerRaw[1].replace(/"/g, '')
+  }
+
   const defaultValue = suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p)))
+
+  process.stdout.write('\n')
   const { entrypoint } = await prompt([
     {
       name: 'entrypoint',
       type: 'fuzzypath',
-      message:
-        'What command or file starts your application? (eg: "npm run server", "index.html", "bin/start.sh")',
+      message: 'What command starts your application? (eg: "npm start", "server.py", "index.html")',
       default: defaultValue,
-      excludePath: filepath => invalidPaths.find(p => filepath.endsWith(p)),
+      excludePath: nodePath => nodePath.startsWith('node_modules'),
+      excludeFilter: filepath => {
+        return filepath.startsWith('.') || invalidPaths.find(p => filepath.endsWith(p))
+      },
       itemType: 'file',
       rootPath: options.target,
       suggestOnly: true
@@ -179,7 +191,13 @@ async function promptForImageName(projectName, existingName) {
 }
 
 // Promps user for project ports and attempts to suggest best practices
-async function promptForPorts(existingPorts = [], language) {
+async function promptForPorts(existingPorts = [], language, options = {}) {
+  if (!options.update && options.dockerfileContents) {
+    const portsFromDockerfileRaw = (options.dockerfileContents || '').match(/^EXPOSE (.*)$/m)
+    if (portsFromDockerfileRaw) {
+      return portsFromDockerfileRaw[1].split(' ')[0].replace(/\/.*$/, '')
+    }
+  }
   process.stdout.write('\n')
   const { newPorts } = await prompt([
     {
@@ -466,41 +484,41 @@ async function writeSecret(path, options = { force: false, update: false }) {
 
 async function writeSkaffold(path, envs, options = { force: false, update: false }) {
   const envNames = Object.keys(envs)
+  const profiles = envNames.map(envName => {
+    const env = envs[envName]
+    return {
+      name: envName,
+      deploy: { kustomize: { paths: [`k8s/overlays/${envName}`] } },
+      build: {
+        artifacts: env.map(a => {
+          const language = languages.find(l => l.name === a.language)
+          if (!language) throw new Error('Unable to detect language in writeSkaffold!')
+          return language.artifact
+            ? language.artifact(envName, a.image)
+            : {
+                image: a.image,
+                sync: { manual: [{ src: 'src/**/*.js', dest: '.' }] },
+                docker: { buildArgs: { ENV: envName } }
+              }
+        })
+      }
+    }
+  })
+  const artifacts = envNames
+    .map(e =>
+      envs[e].map(a => {
+        return { image: a.image }
+      })
+    )
+    .flat()
   await confirmWriteFile(
     path,
     loadAndMergeYAML(path, {
       apiVersion: 'skaffold/v2beta5',
       kind: 'Config',
       portForward: [],
-      build: {
-        artifacts: envNames
-          .map(e =>
-            envs[e].map(a => {
-              return { image: a.image }
-            })
-          )
-          .flat()
-      },
-      profiles: envNames.map(envName => {
-        const env = envs[envName]
-        return {
-          name: envName,
-          deploy: { kustomize: { paths: [`k8s/overlays/${envName}`] } },
-          build: {
-            artifacts: env.map(a => {
-              const language = languages.find(l => l.name === a.language)
-              if (!language) throw new Error('Unable to detect language in writeSkaffold!')
-              return language.artifact
-                ? language.artifact(envName, a.image)
-                : {
-                    image: a.image,
-                    sync: { manual: [{ src: 'src/**/*.js', dest: '.' }] },
-                    docker: { buildArgs: { ENV: envName } }
-                  }
-            })
-          }
-        }
-      })
+      build: { artifacts },
+      profiles
     }),
     options
   )
@@ -531,6 +549,10 @@ async function generateArtifact(
     }
   }
 
+  if (fs.existsSync('Dockerfile')) {
+    options.dockerfileContents = fs.readFileSync('Dockerfile').toString()
+  }
+
   const language = await promptForLanguage(options)
 
   // Entrypoint:
@@ -544,7 +566,8 @@ async function generateArtifact(
   // Container ports:
   let ports = options.ports || artifact.ports
   if (!ports || ports === 'none') ports = []
-  if (ports.length === 0 && !artifact.ports) ports = await promptForPorts(artifact.ports, language)
+  if (ports.length === 0 && !artifact.ports)
+    ports = await promptForPorts(artifact.ports, language, options)
 
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
   let uri = options.address || artifact.uri
