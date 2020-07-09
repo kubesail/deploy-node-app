@@ -145,15 +145,15 @@ async function promptForEntrypoint(language, options) {
   ]
   const entrypointFromDockerRaw = (options.dockerfileContents || '').match(/^ENTRYPOINT (.*)$/m)
 
+  let defaultValue = suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p)))
   if (entrypointFromDockerRaw) {
     try {
       const entrypointFromDocker = JSON.parse(entrypointFromDockerRaw[1])
       if (!options.update) return entrypointFromDocker.join(' ')
     } catch (err) {}
-    if (!options.update) return entrypointFromDockerRaw[1].replace(/"/g, '')
+    defaultValue = entrypointFromDockerRaw[1].replace(/"/g, '')
+    if (!options.update) return entrypoint
   }
-
-  const defaultValue = suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p)))
 
   process.stdout.write('\n')
   const { entrypoint } = await prompt([
@@ -192,10 +192,16 @@ async function promptForImageName(projectName, existingName) {
 
 // Promps user for project ports and attempts to suggest best practices
 async function promptForPorts(existingPorts = [], language, options = {}) {
-  if (!options.update && options.dockerfileContents) {
+  let defaultValue =
+    existingPorts.length > 0
+      ? existingPorts.join(', ')
+      : (language.suggestedPorts || [8000]).join(', ')
+
+  if (options.dockerfileContents) {
     const portsFromDockerfileRaw = (options.dockerfileContents || '').match(/^EXPOSE (.*)$/m)
     if (portsFromDockerfileRaw) {
-      return portsFromDockerfileRaw[1].split(' ')[0].replace(/\/.*$/, '')
+      defaultValue = portsFromDockerfileRaw[1].split(' ')[0].replace(/\/.*$/, '')
+      if (!options.update) return defaultValue
     }
   }
   process.stdout.write('\n')
@@ -204,10 +210,7 @@ async function promptForPorts(existingPorts = [], language, options = {}) {
       name: 'newPorts',
       type: 'input',
       message: 'Does your app listen on any ports? If so, please enter them comma separated',
-      default:
-        existingPorts.length > 0
-          ? existingPorts.join(', ')
-          : (language.suggestedPorts || [8000]).join(', '),
+      default: defaultValue,
       validate: input => {
         if (!input) return true
         const ports = input.replace(/ /g, '').split(',')
