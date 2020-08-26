@@ -21,7 +21,6 @@ const ERR_ARROWS = `${style.red.open}>>${style.red.close}`
 // Tracks files written to during this process
 const filesWritten = []
 const dirsWritten = []
-let USABLE_SHELL = process.env.SHELL
 
 function debug() {
   if (!process.env.DNA_DEBUG) return
@@ -173,16 +172,16 @@ const execSyncWithEnv = (cmd, options = {}) => {
   const mergedOpts = Object.assign({ catchErr: true }, options, {
     stdio: options.stdio || 'pipe',
     cwd: process.cwd(),
-    env: process.env,
-    shell: Object.prototype.hasOwnProperty.call(options, 'shell') ? options.shell : USABLE_SHELL
+    env: process.env
   })
-  if (options.debug) log(`execSyncWithEnv: ${cmd}`)
+  cmd = cmd.replace(/^\.\//, '')
+  cmd = process.cwd() + path.sep + cmd
+  debug(`execSyncWithEnv: ${cmd}`)
   let output
   try {
     output = execSync(cmd, mergedOpts)
   } catch (err) {
     if (mergedOpts.catchErr) {
-      debug(`Command "${cmd}" failed to run: "${err.message}"`)
       return false
     } else {
       throw err
@@ -193,25 +192,15 @@ const execSyncWithEnv = (cmd, options = {}) => {
 
 // Ensures other applications are installed (eg: skaffold)
 async function ensureBinaries(options) {
-  if (fs.existsSync('/bin/sh')) {
-    USABLE_SHELL = '/bin/sh'
-  } else if (fs.existsSync('/usr/bin/sh')) {
-    USABLE_SHELL = '/usr/bin/sh'
-  } else {
-    USABLE_SHELL = execSyncWithEnv('which sh', { shell: undefined })
-  }
-  // Handle a strange situation on WSL2 where /bin/sh is the shell, but it cannot be executed (ENOENT?)
-  // Using `undefined` seems to work in these situations - Should probably be investigated further!
-  if (!execSyncWithEnv('which which')) USABLE_SHELL = undefined
   const nodeModulesPath = `${options.target}/node_modules/.bin`
 
   // Check for Skaffold
-  const skaffoldPath = `${nodeModulesPath}/skaffold`
+  const skaffoldVersion = 'v1.13.2'
+  const skaffoldPath = `${nodeModulesPath}/skaffold-${skaffoldVersion}`
   const existsInNodeModules = fs.existsSync(skaffoldPath)
-  const existsInPath = execSyncWithEnv('which skaffold')
-  if (!existsInNodeModules && !existsInPath) {
+
+  if (!existsInNodeModules) {
     let skaffoldUri = ''
-    const skaffoldVersion = 'v1.12.0'
     switch (process.platform) {
       case 'darwin':
         skaffoldUri = `https://storage.googleapis.com/skaffold/releases/${skaffoldVersion}/skaffold-darwin-amd64`
@@ -230,12 +219,21 @@ async function ensureBinaries(options) {
     if (skaffoldUri) {
       log(`Downloading skaffold ${skaffoldVersion} to ${nodeModulesPath}...`)
       await mkdir(nodeModulesPath, options)
-      await pipeline(got.stream(skaffoldUri), fs.createWriteStream(skaffoldPath))
-      fs.chmodSync(skaffoldPath, 0o775)
+      pipeline(got.stream(skaffoldUri), fs.createWriteStream(skaffoldPath))
+        .catch(err => {
+          log(`Failed to download skaffold ${skaffoldVersion} to ${nodeModulesPath}!`, {
+            error: err.message
+          })
+          fs.unlinkSync(skaffoldPath)
+          process.exit(1)
+        })
+        .then(() => {
+          fs.chmodSync(skaffoldPath, 0o775)
+        })
     }
   }
 
-  return existsInPath || skaffoldPath
+  return skaffoldPath
 }
 
 function promptUserForValue(

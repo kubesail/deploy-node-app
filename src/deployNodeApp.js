@@ -568,13 +568,10 @@ async function generateArtifact(
   let artifact = envConfig.find(e => e.entrypoint === entrypoint) || {}
 
   // Container ports:
-  console.log(typeof artifact.ports, typeof options.ports)
   let ports = options.ports || artifact.ports
   if (!ports || ports === 'none') ports = []
   if (ports.length === 0 && !artifact.ports)
     ports = await promptForPorts(artifact.ports, language, options)
-
-  console.log(artifact.prots, ports)
 
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
   let uri = options.address || artifact.uri
@@ -789,7 +786,7 @@ module.exports = async function DeployNodeApp(env, action, options) {
 
   const execOptions = {
     stdio: 'inherit',
-    catchErr: false,
+    catchErr: true,
     env: Object.assign({}, process.env, { SKAFFOLD_NAMESPACE })
   }
 
