@@ -1,4 +1,5 @@
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const readline = require('readline')
 // eslint-disable-next-line security/detect-child-process
@@ -193,11 +194,20 @@ const execSyncWithEnv = (cmd, options = {}) => {
 async function ensureBinaries(options) {
   // Check for skaffold and download it if it does not exist
   const nodeModulesPath = `${options.target}/node_modules/.bin`
+  await mkdirp(nodeModulesPath)
   const skaffoldVersion = 'v1.13.2'
   const skaffoldDownloadPath = `${nodeModulesPath}/skaffold-${skaffoldVersion}`
   let skaffoldPath = process.env.SKAFFOLD_PATH || skaffoldDownloadPath
 
-  if (!fs.existsSync(skaffoldPath)) {
+  let skaffoldExists = fs.existsSync(skaffoldPath)
+  if (os.platform() === 'win32') {
+    if (fs.existsSync(`${skaffoldPath}.exe`)) {
+      skaffoldExists = true
+      skaffoldPath = `${skaffoldPath}.exe`
+    }
+  }
+
+  if (!skaffoldExists) {
     let skaffoldUri = ''
     switch (process.platform) {
       case 'darwin':
