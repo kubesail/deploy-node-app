@@ -191,14 +191,13 @@ const execSyncWithEnv = (cmd, options = {}) => {
 
 // Ensures other applications are installed (eg: skaffold)
 async function ensureBinaries(options) {
+  // Check for skaffold and download it if it does not exist
   const nodeModulesPath = `${options.target}/node_modules/.bin`
-
-  // Check for Skaffold
   const skaffoldVersion = 'v1.13.2'
-  const skaffoldPath = `${nodeModulesPath}/skaffold-${skaffoldVersion}`
-  const existsInNodeModules = fs.existsSync(skaffoldPath)
+  const skaffoldDownloadPath = `${nodeModulesPath}/skaffold-${skaffoldVersion}`
+  let skaffoldPath = process.env.SKAFFOLD_PATH || skaffoldDownloadPath
 
-  if (!existsInNodeModules) {
+  if (!fs.existsSync(skaffoldPath)) {
     let skaffoldUri = ''
     switch (process.platform) {
       case 'darwin':
@@ -218,17 +217,17 @@ async function ensureBinaries(options) {
     if (skaffoldUri) {
       log(`Downloading skaffold ${skaffoldVersion} to ${nodeModulesPath}...`)
       await mkdir(nodeModulesPath, options)
-      pipeline(got.stream(skaffoldUri), fs.createWriteStream(skaffoldPath))
-        .catch(err => {
+      await pipeline(got.stream(skaffoldUri), fs.createWriteStream(skaffoldDownloadPath)).catch(
+        err => {
           log(`Failed to download skaffold ${skaffoldVersion} to ${nodeModulesPath}!`, {
             error: err.message
           })
-          fs.unlinkSync(skaffoldPath)
+          fs.unlinkSync(skaffoldDownloadPath)
           process.exit(1)
-        })
-        .then(() => {
-          fs.chmodSync(skaffoldPath, 0o775)
-        })
+        }
+      )
+      fs.chmodSync(skaffoldDownloadPath, 0o775)
+      return skaffoldDownloadPath
     }
   }
 
