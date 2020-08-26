@@ -174,8 +174,7 @@ const execSyncWithEnv = (cmd, options = {}) => {
     cwd: process.cwd(),
     env: process.env
   })
-  cmd = cmd.replace(/^\.\//, '')
-  cmd = process.cwd() + path.sep + cmd
+  cmd = cmd.replace(/^\.\//, process.cwd() + path.sep)
   debug(`execSyncWithEnv: ${cmd}`)
   let output
   try {
