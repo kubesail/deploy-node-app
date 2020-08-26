@@ -145,7 +145,7 @@ async function promptForEntrypoint(language, options) {
   ]
   const entrypointFromDockerRaw = (options.dockerfileContents || '').match(/^ENTRYPOINT (.*)$/m)
 
-  let defaultValue = suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p)))
+  const defaultValue = suggestedDefaultPaths.find(p => fs.existsSync(path.join(options.target, p)))
   if (entrypointFromDockerRaw) {
     try {
       const entrypointFromDocker = JSON.parse(entrypointFromDockerRaw[1])
@@ -777,10 +777,7 @@ module.exports = async function DeployNodeApp(env, action, options) {
     if (!options.force && !process.env.CI) await sleep(1000) // Give administrators a chance to exit!
   }
 
-  if (action === 'init') {
-    options.write = true
-    options.update = true
-  }
+  if (action === 'init') options.write = true
   if (action === 'add') options.update = true
   await init(action, env, config, options)
 
