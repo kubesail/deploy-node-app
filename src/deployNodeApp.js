@@ -276,6 +276,7 @@ async function promptForIngress() {
 }
 
 async function promptForLanguage(options) {
+  debug('promptForLanguage', { language: options.language })
   if (options.language) {
     const found = languages.find(l => l.name === options.language)
     if (found) return found
