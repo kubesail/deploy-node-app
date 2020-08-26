@@ -201,7 +201,7 @@ async function promptForPorts(existingPorts = [], language, options = {}) {
     const portsFromDockerfileRaw = (options.dockerfileContents || '').match(/^EXPOSE (.*)$/m)
     if (portsFromDockerfileRaw) {
       defaultValue = portsFromDockerfileRaw[1].split(' ')[0].replace(/\/.*$/, '')
-      return defaultValue
+      return [defaultValue]
     }
   }
   process.stdout.write('\n')
@@ -568,10 +568,13 @@ async function generateArtifact(
   let artifact = envConfig.find(e => e.entrypoint === entrypoint) || {}
 
   // Container ports:
+  console.log(typeof artifact.ports, typeof options.ports)
   let ports = options.ports || artifact.ports
   if (!ports || ports === 'none') ports = []
   if (ports.length === 0 && !artifact.ports)
     ports = await promptForPorts(artifact.ports, language, options)
+
+  console.log(artifact.prots, ports)
 
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
   let uri = options.address || artifact.uri
