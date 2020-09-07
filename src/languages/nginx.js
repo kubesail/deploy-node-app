@@ -72,7 +72,6 @@ module.exports = {
             `COPY package.json package-lock.jso[n]` + (useYarn ? ' yarn.loc[k]' : '') + ' ./',
             "# Note that we're going to compile our project in the next command, so we need our development dependencies!",
             'ENV NODE_ENV=development',
-            'RUN apt-get update && apt-get install -yqq bash nginx',
             'RUN ' +
               (useYarn
                 ? 'yarn install'
