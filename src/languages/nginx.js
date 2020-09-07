@@ -42,7 +42,7 @@ module.exports = {
           name: 'useNginx',
           type: 'confirm',
           message:
-            'This project looks like it might be a static site, would you like to use nginx? Nginx will list on port 8080'
+            'This project looks like it might be a static site, would you like to use nginx? Nginx will listen on port 8080'
         }
       ])
       if (!useNginx) return false
