@@ -97,7 +97,7 @@ module.exports = {
     return false
   },
 
-  dockerfile: ({ entrypoint, detectedOptions }) => {
+  dockerfile: ({ entrypoint, detectedOptions = {} }) => {
     const { buildStep, skipEntrypointPrompt, image } = detectedOptions
     if (typeof skipEntrypointPrompt === 'string') entrypoint = skipEntrypointPrompt
     debug('Nginx generating dockerfile', { entrypoint, detectedOptions })
