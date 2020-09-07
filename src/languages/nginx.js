@@ -41,7 +41,8 @@ module.exports = {
         {
           name: 'useNginx',
           type: 'confirm',
-          message: 'This project looks like it might be a static site, would you like to use nginx?'
+          message:
+            'This project looks like it might be a static site, would you like to use nginx? Nginx will list on port 8080'
         }
       ])
       if (!useNginx) return false
@@ -85,7 +86,7 @@ module.exports = {
               '  rm -rf /usr/share/nginx/html && \\\n' +
               '  mv -n dist artifact || true && \\\n' +
               '  mv -n build artifact || true',
-            '\nFROM nginxinc/nginx-unprivileged',
+            '\nFROM nginx',
             'COPY --from=build /build/artifact /usr/share/nginx/html'
           ].join('\n')
         }
@@ -102,7 +103,7 @@ module.exports = {
     debug('Nginx generating dockerfile', { entrypoint, detectedOptions })
     return (
       [
-        `FROM ${image || 'nginxinc/nginx-unprivileged'}`,
+        `FROM ${image || 'nginx'}`,
         buildStep || `COPY ${path.dirname(entrypoint)} /usr/share/nginx/html`
       ]
         .filter(Boolean)
