@@ -83,10 +83,10 @@ module.exports = {
               buildStep +
               ' && \\\n' +
               '  rm -rf /usr/share/nginx/html && \\\n' +
-              '  mv -n dist /usr/share/nginx/html || true && \\\n' +
-              '  mv -n build /usr/share/nginx/html || true',
+              '  mv -n dist artifact || true && \\\n' +
+              '  mv -n build artifact || true',
             '\nFROM nginxinc/nginx-unprivileged',
-            'COPY --from=build /usr/share/nginx/html /usr/share/nginx/html'
+            'COPY --from=build /build/artifact /usr/share/nginx/html'
           ].join('\n')
         }
         return { buildStep, skipEntrypointPrompt, image: 'node as build' }
