@@ -36,10 +36,10 @@ const metaModules = [
 ]
 
 const languages = [
+  require('./languages/nginx'),
   require('./languages/nodejs'),
   require('./languages/python'),
-  require('./languages/ruby'),
-  require('./languages/nginx') // It's important that Nginx is last - plenty of other projects will include static html files
+  require('./languages/ruby')
 ]
 
 // Only allow projects that are valid dns components - we will prompt the user for a different name if this is name matched
@@ -65,7 +65,7 @@ function readLocalKubeConfig(configPathOption) {
 async function promptForPackageName(
   packageName = '',
   force = false,
-  message = 'What should we name this service?\n'
+  message = 'What should we name this app?\n'
 ) {
   const sanitizedName = packageName.split('.')[0]
   if (force && validProjectNameRegex.test(sanitizedName)) {
@@ -183,10 +183,11 @@ async function promptForImageName(projectName, existingName) {
       name: 'imageName',
       type: 'input',
       message:
-        'What is the image name for our project? To use docker hub, try username/projectname. Note: Make sure this is marked private, or it may be automatically created as a public image!',
+        'What is the container image name for our project? To use docker hub, try username/projectname. Note: Make sure this is marked private, or it may be automatically created as a public image!',
       default: existingName || `${os.userInfo().username}/${projectName}`
     }
   ])
+  process.stdout.write('\n')
   return imageName
 }
 
@@ -238,12 +239,15 @@ async function promptForPorts(existingPorts = [], language, options = {}) {
     .filter(Boolean)
 }
 
-async function promptForIngress() {
+async function promptForIngress(language) {
   process.stdout.write('\n')
-  const { isHttp } = await prompt([
-    { name: 'isHttp', type: 'confirm', default: true, message: 'Is this an HTTP service?' }
-  ])
-  if (!isHttp) return false
+
+  if (!language.skipHttpPrompt) {
+    const { isHttp } = await prompt([
+      { name: 'isHttp', type: 'confirm', default: true, message: 'Is this an HTTP service?' }
+    ])
+    if (!isHttp) return false
+  }
 
   let supportsAutogeneratingIngress = false
   if (kubeConfig && kubeConfig['current-context'] && kubeConfig.contexts) {
@@ -276,16 +280,21 @@ async function promptForIngress() {
 }
 
 async function promptForLanguage(options) {
-  debug('promptForLanguage', { language: options.language })
   if (options.language) {
     const found = languages.find(l => l.name === options.language)
-    if (found) return found
-    else {
+    if (found) {
+      found.detectedOptions = options.languageOptions
+      return found
+    } else {
       log(`No such language ${options.language}`)
     }
   }
   for (let i = 0; i < languages.length; i++) {
-    if (await languages[i].detect(options)) return languages[i]
+    const detected = await languages[i].detect(options)
+    if (detected) {
+      languages[i].detectedOptions = detected
+      return languages[i]
+    }
   }
   return fatal(
     "Unable to determine what sort of project this is. Please let us know what langauge this project is written in at https://github.com/kubesail/deploy-node-app/issues and we'll add support!"
@@ -559,11 +568,13 @@ async function generateArtifact(
   }
 
   const language = await promptForLanguage(options)
+  debug('promptForLanguage', { language, languageFromOptions: options.language })
 
   // Entrypoint:
   let entrypoint =
     options.entrypoint ||
     (envConfig[0] && envConfig[0].entrypoint) ||
+    language.skipEntrypointPrompt ||
     (await promptForEntrypoint(language, options))
   if (options.forceNew) entrypoint = await promptForEntrypoint(language, options)
   let artifact = envConfig.find(e => e.entrypoint === entrypoint) || {}
@@ -571,12 +582,13 @@ async function generateArtifact(
   // Container ports:
   let ports = options.ports || artifact.ports
   if (!ports || ports === 'none') ports = []
+  if (language.skipPortPrompt && ports.length === 0) ports = language.suggestedPorts
   if (ports.length === 0 && !artifact.ports)
     ports = await promptForPorts(artifact.ports, language, options)
 
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
   let uri = options.address || artifact.uri
-  if (ports.length > 0 && uri === undefined) uri = await promptForIngress()
+  if (ports.length > 0 && uri === undefined) uri = await promptForIngress(language)
 
   // Secrets will track secrets created by our dependencies which need to be written out to Kubernetes Secrets
   const secrets = []
@@ -597,7 +609,13 @@ async function generateArtifact(
   // Write Dockerfile based on our language
   await confirmWriteFile(
     'Dockerfile',
-    language.dockerfile({ ...options, entrypoint, name, env }),
+    language.dockerfile({
+      ...options,
+      ...language,
+      entrypoint,
+      name,
+      env
+    }),
     options
   )
 
@@ -647,7 +665,8 @@ async function generateArtifact(
     image: options.image,
     entrypoint,
     ports,
-    language: language.name
+    language: language.name,
+    languageOptions: language.detectedOptions
   })
   if (!envConfig.find(a => a.entrypoint === artifact.entrypoint)) envConfig.push(artifact)
   return envConfig.map(a => {
@@ -743,7 +762,11 @@ async function init(action, env = 'production', config, options = { update: fals
     append: true,
     dontPrune: true
   })
-  await writeTextLine('.dockerignore', 'k8s', { ...options, append: true, dontPrune: true })
+  await writeTextLine('.dockerignore', `k8s\nnode_modules\n.git\ndist\nbuild`, {
+    ...options,
+    append: true,
+    dontPrune: true
+  })
   await writeKustomization(`k8s/overlays/${env}/kustomization.yaml`, {
     ...options,
     env,

@@ -195,7 +195,7 @@ async function ensureBinaries(options) {
   // Check for skaffold and download it if it does not exist
   const nodeModulesPath = `${options.target}/node_modules/.bin`
   await mkdirp(nodeModulesPath)
-  const skaffoldVersion = 'v1.13.2'
+  const skaffoldVersion = 'v1.14.0'
   const skaffoldDownloadPath = `${nodeModulesPath}/skaffold-${skaffoldVersion}`
   let skaffoldPath = process.env.SKAFFOLD_PATH || skaffoldDownloadPath
 
@@ -281,7 +281,6 @@ async function readDNAConfig(options) {
 
 // Idempotently writes a line of text to a file
 async function writeTextLine(file, line, options = { update: false, force: false, append: false }) {
-  if (!options.write) return
   let existingContent
   try {
     existingContent = (await readFile(path.join(options.target, file))).toString()

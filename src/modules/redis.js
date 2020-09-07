@@ -2,7 +2,7 @@ module.exports = {
   name: 'redis',
   image: 'redis:latest',
   languages: {
-    nodejs: ['redis', 'ioredis'],
+    nodejs: ['redis', 'ioredis', 'redis-streams-aggregator'],
     python: ['redis'],
     php: ['phpredis'],
     ruby: ['redis']
