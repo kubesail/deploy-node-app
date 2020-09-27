@@ -87,7 +87,6 @@ module.exports = {
               '  mv -n dist artifact || true && \\\n' +
               '  mv -n build artifact || true',
             '\nFROM nginx',
-            'ENV NGINX_PORT=8080',
             'COPY --from=build /build/artifact /usr/share/nginx/html'
           ].join('\n')
         }
