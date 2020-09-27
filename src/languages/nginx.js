@@ -4,7 +4,7 @@ const { prompt, debug, writeTextLine } = require('../util')
 
 module.exports = {
   name: 'nginx',
-  suggestedPorts: [8080],
+  suggestedPorts: [80],
   suggestedEntrypoints: ['index.html', 'index.htm', 'public/index.html'],
 
   skipEntrypointPrompt: true,
@@ -42,7 +42,7 @@ module.exports = {
           name: 'useNginx',
           type: 'confirm',
           message:
-            'This project looks like it might be a static site, would you like to use nginx? Nginx will listen on port 8080'
+            'This project looks like it might be a static site, would you like to use nginx to serve your resources once built?'
         }
       ])
       if (!useNginx) return false
