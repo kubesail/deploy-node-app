@@ -574,8 +574,7 @@ async function generateArtifact(
   let entrypoint =
     options.entrypoint ||
     (envConfig[0] && envConfig[0].entrypoint) ||
-    language.skipEntrypointPrompt ||
-    (await promptForEntrypoint(language, options))
+    (language.skipEntrypointPrompt ? undefined : await promptForEntrypoint(language, options))
   if (options.forceNew) entrypoint = await promptForEntrypoint(language, options)
   let artifact = envConfig.find(e => e.entrypoint === entrypoint) || {}
 
