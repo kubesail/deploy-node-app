@@ -39,7 +39,8 @@ const languages = [
   require('./languages/nginx'),
   require('./languages/nodejs'),
   require('./languages/python'),
-  require('./languages/ruby')
+  require('./languages/ruby'),
+  require('./languages/plain-dockerfile')
 ]
 
 // Only allow projects that are valid dns components - we will prompt the user for a different name if this is name matched
@@ -581,9 +582,12 @@ async function generateArtifact(
   // Container ports:
   let ports = options.ports || artifact.ports
   if (!ports || ports === 'none') ports = []
-  if (language.skipPortPrompt && ports.length === 0) ports = language.suggestedPorts
-  if (ports.length === 0 && !artifact.ports)
+  if (language.skipPortPrompt && ports.length === 0 && language.suggestedPorts) {
+    ports = language.suggestedPorts
+  }
+  if (ports.length === 0 && !artifact.ports && !language.skipPortPrompt) {
     ports = await promptForPorts(artifact.ports, language, options)
+  }
 
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
   let uri = options.address || artifact.uri
@@ -606,17 +610,19 @@ async function generateArtifact(
   }
 
   // Write Dockerfile based on our language
-  await confirmWriteFile(
-    'Dockerfile',
-    language.dockerfile({
-      ...options,
-      ...language,
-      entrypoint,
-      name,
-      env
-    }),
-    options
-  )
+  if (language.dockerfile) {
+    await confirmWriteFile(
+      'Dockerfile',
+      language.dockerfile({
+        ...options,
+        ...language,
+        entrypoint,
+        name,
+        env
+      }),
+      options
+    )
+  }
 
   // Write a Kubernetes Deployment object
   await mkdir(`k8s/base/${name}`, options)
