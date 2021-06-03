@@ -99,15 +99,16 @@ async function promptForEntrypoint(language, options) {
       const choices = Object.keys(packageJson.scripts).map(k =>
         useYarn ? `yarn ${k}` : `npm run ${k}`
       )
-      const chooseFile = 'Choose a file or command instead'
+      const chooseFile = 'Enter a command'
       choices.push(chooseFile)
-      const defaultValue = choices.includes('start') ? 'start' : choices[0]
+      let defaultScript = packageJson.scripts.start ? 'start' : Object.keys(packageJson.scripts)[0]
+      if (!defaultScript) defaultScript = chooseFile
       const { entrypoint } = await prompt([
         {
           name: 'entrypoint',
           type: 'list',
           message: 'Which command starts your application? (From package.json)',
-          default: defaultValue,
+          default: useYarn ? `yarn ${defaultScript}` : `npm run ${defaultScript}`,
           choices
         }
       ])
