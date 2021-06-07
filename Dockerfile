@@ -1,6 +1,6 @@
 # Published as kubesail/dna-test:14
 
-FROM node:14-slim
+FROM node:16-slim
 
 RUN apt-get update -yqq && \
   apt-get install -yqq bash curl git && \
