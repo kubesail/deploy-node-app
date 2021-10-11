@@ -448,7 +448,7 @@ async function writeIngress(path, name, uri, port, options = { force: false, upd
   await confirmWriteFile(
     path,
     loadAndMergeYAML(path, {
-      apiVersion: 'networking.k8s.io/v1beta1',
+      apiVersion: 'networking.k8s.io/v1',
       kind: 'Ingress',
       metadata: { name },
       spec
