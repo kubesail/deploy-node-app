@@ -478,11 +478,13 @@ async function writeService(path, name, ports, options = { force: false, update:
 
 // Writes a simple Kubernetes Ingress object
 async function writeIngress(path, name, uri, port, options = { force: false, update: false }) {
-  const port = {}
-  if (isNaN(parseInt(port, 10))) port.name = port
-  else port.number = port
+  const portObj = {}
+  if (isNaN(parseInt(port, 10))) portObj.name = port
+  else portObj.number = port
   const rule = {
-    http: { paths: [{ pathType: 'ImplementationSpecific', backend: { service: name, port } }] }
+    http: {
+      paths: [{ pathType: 'ImplementationSpecific', backend: { service: { name, port: portObj } } }]
+    }
   }
   const spec = { rules: [rule] }
   if (typeof uri === 'string') {
