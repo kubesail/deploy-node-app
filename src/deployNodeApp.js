@@ -287,12 +287,12 @@ async function promptForIngress(language, _options) {
     return baseDirName
   }
 
-  let supportsAutogeneratingIngress = false
+  let supportsAutoGeneratingIngress = false
   if (kubeConfig && kubeConfig['current-context'] && kubeConfig.contexts) {
     const { context } = kubeConfig.contexts.find(c => c.name === kubeConfig['current-context'])
     const { cluster } = kubeConfig.clusters.find(c => c.name === context.cluster)
     if (cluster && cluster.server && cluster.server.indexOf('kubesail.com')) {
-      supportsAutogeneratingIngress = true
+      supportsAutoGeneratingIngress = true
     }
   }
 
@@ -303,17 +303,19 @@ async function promptForIngress(language, _options) {
       type: 'input',
       message:
         'What domain will this use?' +
-        (supportsAutogeneratingIngress ? ' (leave blank for auto-generate)' : ''),
+        (supportsAutoGeneratingIngress ? ' (leave blank for auto-generate)' : ''),
       validate: input => {
         if (input && (input.startsWith('http://') || input.startsWith('https://'))) {
           input = input.replace(/^https?:\/\//, '')
         }
-        if (input && !isFQDN(input)) return 'Please input a valid DNS name (ie: my.example.com)'
-        else return supportsAutogeneratingIngress
+        const fqdn = isFQDN(input)
+        if (input && fqdn) return true
+        else if (input && !fqdn) return 'Please input a valid DNS name (ie: my.example.com)'
+        else return supportsAutoGeneratingIngress
       }
     }
   ])
-  if (!ingressUri && supportsAutogeneratingIngress) return true
+  if (!ingressUri && supportsAutoGeneratingIngress) return true
   else return ingressUri
 }
 

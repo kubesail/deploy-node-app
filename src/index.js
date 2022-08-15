@@ -43,29 +43,31 @@ program
   )
   .parse(process.argv)
 
+const opts = program.opts()
+
 deployNodeApp(env, action, {
-  language: program.language || null,
+  language: opts.language || null,
   action: action || 'deploy',
-  write: program.write || false,
-  update: program.update || false,
-  force: program.force || false,
-  config: program.config === '~/.kube/config' ? null : program.config,
-  modules: (program.modules || '').split(',').filter(Boolean),
-  add: program.add || false,
-  target: program.target || '.',
-  labels: (program.label || '')
+  write: opts.write || false,
+  update: opts.update || false,
+  force: opts.force || false,
+  config: opts.config === '~/.kube/config' ? null : opts.config,
+  modules: (opts.modules || '').split(',').filter(Boolean),
+  add: opts.add || false,
+  target: opts.target || '.',
+  labels: (opts.label || '')
     .split(',')
     .map(k => k.split('=').filter(Boolean))
     .filter(Boolean),
-  name: program.projectName,
-  entrypoint: program.entrypoint || false,
-  image: program.image || false,
-  ports: program.ports
-    ? program.ports
+  name: opts.projectName,
+  entrypoint: opts.entrypoint || false,
+  image: opts.image || false,
+  ports: opts.ports
+    ? opts.ports
         .split(',')
         .map(p => parseInt(p, 10))
         .filter(Boolean)
     : null,
-  address: program.address || false,
-  prompts: program.prompts
+  address: opts.address || false,
+  prompts: opts.prompts
 })

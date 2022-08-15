@@ -12,13 +12,22 @@ module.exports = {
   suggestedPorts: [3000],
 
   detect: async function (options) {
-    const pkgPath = path.join(options.target, './next.config.js')
-    let looksLikeNext = false
-    if (fs.existsSync(pkgPath)) {
-      looksLikeNext = true
+    const nextConfigPath = path.join(options.target, './next.config.js')
+    if (fs.existsSync(nextConfigPath)) {
       this.suggestedPorts = [3000]
+      return true
     }
-    return looksLikeNext
+    const pkgPath = path.join(options.target, './package.json')
+    if (fs.existsSync(pkgPath)) {
+      try {
+        const packageJson = JSON.parse(fs.readFileSync(pkgPath))
+        if (packageJson) {
+          if (Object.keys(packageJson.dependencies).includes('next')) {
+            return true
+          }
+        }
+      } catch {}
+    }
   },
 
   entrypoint: () => 'yarn start',

@@ -93,7 +93,6 @@ function warnAboutUnwrittenChanges() {
 async function confirmWriteFile(filePath, content, options = { update: false, force: false }) {
   const { update, force } = options
   const fullPath = path.join(options.target, filePath)
-
   const exists = fs.existsSync(fullPath)
   let doWrite = !exists
   if (!update && exists) {
@@ -133,6 +132,7 @@ async function confirmWriteFile(filePath, content, options = { update: false, fo
     try {
       // Don't document writes to existing files - ie: never delete a users files!
       if (!options.dontPrune && !fs.existsSync(fullPath)) filesWritten.push(fullPath)
+      debug(`Writing ${fullPath}`)
       await writeFile(fullPath, content)
     } catch (err) {
       fatal(`Error writing ${filePath}: ${err.message}`)
