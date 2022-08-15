@@ -79,6 +79,15 @@ function prompt(options) {
   })
 }
 
+let warnedAboutUnwrittenChanges = false
+function warnAboutUnwrittenChanges() {
+  if (warnedAboutUnwrittenChanges) return
+  warnedAboutUnwrittenChanges = true
+  log(
+    `${style.yellow.open}Warning!${style.yellow.close} Some changes were not written to disk. By default we try not to change anything! Obviously, this doesn\'t always work! Use "deploy-node-app --update" to write out changes.`
+  )
+}
+
 // Writes a file unless it already exists, then properly handles that
 // Can also diff before writing!
 async function confirmWriteFile(filePath, content, options = { update: false, force: false }) {
@@ -87,8 +96,10 @@ async function confirmWriteFile(filePath, content, options = { update: false, fo
 
   const exists = fs.existsSync(fullPath)
   let doWrite = !exists
-  if (!update && exists) return false
-  else if (exists && update && !force) {
+  if (!update && exists) {
+    warnAboutUnwrittenChanges()
+    return false
+  } else if (exists && update && !force) {
     const existingData = (await readFile(fullPath)).toString()
     if (content === existingData) return false
 
@@ -123,12 +134,12 @@ async function confirmWriteFile(filePath, content, options = { update: false, fo
       // Don't document writes to existing files - ie: never delete a users files!
       if (!options.dontPrune && !fs.existsSync(fullPath)) filesWritten.push(fullPath)
       await writeFile(fullPath, content)
-      debug(`Successfully wrote "${filePath}"`)
     } catch (err) {
       fatal(`Error writing ${filePath}: ${err.message}`)
     }
     return true
   }
+  warnAboutUnwrittenChanges()
 }
 
 const mkdir = async (filePath, options) => {

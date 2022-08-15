@@ -35,7 +35,10 @@ const metaModules = [
   require('./modules/redis')
 ]
 
+// Should be sorted in order of specificity
+// IE: All Next.js apps are Node.js apps, but not all Node.js apps are Next.js apps: therefore, Next.js should come before Node.js
 const languages = [
+  require('./languages/nextjs'),
   require('./languages/nginx'),
   require('./languages/nodejs'),
   require('./languages/python'),
@@ -53,7 +56,7 @@ function readLocalKubeConfig(configPathOption) {
   debug(`Using kube config ${configPath}`)
   if (!fs.existsSync(configPath)) return {}
   try {
-    kubeConfig = yaml.safeLoad(fs.readFileSync(configPath))
+    kubeConfig = yaml.load(fs.readFileSync(configPath))
   } catch (err) {
     fatal(
       `It seems you have a Kubernetes config file at ${configPath}, but it is not valid yaml, or unreadable! Error: ${err.message}`
@@ -95,6 +98,7 @@ async function promptForEntrypoint(language, options) {
   if (fs.existsSync('./package.json')) {
     const packageJson = JSON.parse(fs.readFileSync('./package.json'))
     const useYarn = fs.existsSync('./yarn.lock')
+    if (typeof language.skipEntrypointPrompt) return language.entrypoint()
     if (packageJson.scripts) {
       const choices = Object.keys(packageJson.scripts).map(k =>
         useYarn ? `yarn ${k}` : `npm run ${k}`
@@ -157,6 +161,7 @@ async function promptForEntrypoint(language, options) {
     return entrypointFromDockerRaw[1].replace(/"/g, '')
   }
   if (options.dockerfileContents) return ''
+  if (language.skipEntrypointPrompt) return language.entrypoint()
 
   process.stdout.write('\n')
   const { entrypoint } = await prompt([
@@ -266,7 +271,7 @@ async function promptForPorts(existingPorts = [], language, options = {}) {
     .filter(Boolean)
 }
 
-async function promptForIngress(language) {
+async function promptForIngress(language, _options) {
   process.stdout.write('\n')
 
   if (!language.skipHttpPrompt) {
@@ -274,6 +279,12 @@ async function promptForIngress(language) {
       { name: 'isHttp', type: 'confirm', default: true, message: 'Is this an HTTP service?' }
     ])
     if (!isHttp) return false
+  }
+
+  const baseDirName = path.basename(process.cwd())
+  if (isFQDN(baseDirName)) {
+    debug('Project directory is an FQDN - assuming this is the domain the user wants')
+    return baseDirName
   }
 
   let supportsAutogeneratingIngress = false
@@ -391,11 +402,11 @@ function loadAndMergeYAML(path, newData) {
   if (!newData) throw new Error('loadAndMergeYAML handed null newData')
   let yamlStr = ''
   if (fs.existsSync(path)) {
-    const existing = yaml.safeLoad(fs.readFileSync(path))
+    const existing = yaml.load(fs.readFileSync(path))
     merge(existing, newData)
     if (typeof existing !== 'object') throw new Error('loadAndMergeYAML null existing')
-    yamlStr = yaml.safeDump(existing)
-  } else yamlStr = yaml.safeDump(newData)
+    yamlStr = yaml.dump(existing)
+  } else yamlStr = yaml.dump(newData)
   return yamlStr + '\n'
 }
 
@@ -617,7 +628,7 @@ async function generateArtifact(
 
   // If this process listens on a port, write a Kubernetes Service and potentially an Ingress
   let uri = options.address || artifact.uri
-  if (ports.length > 0 && uri === undefined) uri = await promptForIngress(language)
+  if (ports.length > 0 && uri === undefined) uri = await promptForIngress(language, options)
 
   // Secrets will track secrets created by our dependencies which need to be written out to Kubernetes Secrets
   const secrets = []
