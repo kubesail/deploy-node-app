@@ -1,5 +1,5 @@
 const fs = require('fs')
-const { prompt, debug, writeTextLine } = require('../util')
+const { prompt, _debug, _writeTextLine } = require('../util')
 
 module.exports = {
   name: 'plain-dockerfile',
@@ -17,7 +17,6 @@ module.exports = {
             "We can't detect the language for this project, but there does appear to be a Dockerfile - would you like to build and deploy this repo anyways?"
         }
       ])
-      console.log({ simpleDockerfile })
       if (!simpleDockerfile) return false
       return true
     }

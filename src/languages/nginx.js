@@ -1,6 +1,6 @@
 const fs = require('fs')
 const path = require('path')
-const { prompt, debug, writeTextLine } = require('../util')
+const { prompt, debug } = require('../util')
 
 module.exports = {
   name: 'nginx',
