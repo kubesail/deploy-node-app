@@ -66,7 +66,7 @@ function readLocalKubeConfig(configPathOption) {
 async function promptForPackageName(
   packageName = '',
   force = false,
-  message = 'What should we name this app?\n'
+  message = 'What should we name this app? (internal name, not shown to users, must be URL-safe)\n'
 ) {
   const sanitizedName = packageName.split('.')[0]
   if (force && validProjectNameRegex.test(sanitizedName)) {
@@ -180,20 +180,44 @@ async function promptForEntrypoint(language, options) {
 
 async function promptForImageName(projectName, existingName) {
   process.stdout.write('\n')
+
+  let assumedUsername = os.userInfo().username
+  try {
+    if (fs.statSync('.git/config')) {
+      const gitConfig = fs
+        .readFileSync('.git/config')
+        .toString('ascii')
+        .replace(/\t/g, '')
+        .replace(/\r\n/g, '\n')
+        .trim()
+        .split('\n')
+        .find(s => s.startsWith('url ='))
+      if (gitConfig) {
+        const [_prefix, repo] = gitConfig.split(':')
+        if (repo) {
+          const [username, _project] = repo.split('/')
+          if (username) assumedUsername = username
+        }
+      }
+    }
+  } catch (err) {
+    debug(`Failed to parse .git/config file to obtain username`, { errMsg: err.message })
+  }
+
   const { imageName } = await prompt([
     {
       name: 'imageName',
       type: 'input',
       message:
-        'What is the container image name for our project? To use docker hub, try username/projectname. Note: Make sure this is marked private, or it may be automatically created as a public image!',
-      default: existingName || `${os.userInfo().username}/${projectName}`
+        'What is the container image name for our project? To use docker hub, try username/project-name. Note: Make sure this is marked private, or it may be automatically created as a public image!',
+      default: existingName || `${assumedUsername}/${projectName.replace(/[^a-z0-9-]/gi, '')}`
     }
   ])
   process.stdout.write('\n')
   return imageName
 }
 
-// Promps user for project ports and attempts to suggest best practices
+// Prompts user for project ports and attempts to suggest best practices
 async function promptForPorts(existingPorts = [], language, options = {}) {
   let defaultValue =
     existingPorts.length > 0
@@ -530,7 +554,7 @@ async function writeSkaffold(path, envs, options = { force: false, update: false
   await confirmWriteFile(
     path,
     loadAndMergeYAML(path, {
-      apiVersion: 'skaffold/v2beta5',
+      apiVersion: 'skaffold/v2beta29',
       kind: 'Config',
       portForward: [],
       build: { artifacts },
