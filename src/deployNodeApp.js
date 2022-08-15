@@ -427,7 +427,10 @@ async function writeDeployment(path, language, options = { force: false, update:
   if (entrypoint) container.command = entrypoint
   if (language && language.entrypoint) container.command = language.entrypoint(container.command)
   if (!container.command) delete container.command
-  else container.command.split(' ').filter(Boolean)
+
+  if (typeof container.command === 'string') {
+    container.command = container.command.split(' ').filter(Boolean)
+  }
 
   if (secrets.length > 0) {
     container.envFrom = secrets.map(secret => {
@@ -475,8 +478,11 @@ async function writeService(path, name, ports, options = { force: false, update:
 
 // Writes a simple Kubernetes Ingress object
 async function writeIngress(path, name, uri, port, options = { force: false, update: false }) {
+  const port = {}
+  if (isNaN(parseInt(port, 10))) port.name = port
+  else port.number = port
   const rule = {
-    http: { paths: [{ path: '/', backend: { serviceName: name, servicePort: port } }] }
+    http: { paths: [{ pathType: 'ImplementationSpecific', backend: { service: name, port } }] }
   }
   const spec = { rules: [rule] }
   if (typeof uri === 'string') {
