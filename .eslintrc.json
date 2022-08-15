@@ -1,48 +1,30 @@
 {
-  "parser": "babel-eslint",
-  "extends": [
-    "standard",
-    "plugin:security/recommended",
-    "prettier"
-  ],
+  "ignorePatterns": ["out/", ".next", "dev-server.js", "https-server.js"],
+  "extends": ["standard", "plugin:security/recommended", "prettier"],
   "plugins": ["standard", "security", "prettier"],
-  "parserOptions": {
-    "ecmaVersion": 7,
-    "ecmaFeatures": {
-      "modules": true
-    }
-  },
   "rules": {
-    "prettier/prettier": "error",
-    "no-console": [
-      "warn",
-      {
-        "allow": ["warn", "error"]
-      }
-    ],
-    "no-return-assign": 0,
+    "react/no-unescaped-entities": 0,
+    "@next/next/no-document-import-in-page": 0,
+    "react-hooks/exhaustive-deps": 0,
+    "@next/next/no-img-element": 0,
+    "prettier/prettier": "warn",
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    // "no-return-assign": 0,
     "require-await": 0,
+    "prefer-regex-literals": 0,
     // "quotes": ["error", "single"],
-    "no-return-await": 0,
-    "no-unused-vars": [
-      1,
-      {
-        "vars": "all",
-        "args": "none",
-        "varsIgnorePattern": "^(React$|_)"
-      }
-    ],
+    // "no-return-await": 0,
+    "array-callback-return": 0,
+    "no-unreachable": ["warn"],
+    "no-use-before-define": "error",
+    "no-unused-vars": [1, { "vars": "all", "args": "none", "varsIgnorePattern": "^(logger$|React$|_)" }],
     "standard/computed-property-even-spacing": 0,
     "camelcase": 0,
     "object-curly-spacing": ["error", "always"],
     "security/detect-object-injection": 0,
     "security/detect-non-literal-fs-filename": 0,
     "security/detect-unsafe-regex": 0,
-    "import/order": [
-      "warn",
-      {
-        "groups": ["builtin", "external", "internal"]
-      }
-    ]
+    "import/order": ["warn", { "groups": ["builtin", "external", "internal"] }],
+    "no-unused-expressions": 0
   }
 }
