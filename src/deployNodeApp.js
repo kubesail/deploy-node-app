@@ -415,10 +415,7 @@ function loadAndMergeYAML(path, newData) {
 // Writes a simple Kubernetes Deployment object
 async function writeDeployment(path, language, options = { force: false, update: false }) {
   const { name, entrypoint, image, ports = [], secrets = [] } = options
-  const resources = {
-    requests: { cpu: '50m', memory: '100Mi' },
-    limits: { cpu: '500m', memory: '256Mi' }
-  }
+  const resources = { requests: { cpu: '50m', memory: '100Mi' } }
   const containerPorts = ports.map(port => {
     return { containerPort: port }
   })
