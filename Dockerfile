@@ -1,6 +1,6 @@
 # Published as kubesail/dna-test:14
 
-FROM node:16-bullseye-slim
+FROM node:18-bullseye-slim
 
 ARG TARGETARCH
 ENV TARGETARCH=${TARGETARCH:-amd64}
