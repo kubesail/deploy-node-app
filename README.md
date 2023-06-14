@@ -6,10 +6,7 @@
 
 `deploy-node-app` will prompt you with a minimal set of questions required to deploy your app to any Kubernetes cluster. If zero-config with no lock-in sounds too good to be true - remember this project is in **beta** :wink:. However, it mostly works, and `deploy-node-app` also supports more than just Node.js projects! Try it on a Python or Ruby project or a static site project!
 
-Once you've run `deploy-node-app` in your project, you can commit your `.dna.json` file and use `deploy-node-app` with no prompts in the future (works great for CI too!)
-
-If you don't have a Kubernetes cluster, don't worry! This tool can automatically provision a free [KubeSail.com](https://kubesail.com) cluster for you!
-
+Once you've run `deploy-node-app` in your project, you can commit your `.dna.json` file and use `deploy-node-app` with no prompts in the future (works great for CI too!).
 
 ## Instructions
 
