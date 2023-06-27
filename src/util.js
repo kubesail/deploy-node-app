@@ -206,7 +206,7 @@ async function ensureBinaries(options) {
   // Check for skaffold and download it if it does not exist
   const nodeModulesPath = `${options.target}/node_modules/.bin`
   await mkdirp(nodeModulesPath)
-  const skaffoldVersion = 'v1.39.1'
+  const skaffoldVersion = 'v2.5.1'
   const skaffoldDownloadPath = `${nodeModulesPath}/skaffold-${skaffoldVersion}`
   let skaffoldPath = process.env.SKAFFOLD_PATH || skaffoldDownloadPath
 

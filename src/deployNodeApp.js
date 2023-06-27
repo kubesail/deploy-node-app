@@ -573,7 +573,7 @@ async function writeSkaffold(path, envs, options = { force: false, update: false
   await confirmWriteFile(
     path,
     loadAndMergeYAML(path, {
-      apiVersion: 'skaffold/v2beta29',
+      apiVersion: 'skaffold/v3',
       kind: 'Config',
       portForward: [],
       build: { artifacts },
