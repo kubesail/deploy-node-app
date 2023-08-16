@@ -18,18 +18,11 @@ Just run `npx deploy-node-app` in your node project.
 
 `deploy-node-app` is a project bootstrapper, powered by [Skaffold](https://github.com/GoogleContainerTools/skaffold). After answering a few questions about your app, this tool can:
 
-1. Create a Dockerfile, skaffold.yaml and all the YAML Kubernetes!
+1. Create a Dockerfile, skaffold.yaml and all the Kubernetes YAML you need!
 2. Automatically provision common dependencies (like redis and postgres)!
-3. Develop and deploy your app on any Kubernetes cluster!
+3. Develop and deploy your app on any Kubernetes cluster
 
 Essentially, `deploy-node-app` supercharges any web applications with awesome tools and best practices.
-
-With `deploy-node-app`, any codebase can have:
-
-1. Local and remote development!
-2. Infrastructure-as-code with no effort!
-3. Zero downtime, rolling deployments!
-4. Free hosting, including SSL and custom domains! (provided by [KubeSail](https://kubesail.com))
 
 ## Usage and examples
 
