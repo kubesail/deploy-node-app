@@ -6,10 +6,7 @@
 
 `deploy-node-app` will prompt you with a minimal set of questions required to deploy your app to any Kubernetes cluster. If zero-config with no lock-in sounds too good to be true - remember this project is in **beta** :wink:. However, it mostly works, and `deploy-node-app` also supports more than just Node.js projects! Try it on a Python or Ruby project or a static site project!
 
-Once you've run `deploy-node-app` in your project, you can commit your `.dna.json` file and use `deploy-node-app` with no prompts in the future (works great for CI too!)
-
-If you don't have a Kubernetes cluster, don't worry! This tool can automatically provision a free [KubeSail.com](https://kubesail.com) cluster for you!
-
+Once you've run `deploy-node-app` in your project, you can commit your `.dna.json` file and use `deploy-node-app` with no prompts in the future (works great for CI too!).
 
 ## Instructions
 
@@ -21,18 +18,11 @@ Just run `npx deploy-node-app` in your node project.
 
 `deploy-node-app` is a project bootstrapper, powered by [Skaffold](https://github.com/GoogleContainerTools/skaffold). After answering a few questions about your app, this tool can:
 
-1. Create a Dockerfile, skaffold.yaml and all the YAML Kubernetes!
+1. Create a Dockerfile, skaffold.yaml and all the Kubernetes YAML you need!
 2. Automatically provision common dependencies (like redis and postgres)!
-3. Develop and deploy your app on any Kubernetes cluster!
+3. Develop and deploy your app on any Kubernetes cluster
 
 Essentially, `deploy-node-app` supercharges any web applications with awesome tools and best practices.
-
-With `deploy-node-app`, any codebase can have:
-
-1. Local and remote development!
-2. Infrastructure-as-code with no effort!
-3. Zero downtime, rolling deployments!
-4. Free hosting, including SSL and custom domains! (provided by [KubeSail](https://kubesail.com))
 
 ## Usage and examples
 
